@@ -1,0 +1,26 @@
+id,name,description,category,rarity,sprite_index,stack_size,sell_price,buy_price,craftable,crafting_materials,crafting_station,crafting_time,usable,durability,season,month,time_of_day,weather
+shovel,Shovel,A basic shovel for digging,tools,common,2,1,100,150,true,"wood,iron_nugget",workbench,30,true,100,spring,3,morning,sunny
+net,Net,A bug catching net,tools,common,3,1,120,180,true,"wood,string",workbench,25,true,80,spring,4,afternoon,sunny
+fishing_rod,Fishing Rod,A fishing rod for catching fish,tools,common,5,1,150,200,true,"wood,string,iron_nugget",workbench,45,true,120,spring,5,morning,sunny
+watering_can,Watering Can,A can for watering plants,tools,common,6,1,80,120,true,"iron_nugget",workbench,20,true,60,spring,6,afternoon,sunny
+axe,Axe,A tool for chopping wood,tools,common,7,1,200,250,true,"wood,iron_nugget",workbench,40,true,150,spring,7,morning,sunny
+wood,Wood,Basic wood material,materials,common,1,30,10,15,false,,,0,false,0,all,0,all,all
+iron_nugget,Iron Nugget,A nugget of iron,materials,uncommon,8,30,25,35,false,,,0,false,0,all,0,all,all
+string,String,Basic string material,materials,common,9,50,5,8,false,,,0,false,0,all,0,all,all
+stone,Stone,A piece of stone,materials,common,10,30,8,12,false,,,0,false,0,all,0,all,all
+clay,Clay,Soft clay material,materials,common,11,20,12,18,false,,,0,false,0,all,0,all,all
+rose_red,Red Rose,A beautiful red rose,flowers,common,43,10,50,75,false,,,0,false,0,spring,4,morning,sunny
+rose_white,White Rose,A pure white rose,flowers,common,44,10,50,75,false,,,0,false,0,spring,5,afternoon,sunny
+tulip_red,Red Tulip,A vibrant red tulip,flowers,common,47,10,40,60,false,,,0,false,0,spring,6,morning,sunny
+fish_betta,Betta,A colorful betta fish,fish,uncommon,64,1,200,300,false,,,0,false,0,spring,4,afternoon,sunny
+fish_goldfish,Goldfish,A golden fish,fish,common,70,1,150,225,false,,,0,false,0,spring,5,morning,sunny
+bug_butterfly,Common Butterfly,A common butterfly,bugs,common,85,1,100,150,false,,,0,false,0,spring,6,afternoon,sunny
+bug_ladybug,Ladybug,A spotted ladybug,bugs,common,87,1,80,120,false,,,0,false,0,spring,7,morning,sunny
+bell_bag_small,Small Bell Bag,A small bag of bells,currency,common,35,99,0,100,false,,,0,false,0,all,0,all,all
+bell_bag_med,Medium Bell Bag,A medium bag of bells,currency,uncommon,36,99,0,500,false,,,0,false,0,all,0,all,all
+bell_bag_large,Large Bell Bag,A large bag of bells,currency,rare,37,99,0,1000,false,,,0,false,0,all,0,all,all
+workbench,Workbench,A basic crafting station,furniture,common,100,1,500,750,true,"wood,iron_nugget,stone",workbench,120,false,0,all,0,all,all
+chest,Chest,A storage container,furniture,common,101,1,300,450,true,"wood,iron_nugget",workbench,60,false,0,all,0,all,all
+table,Table,A simple table,furniture,common,102,1,200,300,true,"wood",workbench,30,false,0,all,0,all,all
+chair,Chair,A basic chair,furniture,common,103,1,150,225,true,"wood",workbench,25,false,0,all,0,all,all
+bed,Bed,A comfortable bed,furniture,uncommon,104,1,800,1200,true,"wood,string,cloth",workbench,90,false,0,all,0,all,all
