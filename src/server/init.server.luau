@@ -7,6 +7,8 @@ print("📊 ServerScriptService scripts will run automatically")
 -- Import services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 print("[Server] 🚀 Starting inventory system...")
 
@@ -17,6 +19,9 @@ inventoryRemote.Parent = ReplicatedStorage
 
 -- Player inventory storage
 local playerInventories = {}
+
+-- Inventory slot configuration
+local MAX_SLOTS = 20
 
 -- World item storage - tracks all dropped items
 local worldItems = {}
@@ -127,222 +132,375 @@ local ItemData = {
 	heart_pink = { index = 114, name = "Heart Crystal" },
 }
 
+local SpriteConfig = {
+        SHEET_ASSET = "rbxassetid://74324628581851",
+        COLUMNS = 21,
+        ROWS = 24,
+        TILE = 36.6,
+        INNER = Vector2.new(6, 6),
+        OUTER = Vector2.new(4, 4),
+        BLEED_FIX = 0.25,
+}
+
 -- Initialize player inventory
 local function initializePlayerInventory(player)
-	playerInventories[player.UserId] = {
-		items = {
-			-- Essential Tools
-			{ itemId = "shovel", count = 1 },
-			{ itemId = "net", count = 1 },
-			{ itemId = "fishing_rod", count = 1 },
-			{ itemId = "watering_can", count = 1 },
-			{ itemId = "axe", count = 1 },
-			{ itemId = "slingshot", count = 1 },
-			{ itemId = "ladder", count = 1 },
-			
-			-- Starting Currency
-			{ itemId = "bell_bag_small", count = 5 },
-			{ itemId = "bell_bag_med", count = 2 },
-			
-			-- Sample Flowers
-			{ itemId = "rose_red", count = 3 },
-			{ itemId = "rose_white", count = 2 },
-			{ itemId = "tulip_red", count = 2 },
-			
-			-- Sample Fish
-			{ itemId = "fish_betta", count = 1 },
-			{ itemId = "fish_goldfish", count = 1 },
-			
-			-- Sample Bugs
-			{ itemId = "bug_butterfly", count = 2 },
-			{ itemId = "bug_ladybug", count = 1 },
-			
-			-- Basic Materials (using items that exist in our mapping)
-			{ itemId = "egg_purple", count = 3 },
-			{ itemId = "egg_orange", count = 2 },
-			{ itemId = "leaf_fossil", count = 1 },
-		}
-	}
-	
-	print("[Server] ✅ Initialized inventory for", player.Name, "with 20 starter items")
+        local starterItems = {
+                -- Essential Tools
+                { itemId = "shovel", count = 1 },
+                { itemId = "net", count = 1 },
+                { itemId = "fishing_rod", count = 1 },
+                { itemId = "watering_can", count = 1 },
+                { itemId = "axe", count = 1 },
+                { itemId = "slingshot", count = 1 },
+                { itemId = "ladder", count = 1 },
+
+                -- Starting Currency
+                { itemId = "bell_bag_small", count = 5 },
+                { itemId = "bell_bag_med", count = 2 },
+
+                -- Sample Flowers
+                { itemId = "rose_red", count = 3 },
+                { itemId = "rose_white", count = 2 },
+                { itemId = "tulip_red", count = 2 },
+
+                -- Sample Fish
+                { itemId = "fish_betta", count = 1 },
+                { itemId = "fish_goldfish", count = 1 },
+
+                -- Sample Bugs
+                { itemId = "bug_butterfly", count = 2 },
+                { itemId = "bug_ladybug", count = 1 },
+
+                -- Basic Materials (using items that exist in our mapping)
+                { itemId = "egg_purple", count = 3 },
+                { itemId = "egg_orange", count = 2 },
+                { itemId = "leaf_fossil", count = 1 },
+        }
+
+        local slots = table.create(MAX_SLOTS)
+        for i = 1, MAX_SLOTS do
+                slots[i] = nil
+        end
+
+        for index, item in ipairs(starterItems) do
+                if index > MAX_SLOTS then break end
+                slots[index] = { itemId = item.itemId, count = item.count }
+        end
+
+        playerInventories[player.UserId] = {
+                slots = slots,
+                maxSlots = MAX_SLOTS,
+        }
+
+        print("[Server] ✅ Initialized inventory for", player.Name, "with", #starterItems, "starter items and", MAX_SLOTS, "slots")
+end
+
+local function cloneSlots(slots)
+        local serialized = {}
+        for index = 1, MAX_SLOTS do
+                local slot = slots[index]
+                if slot and slot.itemId and slot.count and slot.count > 0 then
+                        serialized[index] = {
+                                itemId = slot.itemId,
+                                count = slot.count,
+                        }
+                end
+        end
+        return serialized
+end
+
+local function countFilledSlots(slots)
+        local count = 0
+        for index = 1, MAX_SLOTS do
+                if slots[index] then
+                        count += 1
+                end
+        end
+        return count
+end
+
+local function syncInventoryToClient(player)
+        local inventory = playerInventories[player.UserId]
+        if not inventory then return end
+
+        inventoryRemote:FireClient(player, "SyncInventory", {
+                maxSlots = inventory.maxSlots or MAX_SLOTS,
+                slots = cloneSlots(inventory.slots),
+        })
 end
 
 -- Create dropped item in the world with 3D sprite and proper tracking
 local function createDroppedItem(player, itemId, count, worldPosition)
-	if not ItemData[itemId] then
-		warn("[Server] Unknown item:", itemId)
-		return
-	end
-	
-	local item = ItemData[itemId]
-	local worldItemId = nextItemId
-	nextItemId = nextItemId + 1
-	
-	-- Store in world items tracking
-	worldItems[worldItemId] = {
-		itemId = itemId,
-		count = count,
-		position = worldPosition,
-		droppedBy = player.UserId,
-		droppedAt = tick(),
-		part = nil -- Will be set after part creation
-	}
-	
-	-- Create the main part
-	local part = Instance.new("Part")
-	part.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
-	part.Size = Vector3.new(1, 1, 1)
-	part.Position = worldPosition
-	part.Material = Enum.Material.Neon
-	part.Color = Color3.new(1, 1, 1) -- White base, sprite will show through
-	part.Shape = Enum.PartType.Block
-	part.Anchored = true
-	part.CanCollide = false
-	part.Parent = workspace
-	
-	-- Store part reference in world items
-	worldItems[worldItemId].part = part
-	
-	-- Create SurfaceGui for sprite
-	local surfaceGui = Instance.new("SurfaceGui")
-	surfaceGui.Face = Enum.NormalId.Top
-	surfaceGui.Parent = part
-	
-	-- Create ImageLabel for sprite
-	local imageLabel = Instance.new("ImageLabel")
-	imageLabel.Size = UDim2.new(1, 0, 1, 0)
-	imageLabel.BackgroundTransparency = 1
-	imageLabel.Image = "rbxassetid://74324628581851" -- Sprite sheet
-	
-	-- Calculate sprite position
-	local offset, size = Vector2.new(0, 0), Vector2.new(36, 36) -- Default
-	if item.index then
-		local i0 = item.index - 1
-		local col = i0 % 21
-		local row = math.floor(i0 / 21)
-		local x = math.floor(4 + col * (36.6 + 6) + 0.5)
-		local y = math.floor(4 + row * (36.6 + 6) + 0.5)
-		local spriteSize = math.floor(36.6 - 0.5 + 0.5)
-		offset = Vector2.new(x + 0.25, y + 0.25)
-		size = Vector2.new(spriteSize, spriteSize)
-	end
-	
-	imageLabel.ImageRectOffset = offset
-	imageLabel.ImageRectSize = size
-	imageLabel.Parent = surfaceGui
-	
-	-- Create BillboardGui for item name
-	local billboardGui = Instance.new("BillboardGui")
-	billboardGui.Size = UDim2.new(0, 100, 0, 20)
-	billboardGui.StudsOffset = Vector3.new(0, 2, 0)
-	billboardGui.Parent = part
-	
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, 0, 1, 0)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Text = item.name .. " x" .. count
-	nameLabel.TextColor3 = Color3.new(1, 1, 1)
-	nameLabel.TextStrokeTransparency = 0
-	nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-	nameLabel.TextScaled = true
-	nameLabel.Font = Enum.Font.GothamBold
-	nameLabel.Parent = billboardGui
-	
-	-- Add subtle glow effect
-	local pointLight = Instance.new("PointLight")
-	pointLight.Color = Color3.new(1, 1, 1) -- White glow to not interfere with sprite colors
-	pointLight.Brightness = 0.3
-	pointLight.Range = 3
-	pointLight.Parent = part
-	
-	-- Add Region3 for automatic pickup
-	local regionSize = Vector3.new(3, 3, 3)
-	local regionMin = worldPosition - regionSize/2
-	local regionMax = worldPosition + regionSize/2
-	
-	-- Function to handle pickup (anyone can pick up)
-	local function pickupItem(pickingPlayer)
-		print("[Server]", pickingPlayer.Name, "picked up", count, "x", item.name)
-		
-		-- Add item to picking player's inventory
-		local inventory = playerInventories[pickingPlayer.UserId]
-		if inventory then
-			-- Check if player already has this item
-			local found = false
-			for _, invItem in ipairs(inventory.items) do
-				if invItem.itemId == itemId then
-					invItem.count = invItem.count + count
-					found = true
-					break
-				end
-			end
-			
-			if not found then
-				table.insert(inventory.items, {
-					itemId = itemId,
-					count = count
-				})
-			end
-			
-			-- Sync inventory
-			inventoryRemote:FireClient(pickingPlayer, "SyncInventory", inventory.items)
-		end
-		
-		-- Remove from world tracking
-		worldItems[worldItemId] = nil
-		
-		-- Remove the dropped item
-		part:Destroy()
-	end
-	
-	-- Add click detector for manual pickup
-	local clickDetector = Instance.new("ClickDetector")
-	clickDetector.MaxActivationDistance = 10
-	clickDetector.Parent = part
-	clickDetector.MouseClick:Connect(pickupItem)
-	
-	-- Automatic pickup when walking over (any player)
-	local RunService = game:GetService("RunService")
-	local connection
-	connection = RunService.Heartbeat:Connect(function()
-		if not part.Parent then
-			connection:Disconnect()
-			return
-		end
-		
-		-- Check if any player is nearby
-		for _, otherPlayer in ipairs(Players:GetPlayers()) do
-			local character = otherPlayer.Character
-			if character and character:FindFirstChild("HumanoidRootPart") then
-				local playerPosition = character.HumanoidRootPart.Position
-				local distance = (playerPosition - worldPosition).Magnitude
-				
-				if distance <= 3 then -- 3 stud pickup range
-					pickupItem(otherPlayer)
-					break -- Only one player can pick up at a time
-				end
-			end
-		end
-	end)
-	
-	print("[Server] ✅ Created 3D dropped item:", item.name, "x", count, "at", worldPosition)
+        if not ItemData[itemId] then
+                warn("[Server] Unknown item:", itemId)
+                return
+        end
+
+        local item = ItemData[itemId]
+        local worldItemId = nextItemId
+        nextItemId = nextItemId + 1
+
+        local model = Instance.new("Model")
+        model.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
+        model.Parent = workspace
+
+        local pivot = Instance.new("Part")
+        pivot.Name = "Pivot"
+        pivot.Transparency = 1
+        pivot.Anchored = true
+        pivot.CanCollide = false
+        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 2, 0))
+        pivot.Parent = model
+
+        local core = Instance.new("Part")
+        core.Name = "Core"
+        core.Size = Vector3.new(1.15, 1.15, 1.15)
+        core.Material = Enum.Material.SmoothPlastic
+        core.Color = Color3.fromHSV(((item.index or 1) % SpriteConfig.COLUMNS) / SpriteConfig.COLUMNS, 0.45, 1)
+        core.CanCollide = false
+        core.Anchored = false
+        core.CFrame = pivot.CFrame
+        core.CastShadow = true
+        core.Parent = model
+
+        local mesh = Instance.new("SpecialMesh")
+        mesh.MeshType = Enum.MeshType.Sphere
+        mesh.Scale = Vector3.new(1.15, 0.7, 1.15)
+        mesh.Parent = core
+
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = core
+        weld.Part1 = pivot
+        weld.Parent = core
+
+        local sparkleBase = Instance.new("Part")
+        sparkleBase.Name = "GlowRing"
+        sparkleBase.Size = Vector3.new(1.25, 0.1, 1.25)
+        sparkleBase.Material = Enum.Material.Neon
+        sparkleBase.Color = Color3.fromRGB(255, 255, 255)
+        sparkleBase.CanCollide = false
+        sparkleBase.Anchored = false
+        sparkleBase.CFrame = pivot.CFrame * CFrame.new(0, -0.5, 0)
+        sparkleBase.Parent = model
+
+        local ringMesh = Instance.new("SpecialMesh")
+        ringMesh.MeshType = Enum.MeshType.Torus
+        ringMesh.Scale = Vector3.new(1.25, 0.2, 1.25)
+        ringMesh.Parent = sparkleBase
+
+        local ringWeld = Instance.new("WeldConstraint")
+        ringWeld.Part0 = sparkleBase
+        ringWeld.Part1 = pivot
+        ringWeld.Parent = sparkleBase
+
+        local spriteBillboard = Instance.new("BillboardGui")
+        spriteBillboard.Name = "SpriteBillboard"
+        spriteBillboard.Size = UDim2.new(0, 96, 0, 96)
+        spriteBillboard.LightInfluence = 0
+        spriteBillboard.AlwaysOnTop = false
+        spriteBillboard.StudsOffsetWorldSpace = Vector3.new(0, 0.9, 0)
+        spriteBillboard.Parent = pivot
+
+        local imageLabel = Instance.new("ImageLabel")
+        imageLabel.Size = UDim2.new(1, 0, 1, 0)
+        imageLabel.BackgroundTransparency = 1
+        imageLabel.Image = "rbxassetid://74324628581851"
+        imageLabel.ImageTransparency = 0
+        imageLabel.Parent = spriteBillboard
+
+        local offset, size = Vector2.new(0, 0), Vector2.new(36, 36)
+        if item.index then
+                local i0 = item.index - 1
+                local col = i0 % SpriteConfig.COLUMNS
+                local row = math.floor(i0 / SpriteConfig.COLUMNS)
+                local x = math.floor(SpriteConfig.OUTER.X + col * (SpriteConfig.TILE + SpriteConfig.INNER.X) + 0.5)
+                local y = math.floor(SpriteConfig.OUTER.Y + row * (SpriteConfig.TILE + SpriteConfig.INNER.Y) + 0.5)
+                local spriteSize = math.floor(SpriteConfig.TILE - SpriteConfig.BLEED_FIX * 2 + 0.5)
+                offset = Vector2.new(x + SpriteConfig.BLEED_FIX, y + SpriteConfig.BLEED_FIX)
+                size = Vector2.new(spriteSize, spriteSize)
+        end
+
+        imageLabel.ImageRectOffset = offset
+        imageLabel.ImageRectSize = size
+
+        local nameBillboard = Instance.new("BillboardGui")
+        nameBillboard.Name = "NameBillboard"
+        nameBillboard.Size = UDim2.new(0, 140, 0, 32)
+        nameBillboard.StudsOffsetWorldSpace = Vector3.new(0, 1.6, 0)
+        nameBillboard.AlwaysOnTop = true
+        nameBillboard.Parent = pivot
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextScaled = true
+        nameLabel.TextColor3 = Color3.new(1, 1, 1)
+        nameLabel.TextStrokeColor3 = Color3.new(0.1, 0.1, 0.1)
+        nameLabel.TextStrokeTransparency = 0.4
+        nameLabel.Text = string.format("%s x%d", item.name, count)
+        nameLabel.Parent = nameBillboard
+
+        local attachment = Instance.new("Attachment")
+        attachment.Parent = pivot
+        attachment.Position = Vector3.new(0, 0.4, 0)
+
+        local particleEmitter = Instance.new("ParticleEmitter")
+        particleEmitter.Parent = attachment
+        particleEmitter.LightEmission = 0.6
+        particleEmitter.LightInfluence = 0
+        particleEmitter.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.15),
+                NumberSequenceKeypoint.new(0.5, 0.25),
+                NumberSequenceKeypoint.new(1, 0),
+        })
+        particleEmitter.Lifetime = NumberRange.new(0.8, 1.2)
+        particleEmitter.Rate = 12
+        particleEmitter.Speed = NumberRange.new(0.6, 1.2)
+        particleEmitter.SpreadAngle = Vector2.new(30, 30)
+        particleEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 235, 200))
+        particleEmitter.Texture = "rbxassetid://130219045" -- sparkle texture
+
+        local pointLight = Instance.new("PointLight")
+        pointLight.Parent = pivot
+        pointLight.Color = core.Color
+        pointLight.Range = 6
+        pointLight.Brightness = 1.6
+
+        model.PrimaryPart = pivot
+
+        worldItems[worldItemId] = {
+                itemId = itemId,
+                count = count,
+                position = worldPosition,
+                droppedBy = player.UserId,
+                droppedAt = tick(),
+                model = model,
+        }
+
+        TweenService:Create(pivot, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Position = worldPosition,
+        }):Play()
+
+        local bobConnection
+        local baseTime = tick()
+        local bobStart = baseTime + 0.35
+        bobConnection = RunService.Heartbeat:Connect(function()
+                if not model.Parent or not pivot.Parent then
+                        if bobConnection then
+                                bobConnection:Disconnect()
+                        end
+                        return
+                end
+
+                local now = tick()
+                if now < bobStart then
+                        return
+                end
+
+                local elapsed = now - baseTime
+                local bobOffset = math.sin(elapsed * 2.2) * 0.15
+                pivot.Position = Vector3.new(worldPosition.X, worldPosition.Y + 0.2 + bobOffset, worldPosition.Z)
+        end)
+
+        local function pickupItem(pickingPlayer)
+                if not worldItems[worldItemId] then
+                        return
+                end
+
+                print("[Server]", pickingPlayer.Name, "picked up", count, "x", item.name)
+
+                local inventory = playerInventories[pickingPlayer.UserId]
+                if inventory then
+                        local slots = inventory.slots
+                        local existingIndex
+                        for index = 1, inventory.maxSlots or MAX_SLOTS do
+                                local slot = slots[index]
+                                if slot and slot.itemId == itemId then
+                                        existingIndex = index
+                                        break
+                                end
+                        end
+
+                        if existingIndex then
+                                slots[existingIndex].count += count
+                        else
+                                local emptyIndex
+                                for index = 1, inventory.maxSlots or MAX_SLOTS do
+                                        if not slots[index] then
+                                                emptyIndex = index
+                                                break
+                                        end
+                                end
+
+                                if emptyIndex then
+                                        slots[emptyIndex] = { itemId = itemId, count = count }
+                                else
+                                        warn("[Server]", pickingPlayer.Name, "has no space to pick up", item.name)
+                                        return
+                                end
+                        end
+
+                        syncInventoryToClient(pickingPlayer)
+                end
+
+                worldItems[worldItemId] = nil
+
+                if bobConnection then
+                        bobConnection:Disconnect()
+                end
+
+                model:Destroy()
+        end
+
+        local clickDetector = Instance.new("ClickDetector")
+        clickDetector.MaxActivationDistance = 12
+        clickDetector.Parent = core
+        clickDetector.MouseClick:Connect(pickupItem)
+
+        local proximityConnection
+        proximityConnection = RunService.Heartbeat:Connect(function()
+                if not model.Parent then
+                        if proximityConnection then
+                                proximityConnection:Disconnect()
+                        end
+                        return
+                end
+
+                for _, otherPlayer in ipairs(Players:GetPlayers()) do
+                        local character = otherPlayer.Character
+                        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                        if rootPart then
+                                local distance = (rootPart.Position - worldPosition).Magnitude
+                                if distance <= 3 then
+                                        pickupItem(otherPlayer)
+                                        if proximityConnection then
+                                                proximityConnection:Disconnect()
+                                        end
+                                        return
+                                end
+                        end
+                end
+        end)
+
+        print("[Server] ✅ Created 3D dropped item:", item.name, "x", count, "at", worldPosition)
 end
 
 -- Get all world items (for debugging/admin)
 local function getAllWorldItems()
 	local items = {}
-	for id, item in pairs(worldItems) do
-		if item.part and item.part.Parent then
-			table.insert(items, {
-				id = id,
-				itemId = item.itemId,
-				count = item.count,
-				position = item.position,
-				droppedBy = item.droppedBy,
-				droppedAt = item.droppedAt
-			})
-		end
-	end
+        for id, item in pairs(worldItems) do
+                if item.model and item.model.Parent then
+                        table.insert(items, {
+                                id = id,
+                                itemId = item.itemId,
+                                count = item.count,
+                                position = item.position,
+                                droppedBy = item.droppedBy,
+                                droppedAt = item.droppedAt
+                        })
+                end
+        end
 	return items
 end
 
@@ -355,42 +513,90 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
 		return
 	end
 	
-	if action == "RequestInventory" then
-		print("[Server] Sending inventory to", player.Name, "with", #inventory.items, "items")
-		inventoryRemote:FireClient(player, "SyncInventory", inventory.items)
-		
-	elseif action == "DropItem" and data then
-		-- Handle item dropping
-		local itemId = data.itemId
-		local count = data.count
-		local worldPosition = data.worldPosition or Vector3.new(0, 10, 0)
-		
-		print("[Server]", player.Name, "dropped", count, "x", ItemData[itemId] and ItemData[itemId].name or itemId, "at world position", worldPosition)
-		
-		-- Find and remove item from inventory
-		for i, item in ipairs(inventory.items) do
-			if item.itemId == itemId and item.count >= count then
-				item.count = item.count - count
-				if item.count <= 0 then
-					table.remove(inventory.items, i)
-				end
-				
-				-- Create 3D dropped item in the world
-				createDroppedItem(player, itemId, count, worldPosition)
-				
-				-- Sync inventory to client
-				inventoryRemote:FireClient(player, "SyncInventory", inventory.items)
-				return
-			end
-		end
-		
-		warn("[Server]", player.Name, "tried to drop item they don't have:", itemId)
-		
-	elseif action == "GetWorldItems" then
-		-- Debug command to see all world items
-		local worldItemsList = getAllWorldItems()
-		print("[Server] World items count:", #worldItemsList)
-		for _, item in ipairs(worldItemsList) do
+        if action == "RequestInventory" then
+                print("[Server] Sending inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
+                syncInventoryToClient(player)
+
+        elseif action == "DropItem" and data then
+                local itemId = data.itemId
+                local count = data.count or 1
+                local slotIndex = data.slotIndex
+                local worldPosition = data.worldPosition or Vector3.new(0, 10, 0)
+
+                print("[Server]", player.Name, "dropped", count, "x", ItemData[itemId] and ItemData[itemId].name or itemId, "at world position", worldPosition)
+
+                local slots = inventory.slots
+                local function removeFromSlot(index)
+                        local slot = slots[index]
+                        if slot and slot.itemId == itemId and slot.count >= count then
+                                slot.count -= count
+                                if slot.count <= 0 then
+                                        slots[index] = nil
+                                end
+                                return true
+                        end
+                        return false
+                end
+
+                local removed = false
+                if slotIndex and slotIndex >= 1 and slotIndex <= (inventory.maxSlots or MAX_SLOTS) then
+                        removed = removeFromSlot(slotIndex)
+                end
+
+                if not removed then
+                        for index = 1, inventory.maxSlots or MAX_SLOTS do
+                                if removeFromSlot(index) then
+                                        removed = true
+                                        break
+                                end
+                        end
+                end
+
+                if removed then
+                        createDroppedItem(player, itemId, count, worldPosition)
+                        syncInventoryToClient(player)
+                        return
+                end
+
+                warn("[Server]", player.Name, "tried to drop item they don't have:", itemId)
+
+        elseif action == "MoveItem" and data then
+                local fromIndex = data.fromIndex
+                local toIndex = data.toIndex
+                local swap = data.swap
+
+                if not fromIndex or not toIndex then
+                        return
+                end
+
+                if fromIndex < 1 or fromIndex > (inventory.maxSlots or MAX_SLOTS) then
+                        return
+                end
+
+                if toIndex < 1 or toIndex > (inventory.maxSlots or MAX_SLOTS) then
+                        return
+                end
+
+                local slots = inventory.slots
+                local moving = slots[fromIndex]
+                if not moving then
+                        return
+                end
+
+                if swap and slots[toIndex] then
+                        slots[fromIndex], slots[toIndex] = slots[toIndex], moving
+                else
+                        slots[toIndex] = moving
+                        slots[fromIndex] = nil
+                end
+
+                syncInventoryToClient(player)
+
+        elseif action == "GetWorldItems" then
+                -- Debug command to see all world items
+                local worldItemsList = getAllWorldItems()
+                print("[Server] World items count:", #worldItemsList)
+                for _, item in ipairs(worldItemsList) do
 			print("[Server] - Item", item.id, ":", item.itemId, "x", item.count, "at", item.position)
 		end
 		inventoryRemote:FireClient(player, "WorldItemsList", worldItemsList)
@@ -406,14 +612,14 @@ Players.PlayerAdded:Connect(function(player)
 		print("[Server] Initializing inventory for:", player.Name)
 		initializePlayerInventory(player)
 		
-		-- Send initial inventory to client
-		local inventory = playerInventories[player.UserId]
-		if inventory then
-			print("[Server] Sending initial inventory to", player.Name, "with", #inventory.items, "items")
-			inventoryRemote:FireClient(player, "SyncInventory", inventory.items)
-		else
-			warn("[Server] No inventory found for", player.Name)
-		end
+                -- Send initial inventory to client
+                local inventory = playerInventories[player.UserId]
+                if inventory then
+                        print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
+                        syncInventoryToClient(player)
+                else
+                        warn("[Server] No inventory found for", player.Name)
+                end
 	end)
 end)
 
