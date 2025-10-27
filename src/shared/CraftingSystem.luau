@@ -1,3 +1,5 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 -- CraftingSystem.luau
 -- Handles crafting logic using external item data
@@ -11,11 +13,19 @@ local playerCraftingStations = {}
 
 -- Crafting station types
 local CRAFTING_STATIONS = {
-	WORKBENCH = "workbench",
-	FORGE = "forge",
-	COOKING = "cooking",
-	SEWING = "sewing",
-	ALCHEMY = "alchemy"
+        WORKBENCH = "workbench",
+        FORGE = "forge",
+        COOKING = "cooking",
+        SEWING = "sewing",
+        ALCHEMY = "alchemy",
+}
+
+CraftingSystem.CRAFTING_STATIONS = CRAFTING_STATIONS
+
+local inventoryCallbacks = {
+        hasMaterials = nil,
+        consumeMaterials = nil,
+        grantItems = nil,
 }
 
 -- Initialize player crafting data
@@ -30,13 +40,21 @@ local function initializePlayerCrafting(player)
 end
 
 -- Check if player has required materials
-local function hasRequiredMaterials(player, materials)
-	local inventory = game.ReplicatedStorage:FindFirstChild("InventoryEvent")
-	if not inventory then return false end
-	
-	-- This would need to be implemented with actual inventory checking
-	-- For now, return true as placeholder
-	return true
+local function hasRequiredMaterials(player, materials, quantity)
+        if #materials == 0 then
+                return true
+        end
+
+        if inventoryCallbacks.hasMaterials then
+                local success, result = pcall(inventoryCallbacks.hasMaterials, player, materials, quantity)
+                if not success then
+                        warn("[CraftingSystem] Material check failed:", result)
+                        return false
+                end
+                return result and true or false
+        end
+
+        return true
 end
 
 -- Check if player has required crafting station
@@ -55,39 +73,55 @@ end
 
 -- Start crafting an item
 function CraftingSystem.startCrafting(player, itemId, quantity)
-	local recipe = ItemDataFetcher.getCraftingRecipe(itemId)
-	if not recipe then
-		warn("[CraftingSystem] No recipe found for", itemId)
-		return false
-	end
+        quantity = math.max(1, quantity or 1)
+
+        local recipe = ItemDataFetcher.getCraftingRecipe(itemId)
+        if not recipe then
+                warn("[CraftingSystem] No recipe found for", itemId)
+                return false
+        end
+
+        local station = recipe.station or CRAFTING_STATIONS.WORKBENCH
+
+        -- Check if player has required station
+        if not hasCraftingStation(player, station) then
+                warn("[CraftingSystem] Player", player.Name, "doesn't have", station)
+                return false
+        end
 	
-	-- Check if player has required station
-	if not hasCraftingStation(player, recipe.station) then
-		warn("[CraftingSystem] Player", player.Name, "doesn't have", recipe.station)
-		return false
-	end
-	
-	-- Check if player has required materials
-	if not hasRequiredMaterials(player, recipe.materials) then
-		warn("[CraftingSystem] Player", player.Name, "doesn't have required materials")
-		return false
-	end
-	
-	local playerData = playerCraftingStations[player.UserId]
-	if not playerData then
-		initializePlayerCrafting(player)
-		playerData = playerCraftingStations[player.UserId]
-	end
-	
-	-- Add to crafting queue
-	for i = 1, quantity do
-		table.insert(playerData.craftingQueue, {
-			itemId = itemId,
-			startTime = tick(),
-			craftingTime = recipe.time,
-			completed = false
-		})
-	end
+        -- Check if player has required materials
+        if not hasRequiredMaterials(player, recipe.materials, quantity) then
+                warn("[CraftingSystem] Player", player.Name, "doesn't have required materials")
+                return false
+        end
+
+        if inventoryCallbacks.consumeMaterials then
+                local success, result = pcall(inventoryCallbacks.consumeMaterials, player, recipe.materials, quantity)
+                if not success then
+                        warn("[CraftingSystem] Failed to consume materials:", result)
+                        return false
+                end
+                if result == false then
+                        return false
+                end
+        end
+
+        local playerData = playerCraftingStations[player.UserId]
+        if not playerData then
+                initializePlayerCrafting(player)
+                playerData = playerCraftingStations[player.UserId]
+        end
+
+        -- Add to crafting queue
+        for i = 1, quantity do
+                table.insert(playerData.craftingQueue, {
+                        itemId = itemId,
+                        recipe = recipe,
+                        startTime = tick(),
+                        craftingTime = recipe.time or 6,
+                        completed = false
+                })
+        end
 	
 	print("[CraftingSystem] Started crafting", quantity, "x", itemId, "for", player.Name)
 	return true
@@ -123,17 +157,22 @@ end
 
 -- Give items to player (placeholder - would integrate with inventory system)
 function CraftingSystem.giveItemsToPlayer(player, items)
-	-- This would integrate with your existing inventory system
-	-- For now, just log the items
-	for _, itemId in ipairs(items) do
-		print("[CraftingSystem] Giving", itemId, "to", player.Name)
-	end
+        if inventoryCallbacks.grantItems then
+                local success, result = pcall(inventoryCallbacks.grantItems, player, items)
+                if not success then
+                        warn("[CraftingSystem] Failed to grant crafted items:", result)
+                end
+        else
+                for _, itemId in ipairs(items) do
+                        print("[CraftingSystem] Giving", itemId, "to", player.Name)
+                end
+        end
 end
 
 -- Get player's crafting progress
 function CraftingSystem.getCraftingProgress(player)
-	local playerData = playerCraftingStations[player.UserId]
-	if not playerData then return {} end
+        local playerData = playerCraftingStations[player.UserId]
+        if not playerData then return {} end
 	
 	local progress = {}
 	for _, craft in ipairs(playerData.craftingQueue) do
@@ -179,42 +218,60 @@ function CraftingSystem.getAvailableRecipes(player)
 	local availableRecipes = {}
 	local allRecipes = ItemDataFetcher.getCraftableItems()
 	
-	for _, recipe in ipairs(allRecipes) do
-		-- Check if player has required station
-		if hasCraftingStation(player, recipe.craftingStation) then
-			table.insert(availableRecipes, recipe)
-		end
-	end
-	
-	return availableRecipes
+        for _, recipe in ipairs(allRecipes) do
+                -- Check if player has required station
+                if hasCraftingStation(player, recipe.station or CRAFTING_STATIONS.WORKBENCH) then
+                        table.insert(availableRecipes, recipe)
+                end
+        end
+
+        return availableRecipes
+end
+
+function CraftingSystem.configure(options)
+        if typeof(options) ~= "table" then
+                return
+        end
+
+        if options.hasMaterials then
+                inventoryCallbacks.hasMaterials = options.hasMaterials
+        end
+
+        if options.consumeMaterials then
+                inventoryCallbacks.consumeMaterials = options.consumeMaterials
+        end
+
+        if options.grantItems then
+                inventoryCallbacks.grantItems = options.grantItems
+        end
 end
 
 -- Process all players' crafting queues (call this in a loop)
 function CraftingSystem.processAllCrafting()
-	for _, player in ipairs(game.Players:GetPlayers()) do
-		CraftingSystem.processCraftingQueue(player)
-	end
+        for _, player in ipairs(Players:GetPlayers()) do
+                CraftingSystem.processCraftingQueue(player)
+        end
 end
 
 -- Initialize crafting system
 function CraftingSystem.initialize()
-	print("[CraftingSystem] 🚀 Initializing crafting system...")
-	
-	-- Initialize existing players
-	for _, player in ipairs(game.Players:GetPlayers()) do
-		initializePlayerCrafting(player)
-	end
-	
-	-- Set up player added/removing events
-	game.Players.PlayerAdded:Connect(initializePlayerCrafting)
-	game.Players.PlayerRemoving:Connect(function(player)
-		playerCraftingStations[player.UserId] = nil
-	end)
-	
-	-- Start crafting processing loop
-	game.RunService.Heartbeat:Connect(function()
-		CraftingSystem.processAllCrafting()
-	end)
+        print("[CraftingSystem] 🚀 Initializing crafting system...")
+
+        -- Initialize existing players
+        for _, player in ipairs(Players:GetPlayers()) do
+                initializePlayerCrafting(player)
+        end
+
+        -- Set up player added/removing events
+        Players.PlayerAdded:Connect(initializePlayerCrafting)
+        Players.PlayerRemoving:Connect(function(player)
+                playerCraftingStations[player.UserId] = nil
+        end)
+
+        -- Start crafting processing loop
+        RunService.Heartbeat:Connect(function()
+                CraftingSystem.processAllCrafting()
+        end)
 	
 	print("[CraftingSystem] ✅ Crafting system initialized")
 end
