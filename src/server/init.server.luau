@@ -17,6 +17,11 @@ local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent") or In
 inventoryRemote.Name = "InventoryEvent"
 inventoryRemote.Parent = ReplicatedStorage
 
+local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
+local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
+local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
+local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
+
 -- Player inventory storage
 local playerInventories = {}
 
@@ -27,120 +32,12 @@ local MAX_SLOTS = 20
 local worldItems = {}
 local nextItemId = 1
 
--- ItemData for server
-local ItemData = {
-	-- Row 1: Tools (indices 1-21) - ACTUAL ORDER FROM SPRITE SHEET
-	leaf = { index = 1, name = "Leaf" },
-	shovel = { index = 2, name = "Shovel" },
-	net = { index = 3, name = "Net" },
-	slingshot = { index = 4, name = "Slingshot" },
-	fishing_rod = { index = 5, name = "Fishing Rod" },
-	watering_can = { index = 6, name = "Watering Can" },
-	axe = { index = 7, name = "Axe" },
-	stone_axe = { index = 8, name = "Stone Axe" },
-	shovel_2 = { index = 9, name = "Shovel" }, -- Another shovel variant
-	pole_vault = { index = 10, name = "Vaulting Pole" },
-	ladder = { index = 11, name = "Ladder" },
-	flute = { index = 12, name = "Pan Flute" },
-	flute_2 = { index = 13, name = "Flute" }, -- Another flute variant
-	tambourine = { index = 14, name = "Tambourine" },
-	golden_axe = { index = 15, name = "Golden Axe" },
-	golden_net = { index = 16, name = "Golden Net" },
-	golden_shovel = { index = 17, name = "Golden Shovel" },
-	golden_can = { index = 18, name = "Golden Can" },
-	golden_slingshot = { index = 19, name = "Golden Slingshot" },
-	golden_fishing_rod = { index = 20, name = "Golden Fishing Rod" },
-	golden_ladder = { index = 21, name = "Golden Ladder" },
-	
-	-- Row 2: Clothing/Items (indices 22-42)
-	glasses_red = { index = 22, name = "Red Glasses" },
-	shirt_striped = { index = 23, name = "Striped Shirt" },
-	shirt_blue = { index = 24, name = "Blue Shirt" },
-	bag_blue = { index = 25, name = "Bag (Blue)" },
-	socks = { index = 26, name = "Socks" },
-	shoes_yellow = { index = 27, name = "Shoes (Yellow)" },
-	shoes_black = { index = 28, name = "Shoes (Black)" },
-	umbrella_red = { index = 29, name = "Red Umbrella" },
-	purse_pink = { index = 30, name = "Purse (Pink)" },
-	egg_purple = { index = 31, name = "Purple Egg" },
-	egg_orange = { index = 32, name = "Orange Egg" },
-	egg_yellow = { index = 33, name = "Yellow Egg" },
-	egg_green = { index = 34, name = "Green Egg" },
-	bell_bag_small = { index = 35, name = "Small Bell Bag" },
-	bell_bag_med = { index = 36, name = "Bell Bag" },
-	bell_bag_large = { index = 37, name = "Large Bell Bag" },
-	bottle_message = { index = 38, name = "Message Bottle" },
-	recipe_card = { index = 39, name = "DIY Recipe Card" },
-	paper_gift = { index = 40, name = "Gift Bag" },
-	leaf_fossil = { index = 41, name = "Fossil Leaf" },
-	
-	-- Row 3: Flowers (indices 43-63)
-	rose_red = { index = 43, name = "Red Rose" },
-	rose_white = { index = 44, name = "White Rose" },
-	rose_pink = { index = 45, name = "Pink Rose" },
-	rose_yellow = { index = 46, name = "Yellow Rose" },
-	tulip_red = { index = 47, name = "Red Tulip" },
-	tulip_white = { index = 48, name = "White Tulip" },
-	tulip_orange = { index = 49, name = "Orange Tulip" },
-	lily_pink = { index = 50, name = "Pink Lily" },
-	lily_yellow = { index = 51, name = "Yellow Lily" },
-	lily_white = { index = 52, name = "White Lily" },
-	mum_purple = { index = 53, name = "Purple Mum" },
-	mum_red = { index = 54, name = "Red Mum" },
-	mum_white = { index = 55, name = "White Mum" },
-	hyacinth_blue = { index = 56, name = "Blue Hyacinth" },
-	hyacinth_pink = { index = 57, name = "Pink Hyacinth" },
-	hyacinth_orange = { index = 58, name = "Orange Hyacinth" },
-	hyacinth_white = { index = 59, name = "White Hyacinth" },
-	cosmos_red = { index = 60, name = "Red Cosmos" },
-	cosmos_yellow = { index = 61, name = "Yellow Cosmos" },
-	cosmos_white = { index = 62, name = "White Cosmos" },
-	
-	-- Row 4: Fish (indices 64-84)
-	fish_betta = { index = 64, name = "Betta" },
-	fish_clown = { index = 65, name = "Clownfish" },
-	fish_puffer = { index = 66, name = "Pufferfish" },
-	fish_tuna = { index = 67, name = "Tuna" },
-	fish_bass = { index = 68, name = "Black Bass" },
-	fish_snapper = { index = 69, name = "Red Snapper" },
-	fish_goldfish = { index = 70, name = "Goldfish" },
-	fish_koi = { index = 71, name = "Koi" },
-	fish_loach = { index = 72, name = "Loach" },
-	fish_seahorse = { index = 73, name = "Seahorse" },
-	
-	-- Row 5: Bugs (indices 85-105)
-	bug_butterfly = { index = 85, name = "Common Butterfly" },
-	bug_moth = { index = 86, name = "Moth" },
-	bug_ladybug = { index = 87, name = "Ladybug" },
-	bug_beetle = { index = 88, name = "Stag Beetle" },
-	bug_dragonfly = { index = 89, name = "Dragonfly" },
-	bug_firefly = { index = 90, name = "Firefly" },
-	bug_spider = { index = 91, name = "Spider" },
-	bug_scorpion = { index = 92, name = "Scorpion" },
-	bug_tar = { index = 93, name = "Tarantula" },
-	bug_cicada = { index = 94, name = "Cicada" },
-	
-	-- Row 6: Seasonal (indices 106-126)
-	snowflake = { index = 106, name = "Snowflake" },
-	ornament_red = { index = 107, name = "Red Ornament" },
-	ornament_blue = { index = 108, name = "Blue Ornament" },
-	ornament_gold = { index = 109, name = "Gold Ornament" },
-	pumpkin_orange = { index = 110, name = "Orange Pumpkin" },
-	pumpkin_white = { index = 111, name = "White Pumpkin" },
-	pumpkin_yellow = { index = 112, name = "Yellow Pumpkin" },
-	pumpkin_green = { index = 113, name = "Green Pumpkin" },
-	heart_pink = { index = 114, name = "Heart Crystal" },
-}
+local ItemData = ItemDataFetcher.getFallbackData()
+local DisplayItems = ItemDataFetcher.getDisplayItemMap()
 
-local SpriteConfig = {
-        SHEET_ASSET = "rbxassetid://74324628581851",
-        COLUMNS = 21,
-        ROWS = 24,
-        TILE = 36.6,
-        INNER = Vector2.new(6, 6),
-        OUTER = Vector2.new(4, 4),
-        BLEED_FIX = 0.25,
-}
+local function getInventoryForPlayer(player)
+        return playerInventories[player.UserId]
+end
 
 -- Initialize player inventory
 local function initializePlayerInventory(player)
@@ -219,15 +116,121 @@ local function countFilledSlots(slots)
         return count
 end
 
-local function syncInventoryToClient(player)
-	local inventory = playerInventories[player.UserId]
-	if not inventory then return end
+local function totalCountForItem(inventory, itemId)
+        if not inventory or not itemId then
+                return 0
+        end
 
-	inventoryRemote:FireClient(player, "SyncInventory", {
-		maxSlots = inventory.maxSlots or MAX_SLOTS,
-		slots = cloneSlots(inventory.slots),
-	})
+        local total = 0
+        for index = 1, inventory.maxSlots or MAX_SLOTS do
+                local slot = inventory.slots[index]
+                if slot and slot.itemId == itemId then
+                        total += slot.count
+                end
+        end
+        return total
 end
+
+local function hasCraftingMaterials(player, materials, quantity)
+        local inventory = getInventoryForPlayer(player)
+        if not inventory then
+                return false
+        end
+
+        quantity = quantity or 1
+
+        for _, requirement in ipairs(materials or {}) do
+                local needed = (requirement.count or 1) * quantity
+                if totalCountForItem(inventory, requirement.itemId) < needed then
+                        return false
+                end
+        end
+
+        return true
+end
+
+local function syncInventoryToClient(player)
+        local inventory = playerInventories[player.UserId]
+        if not inventory then return end
+
+        inventoryRemote:FireClient(player, "SyncInventory", {
+                maxSlots = inventory.maxSlots or MAX_SLOTS,
+                slots = cloneSlots(inventory.slots),
+        })
+end
+
+local function consumeCraftingMaterials(player, materials, quantity)
+        local inventory = getInventoryForPlayer(player)
+        if not inventory then
+                return false
+        end
+
+        quantity = quantity or 1
+
+        if not hasCraftingMaterials(player, materials, quantity) then
+                return false
+        end
+
+        for _, requirement in ipairs(materials or {}) do
+                local remaining = (requirement.count or 1) * quantity
+                for index = 1, inventory.maxSlots or MAX_SLOTS do
+                        local slot = inventory.slots[index]
+                        if slot and slot.itemId == requirement.itemId then
+                                local toRemove = math.min(slot.count, remaining)
+                                slot.count -= toRemove
+                                remaining -= toRemove
+                                if slot.count <= 0 then
+                                        inventory.slots[index] = nil
+                                end
+                                if remaining <= 0 then
+                                        break
+                                end
+                        end
+                end
+
+                if remaining > 0 then
+                        return false
+                end
+        end
+
+        syncInventoryToClient(player)
+        return true
+end
+
+local function grantCraftedItems(player, craftedItems)
+        local inventory = getInventoryForPlayer(player)
+        if not inventory then
+                return
+        end
+
+        for _, itemId in ipairs(craftedItems or {}) do
+                local added = false
+                for index = 1, inventory.maxSlots or MAX_SLOTS do
+                        local slot = inventory.slots[index]
+                        if slot and slot.itemId == itemId then
+                                slot.count += 1
+                                added = true
+                                break
+                        elseif not slot then
+                                inventory.slots[index] = { itemId = itemId, count = 1 }
+                                added = true
+                                break
+                        end
+                end
+
+                if not added then
+                        warn("[Server] Inventory full - crafted item", itemId, "could not be added")
+                end
+        end
+
+        syncInventoryToClient(player)
+end
+
+CraftingSystem.configure({
+        hasMaterials = hasCraftingMaterials,
+        consumeMaterials = consumeCraftingMaterials,
+        grantItems = grantCraftedItems,
+})
 
 local function cleanupWorldItemConnections(connections)
 	if not connections then
@@ -695,7 +698,8 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 local slotIndex = data.slotIndex
                 local worldPosition = data.worldPosition or Vector3.new(0, 10, 0)
 
-                print("[Server]", player.Name, "dropped", count, "x", ItemData[itemId] and ItemData[itemId].name or itemId, "at world position", worldPosition)
+        local display = DisplayItems[itemId]
+        print("[Server]", player.Name, "dropped", count, "x", display and display.name or itemId, "at world position", worldPosition)
 
                 local slots = inventory.slots
                 local function removeFromSlot(index)

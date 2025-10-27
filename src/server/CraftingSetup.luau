@@ -1,13 +1,18 @@
 -- CraftingSetup.luau
 -- Server script to set up the crafting system with external data
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Import our modules
-local ItemDataFetcher = require(script.Parent.ItemDataFetcher)
-local CraftingSystem = require(script.Parent.CraftingSystem)
-local SpreadsheetIntegration = require(script.Parent.SpreadsheetIntegration)
+local Players = game:GetService("Players")
+
+local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
+local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
+local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
+
+local SpreadsheetIntegration
+if script.Parent:FindFirstChild("SpreadsheetIntegration") then
+        SpreadsheetIntegration = require(script.Parent.SpreadsheetIntegration)
+end
 
 print("[CraftingSetup] 🚀 Setting up crafting system...")
 
@@ -32,11 +37,11 @@ local function initializeCraftingSystem()
 	CraftingSystem.initialize()
 	
 	-- Test external data connection if enabled
-	if CONFIG.USE_EXTERNAL_DATA then
-		print("[CraftingSetup] 🔗 Testing external data connection...")
-		
-		-- Update spreadsheet configuration
-		SpreadsheetIntegration.updateConfig(CONFIG.GOOGLE_SHEETS_API_KEY, CONFIG.GOOGLE_SHEETS_ID)
+        if CONFIG.USE_EXTERNAL_DATA and SpreadsheetIntegration then
+                print("[CraftingSetup] 🔗 Testing external data connection...")
+
+                -- Update spreadsheet configuration
+                SpreadsheetIntegration.updateConfig(CONFIG.GOOGLE_SHEETS_API_KEY, CONFIG.GOOGLE_SHEETS_ID)
 		
 		-- Test connection
 		local connectionSuccess = SpreadsheetIntegration.testConnection()
@@ -58,7 +63,10 @@ local function initializeCraftingSystem()
 					itemsStringValue.Name = "Items"
 					itemsStringValue.Value = game:GetService("HttpService"):JSONEncode(externalData.items)
 					itemsStringValue.Parent = dataFolder
-				end
+        elseif CONFIG.USE_EXTERNAL_DATA then
+                warn("[CraftingSetup] Spreadsheet integration module not found - disabling external data")
+                CONFIG.USE_EXTERNAL_DATA = false
+        end
 				
 				-- Store recipes data
 				if externalData.recipes then
@@ -75,20 +83,26 @@ local function initializeCraftingSystem()
 	end
 	
 	-- Use fallback data if external data is disabled or failed
-	if not CONFIG.USE_EXTERNAL_DATA then
-		print("[CraftingSetup] 📋 Using fallback item data...")
-		local fallbackData = ItemDataFetcher.getFallbackData()
-		
-		-- Store fallback data
-		local dataFolder = ReplicatedStorage:FindFirstChild("ItemData") or Instance.new("Folder")
-		dataFolder.Name = "ItemData"
-		dataFolder.Parent = ReplicatedStorage
-		
-		local itemsStringValue = Instance.new("StringValue")
-		itemsStringValue.Name = "Items"
-		itemsStringValue.Value = game:GetService("HttpService"):JSONEncode(fallbackData)
-		itemsStringValue.Parent = dataFolder
-	end
+        if not CONFIG.USE_EXTERNAL_DATA then
+                print("[CraftingSetup] 📋 Publishing local item dataset...")
+
+                local httpService = game:GetService("HttpService")
+                local rawData = ItemDataFetcher.getRawData()
+
+                local dataFolder = ReplicatedStorage:FindFirstChild("ItemData") or Instance.new("Folder")
+                dataFolder.Name = "ItemData"
+                dataFolder.Parent = ReplicatedStorage
+
+                local itemsStringValue = Instance.new("StringValue")
+                itemsStringValue.Name = "Items"
+                itemsStringValue.Value = httpService:JSONEncode(rawData.items)
+                itemsStringValue.Parent = dataFolder
+
+                local recipesStringValue = Instance.new("StringValue")
+                recipesStringValue.Name = "Recipes"
+                recipesStringValue.Value = httpService:JSONEncode(rawData.recipes)
+                recipesStringValue.Parent = dataFolder
+        end
 	
 	print("[CraftingSetup] ✅ Crafting system initialized successfully!")
 end
