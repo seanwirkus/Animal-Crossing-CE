@@ -220,94 +220,134 @@ local function countFilledSlots(slots)
 end
 
 local function syncInventoryToClient(player)
-        local inventory = playerInventories[player.UserId]
-        if not inventory then return end
+	local inventory = playerInventories[player.UserId]
+	if not inventory then return end
 
-        inventoryRemote:FireClient(player, "SyncInventory", {
-                maxSlots = inventory.maxSlots or MAX_SLOTS,
-                slots = cloneSlots(inventory.slots),
-        })
+	inventoryRemote:FireClient(player, "SyncInventory", {
+		maxSlots = inventory.maxSlots or MAX_SLOTS,
+		slots = cloneSlots(inventory.slots),
+	})
+end
+
+local function cleanupWorldItemConnections(connections)
+	if not connections then
+		return
+	end
+
+	for index = #connections, 1, -1 do
+		local connection = connections[index]
+		if connection and connection.Disconnect then
+			connection:Disconnect()
+		end
+		connections[index] = nil
+	end
+end
+
+local function destroyWorldItem(worldItemId)
+	local entry = worldItems[worldItemId]
+	if not entry then
+		return
+	end
+
+	if entry.disconnect then
+		local success, err = pcall(entry.disconnect, entry)
+		if not success then
+			warn("[Server] Failed to run world item disconnect callback:", err)
+		end
+	end
+
+	cleanupWorldItemConnections(entry.connections)
+
+	if entry.model then
+		entry.model:Destroy()
+	end
+
+	worldItems[worldItemId] = nil
 end
 
 -- Create dropped item in the world with 3D sprite and proper tracking
 local function createDroppedItem(player, itemId, count, worldPosition)
-        if not ItemData[itemId] then
-                warn("[Server] Unknown item:", itemId)
-                return
+	if not ItemData[itemId] then
+		warn("[Server] Unknown item:", itemId)
+		return
         end
 
-        local item = ItemData[itemId]
-        local worldItemId = nextItemId
-        nextItemId = nextItemId + 1
+	local item = ItemData[itemId]
+	local worldItemId = nextItemId
+	nextItemId = nextItemId + 1
 
-        local model = Instance.new("Model")
-        model.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
-        model.Parent = workspace
+	local presentationConnections = {}
+	local function trackConnection(connection)
+		if connection then
+			table.insert(presentationConnections, connection)
+		end
+		return connection
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
+	model.Parent = workspace
 
         local pivot = Instance.new("Part")
         pivot.Name = "Pivot"
         pivot.Transparency = 1
         pivot.Anchored = true
         pivot.CanCollide = false
-        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 2, 0))
+        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.5, 0))
         pivot.Parent = model
 
-        local core = Instance.new("Part")
-        core.Name = "Core"
-        core.Size = Vector3.new(1.15, 1.15, 1.15)
-        core.Material = Enum.Material.SmoothPlastic
-        core.Color = Color3.fromHSV(((item.index or 1) % SpriteConfig.COLUMNS) / SpriteConfig.COLUMNS, 0.45, 1)
-        core.CanCollide = false
-        core.Anchored = false
-        core.CFrame = pivot.CFrame
-        core.CastShadow = true
-        core.Parent = model
+        -- Make pivot the main part with physics
+        pivot.Anchored = false
+        pivot.CanCollide = true
+        pivot.Massless = false
+        pivot.AssemblyLinearVelocity = Vector3.new(0, -5, 0) -- Initial downward velocity
 
-        local mesh = Instance.new("SpecialMesh")
-        mesh.MeshType = Enum.MeshType.Sphere
-        mesh.Scale = Vector3.new(1.15, 0.7, 1.15)
-        mesh.Parent = core
+        -- Make pivot invisible but solid, positioned to plop on ground
+        pivot.Size = Vector3.new(1, 1, 1) -- Full height collision box
+        pivot.Transparency = 1
+        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 1, 0)) -- Start higher for plop effect
 
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = core
-        weld.Part1 = pivot
-        weld.Parent = core
+        -- Create flat sprite that lays on ground like Animal Crossing
+        local spritePart = Instance.new("Part")
+        spritePart.Name = "SpritePart"
+        spritePart.Size = Vector3.new(4, 0.1, 4) -- A little bigger, flat part
+        spritePart.Material = Enum.Material.Neon
+        spritePart.Color = Color3.new(0, 0, 0)
+        spritePart.Transparency = 1
+        spritePart.CanCollide = false
+        spritePart.Anchored = true
+        spritePart.CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.05, 0)) -- Just above ground
+        spritePart.CastShadow = false
+        spritePart.Parent = model
 
-        local sparkleBase = Instance.new("Part")
-        sparkleBase.Name = "GlowRing"
-        sparkleBase.Size = Vector3.new(1.25, 0.1, 1.25)
-        sparkleBase.Material = Enum.Material.Neon
-        sparkleBase.Color = Color3.fromRGB(255, 255, 255)
-        sparkleBase.CanCollide = false
-        sparkleBase.Anchored = false
-        sparkleBase.CFrame = pivot.CFrame * CFrame.new(0, -0.5, 0)
-        sparkleBase.Parent = model
+        -- Create ultra 3D layered depth effect with enhanced shadows
+        -- Ground shadow (darkest, largest)
+        local groundShadow = Instance.new("Part")
+        groundShadow.Name = "GroundShadow"
+        groundShadow.Size = Vector3.new(5.5, 0.05, 5.5) -- Larger shadow
+        groundShadow.Material = Enum.Material.Neon
+        groundShadow.Color = Color3.new(0, 0, 0)
+        groundShadow.Transparency = 1
+        groundShadow.CanCollide = false
+        groundShadow.Anchored = true
+        groundShadow.CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.01, 0))
+        groundShadow.CastShadow = false
+        groundShadow.Parent = model
 
-        local ringMesh = Instance.new("SpecialMesh")
-        ringMesh.MeshType = Enum.MeshType.Torus
-        ringMesh.Scale = Vector3.new(1.25, 0.2, 1.25)
-        ringMesh.Parent = sparkleBase
+        local groundShadowGui = Instance.new("SurfaceGui")
+        groundShadowGui.Face = Enum.NormalId.Top
+        groundShadowGui.Parent = groundShadow
 
-        local ringWeld = Instance.new("WeldConstraint")
-        ringWeld.Part0 = sparkleBase
-        ringWeld.Part1 = pivot
-        ringWeld.Parent = sparkleBase
+        local groundShadowSprite = Instance.new("ImageLabel")
+        groundShadowSprite.Size = UDim2.new(1, 0, 1, 0)
+        groundShadowSprite.BackgroundTransparency = 1
+        groundShadowSprite.Image = SpriteConfig.SHEET_ASSET
+        groundShadowSprite.ImageTransparency = 0.6
+        groundShadowSprite.ImageColor3 = Color3.new(0.1, 0.1, 0.1) -- Very dark shadow
+        groundShadowSprite.ScaleType = Enum.ScaleType.Stretch
+        groundShadowSprite.Parent = groundShadowGui
 
-        local spriteBillboard = Instance.new("BillboardGui")
-        spriteBillboard.Name = "SpriteBillboard"
-        spriteBillboard.Size = UDim2.new(0, 96, 0, 96)
-        spriteBillboard.LightInfluence = 0
-        spriteBillboard.AlwaysOnTop = false
-        spriteBillboard.StudsOffsetWorldSpace = Vector3.new(0, 0.9, 0)
-        spriteBillboard.Parent = pivot
-
-        local imageLabel = Instance.new("ImageLabel")
-        imageLabel.Size = UDim2.new(1, 0, 1, 0)
-        imageLabel.BackgroundTransparency = 1
-        imageLabel.Image = "rbxassetid://74324628581851"
-        imageLabel.ImageTransparency = 0
-        imageLabel.Parent = spriteBillboard
-
+        -- Calculate sprite rect for this specific item
         local offset, size = Vector2.new(0, 0), Vector2.new(36, 36)
         if item.index then
                 local i0 = item.index - 1
@@ -320,88 +360,179 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 size = Vector2.new(spriteSize, spriteSize)
         end
 
+        -- Apply sprite rect to ground shadow
+        groundShadowSprite.ImageRectOffset = offset
+        groundShadowSprite.ImageRectSize = size
+
+        -- Create SOLID depth layers - no transparency, solid opaque depth
+        local depthLayers = {}
+        local layerCount = 8 -- Fewer layers, all solid
+        
+        for i = 1, layerCount do
+                local layerPart = Instance.new("Part")
+                layerPart.Name = "DepthLayer_" .. i
+                
+                -- Solid layer properties - all opaque, no transparency
+                local progress = i / layerCount -- 0 to 1
+                local sizeMultiplier = 1 + (progress * 0.3) -- 1.0 to 1.3 (subtle size increase)
+                local height = 0.1 -- All layers same height - solid thickness
+                local darkness = 0.1 + (progress * 0.4) -- 0.1 to 0.5 (dark to medium)
+                
+                -- Stack layers tightly together for solid depth
+                local heightOffset = 0.01 + (progress * 0.08) -- 0.01 to 0.09 (tight stacking)
+                
+                layerPart.Size = Vector3.new(4 * sizeMultiplier, height, 4 * sizeMultiplier)
+                layerPart.Material = Enum.Material.Neon
+                layerPart.Color = Color3.new(0, 0, 0)
+                layerPart.Transparency = 1
+                layerPart.CanCollide = false
+                layerPart.Anchored = true
+                layerPart.CFrame = CFrame.new(worldPosition + Vector3.new(0, heightOffset, 0))
+                layerPart.CastShadow = false
+                layerPart.Parent = model
+
+                local layerGui = Instance.new("SurfaceGui")
+                layerGui.Face = Enum.NormalId.Top
+                layerGui.Parent = layerPart
+
+                local layerSprite = Instance.new("ImageLabel")
+                layerSprite.Size = UDim2.new(1, 0, 1, 0)
+                layerSprite.BackgroundTransparency = 1
+                layerSprite.Image = SpriteConfig.SHEET_ASSET
+                layerSprite.ImageTransparency = 0 -- NO TRANSPARENCY - completely opaque
+                layerSprite.ImageColor3 = Color3.new(darkness, darkness, darkness)
+                layerSprite.ScaleType = Enum.ScaleType.Stretch
+                layerSprite.Parent = layerGui
+                
+                -- Apply sprite rect for proper item display
+                layerSprite.ImageRectOffset = offset
+                layerSprite.ImageRectSize = size
+                
+                table.insert(depthLayers, {
+                        part = layerPart,
+                        sprite = layerSprite
+                })
+        end
+
+        -- Top layer (main sprite)
+        local topGui = Instance.new("SurfaceGui")
+        topGui.Face = Enum.NormalId.Top
+        topGui.Parent = spritePart
+
+        local imageLabel = Instance.new("ImageLabel")
+        imageLabel.Size = UDim2.new(1, 0, 1, 0)
+        imageLabel.BackgroundTransparency = 1
+	imageLabel.Image = SpriteConfig.SHEET_ASSET
+        imageLabel.ImageTransparency = 0
+        imageLabel.ScaleType = Enum.ScaleType.Stretch
+        imageLabel.Parent = topGui
+
+        -- Apply sprite rect to main sprite
         imageLabel.ImageRectOffset = offset
         imageLabel.ImageRectSize = size
 
-        local nameBillboard = Instance.new("BillboardGui")
-        nameBillboard.Name = "NameBillboard"
-        nameBillboard.Size = UDim2.new(0, 140, 0, 32)
-        nameBillboard.StudsOffsetWorldSpace = Vector3.new(0, 1.6, 0)
-        nameBillboard.AlwaysOnTop = true
-        nameBillboard.Parent = pivot
+	-- Enhanced point light with better range and color
+	local pointLight = Instance.new("PointLight")
+	pointLight.Name = "SpriteGlow"
+	pointLight.Range = 12 -- Increased range
+	pointLight.Brightness = 2.2 -- Brighter
+	pointLight.Color = Color3.fromRGB(255, 235, 200) -- Warmer color
+	pointLight.Shadows = false
+	pointLight.Parent = spritePart
 
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Size = UDim2.new(1, 0, 1, 0)
-        nameLabel.Font = Enum.Font.GothamBold
-        nameLabel.TextScaled = true
-        nameLabel.TextColor3 = Color3.new(1, 1, 1)
-        nameLabel.TextStrokeColor3 = Color3.new(0.1, 0.1, 0.1)
-        nameLabel.TextStrokeTransparency = 0.4
-        nameLabel.Text = string.format("%s x%d", item.name, count)
-        nameLabel.Parent = nameBillboard
+	-- Enhanced sparkles with better color and effect
+	local sparkles = Instance.new("Sparkles")
+	sparkles.Name = "SpriteSparkles"
+	sparkles.SparkleColor = Color3.fromRGB(255, 245, 220) -- Warmer sparkle color
+	sparkles.Parent = spritePart
 
-        local attachment = Instance.new("Attachment")
-        attachment.Parent = pivot
-        attachment.Position = Vector3.new(0, 0.4, 0)
+	-- Add additional ambient light for extra glow
+	local ambientLight = Instance.new("PointLight")
+	ambientLight.Name = "AmbientGlow"
+	ambientLight.Range = 8
+	ambientLight.Brightness = 1.2
+	ambientLight.Color = Color3.fromRGB(255, 250, 240)
+	ambientLight.Shadows = false
+	ambientLight.Parent = pivot
 
-        local particleEmitter = Instance.new("ParticleEmitter")
-        particleEmitter.Parent = attachment
-        particleEmitter.LightEmission = 0.6
-        particleEmitter.LightInfluence = 0
-        particleEmitter.Size = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 0.15),
-                NumberSequenceKeypoint.new(0.5, 0.25),
-                NumberSequenceKeypoint.new(1, 0),
+	-- Simple ground-based items with enhanced lighting and sparkles
+	model.PrimaryPart = pivot
+
+	worldItems[worldItemId] = {
+		itemId = itemId,
+		count = count,
+		position = worldPosition,
+		droppedBy = player.UserId,
+		droppedAt = tick(),
+		model = model,
+		connections = presentationConnections,
+	}
+
+        -- Add plop animation with bounce effect for all depth layers
+        local plopTweens = {}
+        local scaleTweens = {}
+        
+        -- Animate main sprite
+        local plopTween1 = TweenService:Create(spritePart, TweenInfo.new(0.3, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
+            CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.05, 0)) -- Final resting position on ground
         })
-        particleEmitter.Lifetime = NumberRange.new(0.8, 1.2)
-        particleEmitter.Rate = 12
-        particleEmitter.Speed = NumberRange.new(0.6, 1.2)
-        particleEmitter.SpreadAngle = Vector2.new(30, 30)
-        particleEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 235, 200))
-        particleEmitter.Texture = "rbxassetid://130219045" -- sparkle texture
-
-        local pointLight = Instance.new("PointLight")
-        pointLight.Parent = pivot
-        pointLight.Color = core.Color
-        pointLight.Range = 6
-        pointLight.Brightness = 1.6
-
-        model.PrimaryPart = pivot
-
-        worldItems[worldItemId] = {
-                itemId = itemId,
-                count = count,
-                position = worldPosition,
-                droppedBy = player.UserId,
-                droppedAt = tick(),
-                model = model,
-        }
-
-        TweenService:Create(pivot, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                Position = worldPosition,
-        }):Play()
-
-        local bobConnection
-        local baseTime = tick()
-        local bobStart = baseTime + 0.35
-        bobConnection = RunService.Heartbeat:Connect(function()
-                if not model.Parent or not pivot.Parent then
-                        if bobConnection then
-                                bobConnection:Disconnect()
-                        end
-                        return
+        plopTween1:Play()
+        
+        local scaleTween1 = TweenService:Create(spritePart, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = Vector3.new(4.5, 0.1, 4.5) -- Slightly larger on impact
+        })
+        scaleTween1:Play()
+        
+        -- Animate solid depth layers - no dramatic movement, just solid stacking
+        for i, layer in ipairs(depthLayers) do
+                local delay = (i - 1) * 0.02 -- Small stagger for solid effect
+                local progress = i / layerCount
+                
+                -- Simple plop animation for solid layers
+                local plopTween = TweenService:Create(layer.part, TweenInfo.new(0.2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
+                        CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.01 + (progress * 0.08), 0))
+                })
+                
+                -- Minimal scale animation for solid effect
+                local scaleTween = TweenService:Create(layer.part, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Size = Vector3.new((4 * (1 + (progress * 0.3))) * 1.05, 0.1, (4 * (1 + (progress * 0.3))) * 1.05)
+                })
+                
+                -- Delay the animation for staggered effect
+                if delay > 0 then
+                        task.wait(delay)
                 end
-
-                local now = tick()
-                if now < bobStart then
-                        return
-                end
-
-                local elapsed = now - baseTime
-                local bobOffset = math.sin(elapsed * 2.2) * 0.15
-                pivot.Position = Vector3.new(worldPosition.X, worldPosition.Y + 0.2 + bobOffset, worldPosition.Z)
+                
+                plopTween:Play()
+                scaleTween:Play()
+                
+                table.insert(plopTweens, plopTween)
+                table.insert(scaleTweens, scaleTween)
+        end
+        
+        -- Scale back to normal size for all layers
+        scaleTween1.Completed:Connect(function()
+            local scaleBackTween1 = TweenService:Create(spritePart, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                Size = Vector3.new(4, 0.1, 4) -- Back to normal size
+            })
+            scaleBackTween1:Play()
         end)
+        
+        -- Scale back solid depth layers
+        for i, layer in ipairs(depthLayers) do
+                local progress = i / layerCount
+                local originalSize = Vector3.new(4 * (1 + (progress * 0.3)), 0.1, 4 * (1 + (progress * 0.3)))
+                
+                -- Connect scale back animation for each layer
+                if scaleTweens[i] then
+                        scaleTweens[i].Completed:Connect(function()
+                                local scaleBackTween = TweenService:Create(layer.part, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                                        Size = originalSize
+                                })
+                                scaleBackTween:Play()
+                        end)
+                end
+        end
 
         local function pickupItem(pickingPlayer)
                 if not worldItems[worldItemId] then
@@ -410,78 +541,119 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 
                 print("[Server]", pickingPlayer.Name, "picked up", count, "x", item.name)
 
-                local inventory = playerInventories[pickingPlayer.UserId]
-                if inventory then
-                        local slots = inventory.slots
-                        local existingIndex
-                        for index = 1, inventory.maxSlots or MAX_SLOTS do
-                                local slot = slots[index]
-                                if slot and slot.itemId == itemId then
-                                        existingIndex = index
-                                        break
-                                end
-                        end
+                -- Get player position for animation
+                local character = pickingPlayer.Character
+                local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                local targetPosition = humanoidRootPart and humanoidRootPart.Position or worldPosition
+                
+                print("[Server] 🎬 Starting pickup animation from", worldPosition, "to", targetPosition)
 
-                        if existingIndex then
-                                slots[existingIndex].count += count
-                        else
-                                local emptyIndex
+                -- Anchor the pivot for smooth animation
+                pivot.Anchored = true
+                
+                -- Create satisfying pickup animation
+                local pickupTween = TweenService:Create(pivot, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                        CFrame = CFrame.new(targetPosition + Vector3.new(0, 2, 0))
+                })
+                
+                -- Scale up then down for satisfying effect
+                local scaleUpTween = TweenService:Create(pivot, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Size = Vector3.new(1.5, 1.5, 1.5)
+                })
+                
+                local scaleDownTween = TweenService:Create(pivot, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                        Size = Vector3.new(0.1, 0.1, 0.1)
+                })
+
+                -- Start animations
+                pickupTween:Play()
+                scaleUpTween:Play()
+                
+                -- Chain the scale animations
+                scaleUpTween.Completed:Connect(function()
+                        scaleDownTween:Play()
+                end)
+
+                -- Add rotation for extra satisfaction
+                local rotationTween = TweenService:Create(pivot, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                        CFrame = pivot.CFrame * CFrame.Angles(0, math.rad(360), 0)
+                })
+                rotationTween:Play()
+
+                -- Wait for animation to complete before adding to inventory
+                pickupTween.Completed:Connect(function()
+                        print("[Server] 🎬 Animation completed, adding to inventory")
+                        
+                        local inventory = playerInventories[pickingPlayer.UserId]
+                        if inventory then
+                                local slots = inventory.slots
+                                local existingIndex
                                 for index = 1, inventory.maxSlots or MAX_SLOTS do
-                                        if not slots[index] then
-                                                emptyIndex = index
+                                        local slot = slots[index]
+                                        if slot and slot.itemId == itemId then
+                                                existingIndex = index
                                                 break
                                         end
                                 end
 
-                                if emptyIndex then
-                                        slots[emptyIndex] = { itemId = itemId, count = count }
+                                if existingIndex then
+                                        slots[existingIndex].count += count
                                 else
-                                        warn("[Server]", pickingPlayer.Name, "has no space to pick up", item.name)
-                                        return
+                                        local emptyIndex
+                                        for index = 1, inventory.maxSlots or MAX_SLOTS do
+                                                if not slots[index] then
+                                                        emptyIndex = index
+                                                        break
+                                                end
+                                        end
+
+                                        if emptyIndex then
+                                                slots[emptyIndex] = { itemId = itemId, count = count }
+                                        else
+                                                warn("[Server]", pickingPlayer.Name, "has no space to pick up", item.name)
+                                                return
+                                        end
                                 end
+
+                                syncInventoryToClient(pickingPlayer)
                         end
 
-                        syncInventoryToClient(pickingPlayer)
-                end
-
-                worldItems[worldItemId] = nil
-
-                if bobConnection then
-                        bobConnection:Disconnect()
-                end
-
-                model:Destroy()
+                        destroyWorldItem(worldItemId)
+                end)
         end
 
         local clickDetector = Instance.new("ClickDetector")
-        clickDetector.MaxActivationDistance = 12
-        clickDetector.Parent = core
+        clickDetector.MaxActivationDistance = 20 -- Increased from 12 to 20
+        clickDetector.Parent = pivot
         clickDetector.MouseClick:Connect(pickupItem)
 
-        local proximityConnection
-        proximityConnection = RunService.Heartbeat:Connect(function()
-                if not model.Parent then
-                        if proximityConnection then
-                                proximityConnection:Disconnect()
-                        end
-                        return
-                end
+	local proximityConnection
+	proximityConnection = RunService.Heartbeat:Connect(function()
+		if not model.Parent then
+			if proximityConnection then
+				proximityConnection:Disconnect()
+				proximityConnection = nil
+			end
+			return
+		end
 
-                for _, otherPlayer in ipairs(Players:GetPlayers()) do
+		for _, otherPlayer in ipairs(Players:GetPlayers()) do
                         local character = otherPlayer.Character
                         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                         if rootPart then
                                 local distance = (rootPart.Position - worldPosition).Magnitude
-                                if distance <= 3 then
-                                        pickupItem(otherPlayer)
-                                        if proximityConnection then
-                                                proximityConnection:Disconnect()
-                                        end
-                                        return
-                                end
-                        end
-                end
-        end)
+				if distance <= 8 then -- Increased from 3 to 8
+					pickupItem(otherPlayer)
+					if proximityConnection then
+						proximityConnection:Disconnect()
+						proximityConnection = nil
+					end
+					return
+				end
+			end
+		end
+	end)
+	trackConnection(proximityConnection)
 
         print("[Server] ✅ Created 3D dropped item:", item.name, "x", count, "at", worldPosition)
 end
@@ -606,20 +778,31 @@ end)
 -- Player events
 Players.PlayerAdded:Connect(function(player)
 	print("[Server] Player added:", player.Name)
+	
+	-- Track if inventory has been initialized for this player
+	local inventoryInitialized = false
+	
 	player.CharacterAdded:Connect(function(character)
 		print("[Server] Character added for:", player.Name)
-		task.wait(1)
-		print("[Server] Initializing inventory for:", player.Name)
-		initializePlayerInventory(player)
 		
-                -- Send initial inventory to client
-                local inventory = playerInventories[player.UserId]
-                if inventory then
-                        print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
-                        syncInventoryToClient(player)
-                else
-                        warn("[Server] No inventory found for", player.Name)
-                end
+		-- Only initialize inventory once per player
+		if not inventoryInitialized then
+			task.wait(1)
+			print("[Server] Initializing inventory for:", player.Name)
+			initializePlayerInventory(player)
+			inventoryInitialized = true
+			
+			-- Send initial inventory to client
+			local inventory = playerInventories[player.UserId]
+			if inventory then
+				print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
+				syncInventoryToClient(player)
+			else
+				warn("[Server] No inventory found for", player.Name)
+			end
+		else
+			print("[Server] Inventory already initialized for", player.Name, "- skipping")
+		end
 	end)
 end)
 
@@ -629,3 +812,73 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 print("[Server] ✅ Inventory system loaded and ready!")
+
+-- Debug item test event
+local testItemEvent = Instance.new("RemoteEvent")
+testItemEvent.Name = "TestItemEvent"
+testItemEvent.Parent = ReplicatedStorage
+
+testItemEvent.OnServerEvent:Connect(function(player, x, y)
+    print("[Debug] Player " .. player.Name .. " testing item at " .. x .. ", " .. y)
+    
+    -- Create a test item at the player's position
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local worldPosition = humanoidRootPart.Position + Vector3.new(0, 2, 0)
+    
+    -- Create test item with specified coordinates
+    local testItemId = "test_" .. x .. "_" .. y .. "_" .. os.time()
+    
+    -- Use the same dropItem logic but with custom coordinates
+    local model = Instance.new("Model")
+    model.Name = "TestItem_" .. testItemId
+    model.Parent = workspace
+    
+    -- Create the main sprite part
+    local spritePart = Instance.new("Part")
+    spritePart.Name = "SpritePart"
+    spritePart.Size = Vector3.new(4, 0.1, 4)
+    spritePart.Material = Enum.Material.Neon
+    spritePart.Color = Color3.new(0, 0, 0)
+    spritePart.Transparency = 1
+    spritePart.CanCollide = false
+    spritePart.Anchored = true
+    spritePart.CFrame = CFrame.new(worldPosition)
+    spritePart.CastShadow = false
+    spritePart.Parent = model
+    
+    -- Create surface GUI for the sprite
+    local spriteGui = Instance.new("SurfaceGui")
+    spriteGui.Face = Enum.NormalId.Top
+    spriteGui.Parent = spritePart
+    
+    local spriteImage = Instance.new("ImageLabel")
+    spriteImage.Size = UDim2.new(1, 0, 1, 0)
+    spriteImage.BackgroundTransparency = 1
+    spriteImage.Image = SpriteConfig.SHEET_ASSET
+    spriteImage.ImageTransparency = 0
+    spriteImage.ScaleType = Enum.ScaleType.Stretch
+    spriteImage.Parent = spriteGui
+    
+    -- Apply the specified sprite coordinates
+    spriteImage.ImageRectOffset = Vector2.new(x * 32, y * 32)
+    spriteImage.ImageRectSize = Vector2.new(32, 32)
+    
+    -- Add click detector for pickup
+    local clickDetector = Instance.new("ClickDetector")
+    clickDetector.MaxActivationDistance = 20
+    clickDetector.Parent = spritePart
+    
+    clickDetector.MouseClick:Connect(function(clickingPlayer)
+        if clickingPlayer == player then
+            print("[Debug] Test item picked up by " .. player.Name)
+            model:Destroy()
+        end
+    end)
+    
+    print("[Debug] Test item created at " .. worldPosition .. " with sprite " .. x .. ", " .. y)
+end)
