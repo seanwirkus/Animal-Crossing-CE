@@ -3,6 +3,41 @@
 
 print("Loading Animal Crossing client systems...")
 
+-- ============================================================================
+-- GUI REQUIREMENTS AND NOTES FOR DEVELOPER
+-- ============================================================================
+-- This script handles LOGIC ONLY for the inventory system.
+-- You must create the following GUI elements in Roblox Studio:
+--
+-- 1. INVENTORY STRUCTURE (REQUIRED):
+--    - InventoryGUI (ScreenGui)
+--      - InventoryFrame (Frame)
+--        - InventoryItems (ScrollingFrame or Frame)
+--          - ItemSlotTemplate (Frame) - A template slot with these children:
+--            * ItemIcon (ImageLabel)
+--            * ItemCount (TextLabel) 
+--            * ItemName (TextLabel)
+--
+-- 2. STATUS/HEALTH SYSTEM (TO BE CREATED):
+--    - Create a StatusBar or HealthBar GUI in your InventoryGUI
+--    - Add attributes: "MaxHealth", "CurrentHealth"
+--    - This script will call methods to update it (placeholder for future)
+--    - TODO: Reference it as: inventoryGui:FindFirstChild("StatusBar") or similar
+--
+-- 3. STATUS EFFECTS DISPLAY (TO BE CREATED):
+--    - Create a StatusEffectsContainer Frame in InventoryGUI
+--    - This will show active buffs/debuffs on the player
+--    - TODO: Implement rendering logic when container exists
+--
+-- 4. EQUIPMENT SLOTS (OPTIONAL):
+--    - Create EquipmentFrame in InventoryGUI if you want equipment system
+--    - Add slots for: Head, Body, Hands, Feet, Accessories
+--    - TODO: Logic ready, awaiting GUI implementation
+--
+-- The script will search for these in PlayerGui automatically.
+-- If any required GUI element is missing, it will print a warning and disable that feature.
+-- ============================================================================
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -207,6 +242,70 @@ local refreshSlot
 local beginDrag
 local finishDrag
 
+
+
+-- ============================================================================
+-- STATUS BAR / HEALTH BAR SYSTEM (TO BE IMPLEMENTED IN ROBLOX STUDIO)
+-- ============================================================================
+-- TODO: The following functions expect you to create a StatusBar GUI in Roblox Studio
+-- Located at: PlayerGui > InventoryGUI > StatusBar
+-- The StatusBar should contain a Fill frame and support these attributes:
+--   - MaxHealth (Number)
+--   - CurrentHealth (Number)
+--
+-- Once you create the StatusBar GUI, uncomment the functions below and they will
+-- automatically update when player health changes.
+-- ============================================================================
+
+local function updateHealthBar(currentHealth, maxHealth)
+	-- LOGIC READY: This function is called when player health changes
+	-- Create StatusBar GUI in Roblox Studio with a Fill frame to use this
+	-- Example structure: InventoryGUI > StatusBar > Fill
+	if not inventoryGui then
+		return
+	end
+	
+	local statusBar = inventoryGui:FindFirstChild("StatusBar")
+	if statusBar then
+		local fillFrame = statusBar:FindFirstChild("Fill")
+		if fillFrame then
+			local healthPercent = currentHealth / maxHealth
+			-- Animate the fill frame to the correct size
+			TweenService:Create(fillFrame, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+				Size = UDim2.new(healthPercent, 0, 1, 0)
+			}):Play()
+		end
+		
+		local healthText = statusBar:FindFirstChild("HealthText")
+		if healthText then
+			healthText.Text = math.floor(currentHealth) .. " / " .. maxHealth
+		end
+	end
+end
+
+local function updateStatusEffects(effectsList)
+	-- LOGIC READY: This function is called when status effects change
+	-- Create StatusEffectsContainer GUI in Roblox Studio to use this
+	-- effectsList is a table: { {name="Buff1", duration=5}, {name="Debuff1", duration=3} }
+	-- You'll need to render icons for each effect
+	if not inventoryGui then
+		return
+	end
+	
+	local effectsContainer = inventoryGui:FindFirstChild("StatusEffectsContainer")
+	if effectsContainer then
+		-- Clear existing effects display
+		for _, child in ipairs(effectsContainer:GetChildren()) do
+			if child:IsA("Frame") and child.Name ~= "UIGridLayout" then
+				child:Destroy()
+			end
+		end
+		
+		-- TODO: Create and add effect icons based on effectsList
+		-- This awaits proper GUI setup in Roblox Studio
+	end
+end
+
 local function ensureBlurEffect()
     if blurEffect and blurEffect.Parent then
         return blurEffect
@@ -302,38 +401,16 @@ local function setInventoryVisible(shouldShow)
         end
 
         visible = shouldShow
+        
+        -- Ensure GUI is enabled when showing inventory
+        if shouldShow and inventoryGui then
+                inventoryGui.Enabled = true
+        end
+        
         inventoryFrame.Visible = visible
 
         if not visible and dragInfo then
                 finishDrag(UserInputService:GetMouseLocation(), true)
-        end
-
-        local blur = ensureBlurEffect()
-        blur.Enabled = true
-
-        local targetSize = visible and 12 or 0
-        local blurTween = TweenService:Create(blur, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                Size = targetSize,
-        })
-        blurTween:Play()
-
-        if not visible then
-                blurTween.Completed:Connect(function()
-                        if not visible then
-                                blur.Enabled = false
-                        end
-                end)
-        end
-
-        if visible then
-                inventoryFrame.BackgroundTransparency = 0.3
-                TweenService:Create(inventoryFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                        BackgroundTransparency = 0.05,
-                }):Play()
-        else
-                TweenService:Create(inventoryFrame, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-                        BackgroundTransparency = 0.3,
-                }):Play()
         end
 end
 
@@ -348,32 +425,138 @@ local function copySlotData(data)
     }
 end
 
+-- ============================================================================
+-- INVENTORY STYLING MODULE (Embedded)
+-- ============================================================================
+-- Central place to customize all inventory visual styling
+local InventoryStyling = {}
+
+InventoryStyling.Slot = {
+	DefaultBackgroundColor = Color3.fromRGB(200, 200, 200),
+	DefaultBackgroundTransparency = 0.2,
+	HoverBackgroundColor = Color3.fromRGB(4, 175, 166),      -- Teal/cyan
+	HoverBackgroundTransparency = 0.1,
+	BorderColor = Color3.fromRGB(100, 100, 100),
+	BorderSizePixel = 1,
+}
+
+InventoryStyling.ItemIcon = {
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+}
+
+InventoryStyling.ItemCount = {
+	TextColor = Color3.fromRGB(255, 255, 255),
+	BackgroundColor = Color3.fromRGB(0, 0, 0),
+	BackgroundTransparency = 0.3,
+	TextSize = 16,
+	Font = Enum.Font.GothamBold,
+	Visible = true,
+}
+
+InventoryStyling.ItemName = {
+	TextColor = Color3.fromRGB(0, 0, 0),
+	BackgroundColor = Color3.fromRGB(255, 255, 255),
+	BackgroundTransparency = 0.5,
+	TextSize = 14,
+	Font = Enum.Font.Gotham,
+	Visible = false,
+}
+
+InventoryStyling.GhostItem = {
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ZIndex = 250,
+	Size = UDim2.new(0, 64, 0, 64),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+}
+
+InventoryStyling.InventoryFrame = {
+	BackgroundColor = Color3.fromRGB(220, 220, 220),
+	BackgroundTransparency = 0.05,
+	BorderColor = Color3.fromRGB(100, 100, 100),
+	BorderSizePixel = 1,
+}
+
+InventoryStyling.DragLayer = {
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ZIndex = 200,
+}
+
+InventoryStyling.Animation = {
+	HoverDuration = 0,
+	DragDuration = 0,
+	DropDuration = 0,
+	EasingStyle = Enum.EasingStyle.Sine,
+	EasingDirection = Enum.EasingDirection.Out,
+}
+
+function InventoryStyling.ApplySlotStyling(slot)
+	if not slot then return end
+	slot.BackgroundColor3 = InventoryStyling.Slot.DefaultBackgroundColor
+	slot.BackgroundTransparency = InventoryStyling.Slot.DefaultBackgroundTransparency
+	slot.BorderColor3 = InventoryStyling.Slot.BorderColor
+	slot.BorderSizePixel = InventoryStyling.Slot.BorderSizePixel
+end
+
+function InventoryStyling.ApplyHoverStyling(slot)
+	if not slot then return end
+	slot.BackgroundColor3 = InventoryStyling.Slot.HoverBackgroundColor
+	slot.BackgroundTransparency = InventoryStyling.Slot.HoverBackgroundTransparency
+end
+
+function InventoryStyling.ResetSlotStyling(slot)
+	if not slot then return end
+	slot.BackgroundColor3 = InventoryStyling.Slot.DefaultBackgroundColor
+	slot.BackgroundTransparency = InventoryStyling.Slot.DefaultBackgroundTransparency
+end
+
+function InventoryStyling.ApplyItemCountStyling(itemCountLabel)
+	if not itemCountLabel then return end
+	itemCountLabel.TextColor3 = InventoryStyling.ItemCount.TextColor
+	itemCountLabel.BackgroundColor3 = InventoryStyling.ItemCount.BackgroundColor
+	itemCountLabel.BackgroundTransparency = InventoryStyling.ItemCount.BackgroundTransparency
+	itemCountLabel.TextSize = InventoryStyling.ItemCount.TextSize
+	itemCountLabel.Font = InventoryStyling.ItemCount.Font
+end
+
+function InventoryStyling.ApplyItemNameStyling(itemNameLabel)
+	if not itemNameLabel then return end
+	itemNameLabel.TextColor3 = InventoryStyling.ItemName.TextColor
+	itemNameLabel.BackgroundColor3 = InventoryStyling.ItemName.BackgroundColor
+	itemNameLabel.BackgroundTransparency = InventoryStyling.ItemName.BackgroundTransparency
+	itemNameLabel.TextSize = InventoryStyling.ItemName.TextSize
+	itemNameLabel.Font = InventoryStyling.ItemName.Font
+end
+
+function InventoryStyling.HexToRGB(hexColor)
+	local hex = hexColor:gsub("#", "")
+	return Color3.fromRGB(
+		tonumber(hex:sub(1, 2), 16),
+		tonumber(hex:sub(3, 4), 16),
+		tonumber(hex:sub(5, 6), 16)
+	)
+end
+
+function InventoryStyling.CreateTweenInfo(duration)
+	duration = duration or InventoryStyling.Animation.HoverDuration
+	return TweenInfo.new(
+		duration,
+		InventoryStyling.Animation.EasingStyle,
+		InventoryStyling.Animation.EasingDirection
+	)
+end
+
 local function updateSlotAppearance(slot, state, options)
     if not slot then
         return
     end
 
-    options = options or {}
-    local isGhost = options.isGhost
-    local isPlaceholder = options.placeholder
-
     local icon = slot:FindFirstChild("ItemIcon")
     local itemCountLabel = slot:FindFirstChild("ItemCount")
     local itemNameLabel = slot:FindFirstChild("ItemName")
-    local stroke = slot:FindFirstChild("HighlightStroke")
-    if not stroke then
-        for _, child in ipairs(slot:GetChildren()) do
-            if child:IsA("UIStroke") then
-                stroke = child
-                break
-            end
-        end
-    end
-
-    if stroke then
-        stroke.Enabled = isPlaceholder and true or false
-    end
-
+    
     if state and state.itemId and ItemData[state.itemId] then
         local item = ItemData[state.itemId]
         if icon then
@@ -381,7 +564,6 @@ local function updateSlotAppearance(slot, state, options)
             icon.Image = SpriteConfig.SHEET_ASSET
             icon.ImageRectOffset = offset
             icon.ImageRectSize = size
-            icon.ImageTransparency = isPlaceholder and 1 or 0
         end
 
         if itemCountLabel then
@@ -389,17 +571,16 @@ local function updateSlotAppearance(slot, state, options)
                 itemCountLabel.Text = tostring(state.count)
                 itemCountLabel.Visible = true
             else
-                itemCountLabel.Text = isGhost and "1" or ""
-                itemCountLabel.Visible = isGhost and true or false
+                itemCountLabel.Text = ""
+                itemCountLabel.Visible = false
             end
-            itemCountLabel.TextTransparency = isPlaceholder and 0.35 or 0
         end
-
-		if itemNameLabel then
-			setItemNameLabelText(itemNameLabel, item.name)
-			itemNameLabel.TextTransparency = isPlaceholder and 0.4 or 1
-			itemNameLabel.BackgroundTransparency = 1
-		end
+        
+        -- Set item name for hover display (do NOT style it, just set text)
+        if itemNameLabel then
+            itemNameLabel.Text = item.name
+            itemNameLabel.Visible = false  -- Keep hidden until hover
+        end
     else
         if icon then
             icon.Image = ""
@@ -408,11 +589,10 @@ local function updateSlotAppearance(slot, state, options)
             itemCountLabel.Text = ""
             itemCountLabel.Visible = false
         end
-		if itemNameLabel then
-			setItemNameLabelText(itemNameLabel, "Empty Slot")
-			itemNameLabel.TextTransparency = 0.4
-			itemNameLabel.BackgroundTransparency = 1
-		end
+        if itemNameLabel then
+            itemNameLabel.Text = ""
+            itemNameLabel.Visible = false  -- Hide name label for empty slots
+        end
     end
 end
 
@@ -424,65 +604,43 @@ local function configureSlotFrame(slot, slotIndex)
 
 	slot:SetAttribute("Configured", true)
 
-	local highlight = Instance.new("UIStroke")
-	highlight.Name = "HighlightStroke"
-	highlight.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	highlight.Thickness = 2
-	highlight.Color = Color3.fromRGB(255, 226, 158)
-	highlight.Transparency = 0.1
-	highlight.Enabled = false
-	highlight.Parent = slot
+	local clickButton = Instance.new("TextButton")
+	clickButton.Name = "ClickButton"
+	clickButton.Size = UDim2.new(1, 0, 1, 0)
+	clickButton.BackgroundTransparency = 1
+	clickButton.Text = ""
+	clickButton.ZIndex = slot.ZIndex + 1
+	clickButton.Parent = slot
 
-	local hoverButton = Instance.new("TextButton")
-	hoverButton.Name = "HoverButton"
-	hoverButton.Size = UDim2.new(1, 0, 1, 0)
-	hoverButton.BackgroundTransparency = 1
-	hoverButton.Text = ""
-	hoverButton.ZIndex = slot.ZIndex + 1
-	hoverButton.Parent = slot
-
-	hoverButton.MouseEnter:Connect(function()
-		TweenService:Create(slot, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 70, 0, 70),
-		}):Play()
-		
+	-- Hover effects - NO background color changes, just show item name
+	clickButton.MouseEnter:Connect(function()
+		-- Show item name on hover ONLY if slot has an item
 		local itemNameLabel = slot:FindFirstChild("ItemName")
-		if itemNameLabel then
-			TweenService:Create(itemNameLabel, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-				TextTransparency = 0,
-				BackgroundTransparency = 0.2
-			}):Play()
+		if itemNameLabel and itemNameLabel.Text ~= "" then
+			itemNameLabel.Visible = true
 		end
 	end)
 
-	hoverButton.MouseLeave:Connect(function()
-		TweenService:Create(slot, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-			Size = UDim2.new(0, 64, 0, 64),
-		}):Play()
-		
+	clickButton.MouseLeave:Connect(function()
+		-- Hide item name when not hovering
 		local itemNameLabel = slot:FindFirstChild("ItemName")
 		if itemNameLabel then
-			TweenService:Create(itemNameLabel, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-				TextTransparency = 1,
-				BackgroundTransparency = 1
-			}):Play()
+			itemNameLabel.Visible = false
 		end
 	end)
 
-	local dragButton = Instance.new("TextButton")
-	dragButton.Name = "DragButton"
-	dragButton.Size = UDim2.new(1, 0, 1, 0)
-	dragButton.BackgroundTransparency = 1
-	dragButton.Text = ""
-	dragButton.ZIndex = hoverButton.ZIndex + 1
-	dragButton.Parent = slot
-
-	dragButton.MouseButton1Down:Connect(function()
-		local state = slotState[slotIndex]
-		if not state then
-			return
+	clickButton.MouseButton1Down:Connect(function()
+		if dragInfo then
+			-- Already holding an item - try to drop it here
+			finishDrag(UserInputService:GetMouseLocation(), false)
+		else
+			-- Pick up the item
+			local state = slotState[slotIndex]
+			if not state then
+				return
+			end
+			beginDrag(slotIndex)
 		end
-		beginDrag(slotIndex)
 	end)
 end
 
@@ -518,22 +676,83 @@ function refreshSlot(slotIndex)
     updateSlotAppearance(slot, state, { placeholder = false })
 end
 
-local function getSlotUnderPoint(point)
+local function getSlotUnderPoint(point, excludeIndex)
     if not inventoryItems then
         return nil
     end
 
+    -- Only check slots that have items (with non-empty state)
+    local validSlots = {}
     for index, slot in pairs(slotsByIndex) do
-        if slot and slot.Parent then
-            local pos = slot.AbsolutePosition
-            local size = slot.AbsoluteSize
-            if point.X >= pos.X and point.X <= pos.X + size.X and point.Y >= pos.Y and point.Y <= pos.Y + size.Y then
-                return index
+        if slot and slot.Parent and index ~= excludeIndex then
+            table.insert(validSlots, index)
+        end
+    end
+
+    -- Only return a slot if cursor is directly over it (strict bounds checking)
+    for _, index in ipairs(validSlots) do
+        local slot = slotsByIndex[index]
+        local pos = slot.AbsolutePosition
+        local size = slot.AbsoluteSize
+        
+        -- Check if point is strictly within slot bounds (no tolerance, no fallback)
+        if point.X >= pos.X and point.X < pos.X + size.X and 
+           point.Y >= pos.Y and point.Y < pos.Y + size.Y then
+            return index
+        end
+    end
+
+    -- If not directly over any slot, return nil (don't fallback to closest)
+    return nil
+end
+
+-- Helper function to handle dropping items to ground
+local function dropItemToGround(info, mousePosition)
+    slotState[info.slotIndex] = nil
+    refreshSlot(info.slotIndex)
+
+    local camera = workspace.CurrentCamera
+    local screenPos = Vector2.new(mousePosition.X, mousePosition.Y)
+    local unitRay = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = { camera }
+
+    local character = player.Character
+    if character then
+        for _, descendant in ipairs(character:GetDescendants()) do
+            if descendant:IsA("BasePart") then
+                table.insert(raycastParams.FilterDescendantsInstances, descendant)
             end
         end
     end
 
-    return nil
+    -- Primary raycast from camera through mouse position
+    local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
+    local worldPosition = Vector3.new(0, 1, 0)
+    
+    if raycastResult then
+        worldPosition = raycastResult.Position + Vector3.new(0, 0.5, 0)
+    else
+        -- Fallback: find ground below camera
+        local cameraPos = camera.CFrame.Position
+        local groundRaycast = workspace:Raycast(cameraPos, Vector3.new(0, -500, 0), raycastParams)
+        if groundRaycast then
+            worldPosition = groundRaycast.Position + Vector3.new(0, 0.5, 0)
+        else
+            -- Last resort: drop slightly in front of camera
+            local lookDir = camera.CFrame.LookVector
+            worldPosition = cameraPos + lookDir * 10 + Vector3.new(0, -2, 0)
+        end
+    end
+
+    inventoryRemote:FireServer("DropItem", {
+        itemId = info.state.itemId,
+        count = info.state.count,
+        slotIndex = info.slotIndex,
+        screenPosition = screenPos,
+        worldPosition = worldPosition,
+    })
 end
 
 function beginDrag(slotIndex)
@@ -547,38 +766,27 @@ function beginDrag(slotIndex)
         return
     end
 
+    -- Create simple ghost item (just clone the slot)
     local ghost = template:Clone()
     ghost.Name = "DragGhost"
     ghost.Visible = true
     ghost.AnchorPoint = Vector2.new(0.5, 0.5)
-    ghost.Size = UDim2.new(0, 80, 0, 80)
-    ghost.BackgroundTransparency = 0.05
-    ghost.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ghost.BorderSizePixel = 0
+    ghost.Size = UDim2.new(0, 64, 0, 64)
+    ghost.BackgroundTransparency = 0.3  -- Make it slightly transparent so you can see through
+    ghost.BackgroundColor3 = Color3.fromRGB(200, 200, 200)  -- Light gray background
+    ghost.BorderSizePixel = 2
+    ghost.BorderColor3 = Color3.fromRGB(100, 100, 100)
     ghost.ZIndex = 250
 
-    local ghostStroke = ghost:FindFirstChildOfClass("UIStroke")
-    if ghostStroke then
-        ghostStroke.Color = Color3.fromRGB(255, 244, 194)
-        ghostStroke.Thickness = 3
-        ghostStroke.Enabled = true
-    end
-
-    local ghostDrag = ghost:FindFirstChild("DragButton")
-    if ghostDrag then
-        ghostDrag:Destroy()
-    end
-
-    local ghostHover = ghost:FindFirstChild("HoverButton")
-    if ghostHover then
-        ghostHover:Destroy()
+    -- Remove interactive elements from ghost
+    for _, child in ipairs(ghost:GetChildren()) do
+        if child.Name == "ClickButton" or child.Name == "HoverButton" or child.Name == "DragButton" then
+            child:Destroy()
+        end
     end
 
     ghost.Parent = ensureDragLayer()
     updateSlotAppearance(ghost, state, { isGhost = true })
-
-    slot:SetAttribute("DragActive", true)
-    updateSlotAppearance(slot, state, { placeholder = true })
 
     dragInfo = {
         slotIndex = slotIndex,
@@ -587,14 +795,19 @@ function beginDrag(slotIndex)
         mouseConnection = nil,
     }
 
+    -- Track mouse and follow cursor
     dragInfo.mouseConnection = RunService.RenderStepped:Connect(function()
-        if not dragInfo then
+        if not dragInfo or not dragInfo.ghost or not dragInfo.ghost.Parent then
             return
         end
 
         local mousePos = UserInputService:GetMouseLocation()
-        if ghost.Parent and inventoryGui then
-            ghost.Position = UDim2.fromOffset(mousePos.X - inventoryGui.AbsolutePosition.X, mousePos.Y - inventoryGui.AbsolutePosition.Y)
+        
+        if dragInfo.ghost.Parent and inventoryGui then
+            dragInfo.ghost.Position = UDim2.fromOffset(
+                mousePos.X - inventoryGui.AbsolutePosition.X,
+                mousePos.Y - inventoryGui.AbsolutePosition.Y
+            )
         end
     end)
 end
@@ -610,26 +823,12 @@ function finishDrag(mousePos, cancelled)
         info.mouseConnection = nil
     end
 
-    local slot = slotsByIndex[info.slotIndex]
-    if slot then
-        slot:SetAttribute("DragActive", false)
-    end
-
+    -- Instantly destroy ghost
     if info.ghost then
         info.ghost:Destroy()
     end
 
-    local mousePosition = mousePos or UserInputService:GetMouseLocation()
-    local insideInventorySlots = false
-    if inventoryItems then
-        local invPos = inventoryItems.AbsolutePosition
-        local invSize = inventoryItems.AbsoluteSize
-        local margin = 24
-        if mousePosition.X >= invPos.X - margin and mousePosition.X <= invPos.X + invSize.X + margin and mousePosition.Y >= invPos.Y - margin and mousePosition.Y <= invPos.Y + invSize.Y + margin then
-            insideInventorySlots = true
-        end
-    end
-
+    -- If cancelled, restore item to original slot
     if cancelled then
         slotState[info.slotIndex] = copySlotData(info.state)
         refreshSlot(info.slotIndex)
@@ -637,124 +836,144 @@ function finishDrag(mousePos, cancelled)
         return
     end
 
+    local mousePosition = mousePos or UserInputService:GetMouseLocation()
+    
+    -- Allow swap even with minimal movement - user just needs to click and it attaches to cursor
+    -- No minimum drag distance requirement
+
+    -- Check if dropping in inventory area
+    local insideInventorySlots = false
+    if inventoryItems then
+        local invPos = inventoryItems.AbsolutePosition
+        local invSize = inventoryItems.AbsoluteSize
+        local margin = 32
+        if mousePosition.X >= invPos.X - margin and mousePosition.X <= invPos.X + invSize.X + margin and mousePosition.Y >= invPos.Y - margin and mousePosition.Y <= invPos.Y + invSize.Y + margin then
+            insideInventorySlots = true
+        end
+    end
+
     if insideInventorySlots then
-        local targetIndex = getSlotUnderPoint(mousePosition)
+        -- Dropping within inventory - swap or move
+        local targetIndex = getSlotUnderPoint(mousePosition, info.slotIndex)
+        
+        -- Only perform swap if we found a valid target that's different from source
         if targetIndex and targetIndex ~= info.slotIndex then
-            local targetState = slotState[targetIndex]
-            if targetState then
-                local originalTarget = copySlotData(targetState)
-                slotState[targetIndex] = copySlotData(info.state)
-                slotState[info.slotIndex] = originalTarget
-                refreshSlot(targetIndex)
-                refreshSlot(info.slotIndex)
-                inventoryRemote:FireServer("MoveItem", {
-                    fromIndex = info.slotIndex,
-                    toIndex = targetIndex,
-                    swap = true,
-                })
-            else
-                slotState[info.slotIndex] = nil
-                slotState[targetIndex] = copySlotData(info.state)
-                refreshSlot(info.slotIndex)
-                refreshSlot(targetIndex)
-                inventoryRemote:FireServer("MoveItem", {
-                    fromIndex = info.slotIndex,
-                    toIndex = targetIndex,
-                    swap = false,
-                })
+            -- Extra safeguard: make sure cursor is actually over the target slot
+            local targetSlot = slotsByIndex[targetIndex]
+            if targetSlot and targetSlot.Parent then
+                local targetPos = targetSlot.AbsolutePosition
+                local targetSize = targetSlot.AbsoluteSize
+                
+                -- Check if cursor is actually within target slot bounds (with 5px tolerance)
+                local tolerance = 5
+                local isOverTarget = mousePosition.X >= targetPos.X - tolerance and 
+                                     mousePosition.X < targetPos.X + targetSize.X + tolerance and 
+                                     mousePosition.Y >= targetPos.Y - tolerance and 
+                                     mousePosition.Y < targetPos.Y + targetSize.Y + tolerance
+                
+                if isOverTarget then
+                    local targetState = slotState[targetIndex]
+                    
+                    if targetState then
+                        -- Swap items
+                        local originalTarget = copySlotData(targetState)
+                        slotState[targetIndex] = copySlotData(info.state)
+                        slotState[info.slotIndex] = originalTarget
+                        
+                        refreshSlot(targetIndex)
+                        refreshSlot(info.slotIndex)
+                        
+                        inventoryRemote:FireServer("MoveItem", {
+                            fromIndex = info.slotIndex,
+                            toIndex = targetIndex,
+                            swap = true,
+                        })
+                    else
+                        -- Empty slot - just move
+                        slotState[info.slotIndex] = nil
+                        slotState[targetIndex] = copySlotData(info.state)
+                        refreshSlot(info.slotIndex)
+                        refreshSlot(targetIndex)
+                        
+                        inventoryRemote:FireServer("MoveItem", {
+                            fromIndex = info.slotIndex,
+                            toIndex = targetIndex,
+                            swap = false,
+                        })
+                    end
+                else
+                    -- Mouse not actually over target slot, restore item to original
+                    slotState[info.slotIndex] = copySlotData(info.state)
+                    refreshSlot(info.slotIndex)
+                end
             end
         else
-            -- If dragging within inventory area but not over a slot, drop the item
-            slotState[info.slotIndex] = nil
-            refreshSlot(info.slotIndex)
-
-            local camera = workspace.CurrentCamera
-            local screenPos = Vector2.new(mousePosition.X, mousePosition.Y)
-            local unitRay = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
-            local raycastParams = RaycastParams.new()
-            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-            raycastParams.FilterDescendantsInstances = { camera }
-
-            local character = player.Character
-            if character then
-                for _, descendant in ipairs(character:GetDescendants()) do
-                    if descendant:IsA("BasePart") then
-                        table.insert(raycastParams.FilterDescendantsInstances, descendant)
-                    end
-                end
-            end
-
-            local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
-            local worldPosition = Vector3.new(0, 1, 0) -- Start closer to ground
-            if raycastResult then
-                worldPosition = raycastResult.Position + Vector3.new(0, 0.5, 0)
-            else
-                -- If no raycast hit, try to find ground below camera
-                local camera = workspace.CurrentCamera
-                local cameraPos = camera.CFrame.Position
-                local groundRaycast = workspace:Raycast(cameraPos, Vector3.new(0, -100, 0), raycastParams)
-                if groundRaycast then
-                    worldPosition = groundRaycast.Position + Vector3.new(0, 0.5, 0)
-                end
-            end
-
-            inventoryRemote:FireServer("DropItem", {
-                itemId = info.state.itemId,
-                count = info.state.count,
-                slotIndex = info.slotIndex,
-                screenPosition = screenPos,
-                worldPosition = worldPosition,
-            })
+            -- Dropped in inventory area but not on a slot - drop to ground
+            dropItemToGround(info, mousePosition)
         end
     else
-        slotState[info.slotIndex] = nil
-        refreshSlot(info.slotIndex)
-
-        local camera = workspace.CurrentCamera
-        local screenPos = Vector2.new(mousePosition.X, mousePosition.Y)
-        local unitRay = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
-        local raycastParams = RaycastParams.new()
-        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-        raycastParams.FilterDescendantsInstances = { camera }
-
-        local character = player.Character
-        if character then
-            for _, descendant in ipairs(character:GetDescendants()) do
-                if descendant:IsA("BasePart") then
-                    table.insert(raycastParams.FilterDescendantsInstances, descendant)
-                end
-            end
-        end
-
-        local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
-        local worldPosition = Vector3.new(0, 1, 0) -- Start closer to ground
-        if raycastResult then
-            worldPosition = raycastResult.Position + Vector3.new(0, 0.5, 0)
-        else
-            -- If no raycast hit, try to find ground below camera
-            local camera = workspace.CurrentCamera
-            local cameraPos = camera.CFrame.Position
-            local groundRaycast = workspace:Raycast(cameraPos, Vector3.new(0, -100, 0), raycastParams)
-            if groundRaycast then
-                worldPosition = groundRaycast.Position + Vector3.new(0, 0.5, 0)
-            end
-        end
-
-        inventoryRemote:FireServer("DropItem", {
-            itemId = info.state.itemId,
-            count = info.state.count,
-            slotIndex = info.slotIndex,
-            screenPosition = screenPos,
-            worldPosition = worldPosition,
-        })
+        -- Dropped outside inventory - drop to ground
+        dropItemToGround(info, mousePosition)
     end
 
     dragInfo = nil
 end
 
+-- Helper function to handle dropping items to ground
+local function dropItemToGround(info, mousePosition)
+    slotState[info.slotIndex] = nil
+    refreshSlot(info.slotIndex)
+
+    local camera = workspace.CurrentCamera
+    local screenPos = Vector2.new(mousePosition.X, mousePosition.Y)
+    local unitRay = camera:ScreenPointToRay(screenPos.X, screenPos.Y)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = { camera }
+
+    local character = player.Character
+    if character then
+        for _, descendant in ipairs(character:GetDescendants()) do
+            if descendant:IsA("BasePart") then
+                table.insert(raycastParams.FilterDescendantsInstances, descendant)
+            end
+        end
+    end
+
+    -- Primary raycast from camera through mouse position
+    local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, raycastParams)
+    local worldPosition = Vector3.new(0, 1, 0)
+    
+    if raycastResult then
+        worldPosition = raycastResult.Position + Vector3.new(0, 0.5, 0)
+    else
+        -- Fallback: find ground below camera
+        local cameraPos = camera.CFrame.Position
+        local groundRaycast = workspace:Raycast(cameraPos, Vector3.new(0, -500, 0), raycastParams)
+        if groundRaycast then
+            worldPosition = groundRaycast.Position + Vector3.new(0, 0.5, 0)
+        else
+            -- Last resort: drop slightly in front of camera
+            local lookDir = camera.CFrame.LookVector
+            worldPosition = cameraPos + lookDir * 10 + Vector3.new(0, -2, 0)
+        end
+    end
+
+    inventoryRemote:FireServer("DropItem", {
+        itemId = info.state.itemId,
+        count = info.state.count,
+        slotIndex = info.slotIndex,
+        screenPosition = screenPos,
+        worldPosition = worldPosition,
+    })
+end
+
 UserInputService.InputEnded:Connect(function(input)
+    -- In two-click mode, allow mouse release to drop item to ground if not clicking on a slot
     if input.UserInputType == Enum.UserInputType.MouseButton1 and dragInfo then
-        finishDrag(UserInputService:GetMouseLocation())
+        -- Mouse released while holding item - drop it to ground
+        local mousePosition = UserInputService:GetMouseLocation()
+        finishDrag(mousePosition)
     end
 end)
 
@@ -829,7 +1048,7 @@ local function populateInventoryFromServer(inventoryData)
                                 itemId = slotData.itemId,
                                 count = slotData.count,
                         }
-                        filled += 1
+                        filled = filled + 1
                 else
                         slotState[index] = nil
                 end
@@ -847,7 +1066,6 @@ local function populateInventoryFromServer(inventoryData)
         print("[Debug] ✅ Populated inventory with", filled, "items and", maxSlots - filled, "empty slots")
 end
 
-
 -- Initialize everything when player loads
 local function initializeInventorySystem()
 	print("[Debug] 🚀 Initializing inventory system...")
@@ -855,10 +1073,7 @@ local function initializeInventorySystem()
 	-- Find your existing inventory GUI
 	inventoryGui = gui:FindFirstChild("InventoryGUI")
 	if not inventoryGui then
-		warn("[Debug] ❌ Could not find inventory GUI. Available GUIs:")
-		for _, child in ipairs(gui:GetChildren()) do
-			print("[Debug]   -", child.Name)
-		end
+		warn("[Debug] ❌ Could not find InventoryGUI in PlayerGui - create it in Roblox Studio")
 		return false
 	end
 
@@ -890,6 +1105,10 @@ local function initializeInventorySystem()
 	
 	print("[Debug] ✅ Found ItemSlotTemplate")
 	
+	-- Ensure the GUI is enabled (in case it was disabled in Studio)
+	inventoryGui.Enabled = true
+	print("[Debug] ✅ Inventory GUI enabled")
+	
 	-- Hide inventory initially
 	setInventoryVisible(false)
 	print("[Debug] ✅ Inventory GUI hidden initially")
@@ -910,9 +1129,6 @@ end
 
 -- Initialize the inventory system when the script loads
 initializeInventorySystem()
-
--- Debug GUI variable (declare at top level scope)
-local debugGui
 
 -- Input handling
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -969,29 +1185,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			print("[Debug] 📦 Inventory closed")
 		end
 	end
-	
-	-- Debug: List world items with W key
-	if input.KeyCode == Enum.KeyCode.W then
-		print("[Debug] 🌍 Requesting world items...")
-		inventoryRemote:FireServer("GetWorldItems")
-	end
-	
-	-- Debug: Toggle debug GUI with G key
-	if input.KeyCode == Enum.KeyCode.G then
-		print("[Debug] G key pressed! Toggling debug GUI...")
-		print("[Debug] 🔧 Debug GUI exists:", debugGui ~= nil)
-		if debugGui then
-			print("[Debug] 🔧 Debug GUI current state:", debugGui.Enabled)
-			print("[Debug] 🔧 Debug GUI parent:", debugGui.Parent and debugGui.Parent.Name or "nil")
-			print("[Debug] 🔧 Debug GUI children count:", #debugGui:GetChildren())
-		end
-		debugGui.Enabled = not debugGui.Enabled
-		if debugGui.Enabled then
-			print("[Debug] 🔧 Debug GUI opened")
-		else
-			print("[Debug] 🔧 Debug GUI closed")
-		end
-	end
 end)
 
 -- Remote event handlers
@@ -1003,14 +1196,14 @@ inventoryRemote.OnClientEvent:Connect(function(action, data)
                         if data.slots then
                                 for index, slot in pairs(data.slots) do
                                         if slot and slot.itemId and slot.count and slot.count > 0 then
-                                                count += 1
+                                                count = count + 1
                                                 print("[Debug] Item", index, ":", slot.itemId, "x", slot.count)
                                         end
                                 end
                         else
                                 for index, slot in ipairs(data) do
                                         if slot and slot.itemId and slot.count and slot.count > 0 then
-                                                count += 1
+                                                count = count + 1
                                                 print("[Debug] Item", index, ":", slot.itemId, "x", slot.count)
                                         end
                                 end
@@ -1020,285 +1213,10 @@ inventoryRemote.OnClientEvent:Connect(function(action, data)
                 print("[Debug] ✅ Inventory synced with", count, "items")
                 print("[Debug] Refreshing inventory display...")
                 populateInventoryFromServer(data)
-		
-	elseif action == "WorldItemsList" then
-		print("[Debug] 🌍 World items received:", #data, "items")
-		for _, item in ipairs(data) do
-			print("[Debug] - World Item", item.id, ":", item.itemId, "x", item.count, "at", item.position)
-		end
-	else
-		print("[Debug] Unknown action:", action)
 	end
 end)
 
 print("[Debug] ✅ InventoryClient ready!")
 print("[Debug] 🎮 Press E to toggle inventory")
-print("[Debug] 🎮 Press W to list world items")
-print("[Debug] 🎮 Press G to toggle debug GUI")
-
--- Debug GUI (create before input handler)
-debugGui = Instance.new("ScreenGui")
-debugGui.Name = "DebugGUI"
-debugGui.ResetOnSpawn = false
-debugGui.Enabled = false  -- Start hidden, will be toggled with G key
-debugGui.Parent = playerGui
-
-print("[Debug] 🔧 Debug GUI created:", debugGui.Name, "Parent:", debugGui.Parent.Name)
-
--- Main frame
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 800, 0, 600)
-mainFrame.Position = UDim2.new(0.5, -400, 0.5, -300)
-mainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = debugGui
-
--- Corner radius
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = mainFrame
-
--- Title
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(1, 0, 0, 40)
-titleLabel.Position = UDim2.new(0, 0, 0, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Item Sprite Debugger"
-titleLabel.TextColor3 = Color3.new(1, 1, 1)
-titleLabel.TextSize = 20
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Parent = mainFrame
-
--- Close button
-local closeButton = Instance.new("TextButton")
-closeButton.Name = "CloseButton"
-closeButton.Size = UDim2.new(0, 30, 0, 30)
-closeButton.Position = UDim2.new(1, -35, 0, 5)
-closeButton.BackgroundColor3 = Color3.new(0.8, 0.2, 0.2)
-closeButton.BorderSizePixel = 0
-closeButton.Text = "X"
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.TextSize = 16
-closeButton.Font = Enum.Font.GothamBold
-closeButton.Parent = mainFrame
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 4)
-closeCorner.Parent = closeButton
-
--- Coordinate input section
-local coordFrame = Instance.new("Frame")
-coordFrame.Name = "CoordFrame"
-coordFrame.Size = UDim2.new(1, -20, 0, 80)
-coordFrame.Position = UDim2.new(0, 10, 0, 50)
-coordFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
-coordFrame.BorderSizePixel = 0
-coordFrame.Parent = mainFrame
-
-local coordCorner = Instance.new("UICorner")
-coordCorner.CornerRadius = UDim.new(0, 6)
-coordCorner.Parent = coordFrame
-
--- X coordinate input
-local xLabel = Instance.new("TextLabel")
-xLabel.Name = "XLabel"
-xLabel.Size = UDim2.new(0, 20, 0, 30)
-xLabel.Position = UDim2.new(0, 10, 0, 10)
-xLabel.BackgroundTransparency = 1
-xLabel.Text = "X:"
-xLabel.TextColor3 = Color3.new(1, 1, 1)
-xLabel.TextSize = 16
-xLabel.Font = Enum.Font.Gotham
-xLabel.Parent = coordFrame
-
-local xInput = Instance.new("TextBox")
-xInput.Name = "XInput"
-xInput.Size = UDim2.new(0, 80, 0, 30)
-xInput.Position = UDim2.new(0, 35, 0, 10)
-xInput.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-xInput.BorderSizePixel = 0
-xInput.Text = "0"
-xInput.TextColor3 = Color3.new(1, 1, 1)
-xInput.TextSize = 16
-xInput.Font = Enum.Font.Gotham
-xInput.PlaceholderText = "X coord"
-xInput.Parent = coordFrame
-
-local xCorner = Instance.new("UICorner")
-xCorner.CornerRadius = UDim.new(0, 4)
-xCorner.Parent = xInput
-
--- Y coordinate input
-local yLabel = Instance.new("TextLabel")
-yLabel.Name = "YLabel"
-yLabel.Size = UDim2.new(0, 20, 0, 30)
-yLabel.Position = UDim2.new(0, 130, 0, 10)
-yLabel.BackgroundTransparency = 1
-yLabel.Text = "Y:"
-yLabel.TextColor3 = Color3.new(1, 1, 1)
-yLabel.TextSize = 16
-yLabel.Font = Enum.Font.Gotham
-yLabel.Parent = coordFrame
-
-local yInput = Instance.new("TextBox")
-yInput.Name = "YInput"
-yInput.Size = UDim2.new(0, 80, 0, 30)
-yInput.Position = UDim2.new(0, 155, 0, 10)
-yInput.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-yInput.BorderSizePixel = 0
-yInput.Text = "0"
-yInput.TextColor3 = Color3.new(1, 1, 1)
-yInput.TextSize = 16
-yInput.Font = Enum.Font.Gotham
-yInput.PlaceholderText = "Y coord"
-yInput.Parent = coordFrame
-
-local yCorner = Instance.new("UICorner")
-yCorner.CornerRadius = UDim.new(0, 4)
-yCorner.Parent = yInput
-
--- Test button
-local testButton = Instance.new("TextButton")
-testButton.Name = "TestButton"
-testButton.Size = UDim2.new(0, 100, 0, 30)
-testButton.Position = UDim2.new(0, 250, 0, 10)
-testButton.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
-testButton.BorderSizePixel = 0
-testButton.Text = "Test Item"
-testButton.TextColor3 = Color3.new(1, 1, 1)
-testButton.TextSize = 16
-testButton.Font = Enum.Font.GothamBold
-testButton.Parent = coordFrame
-
-local testCorner = Instance.new("UICorner")
-testCorner.CornerRadius = UDim.new(0, 4)
-testCorner.Parent = testButton
-
--- Item info display
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Name = "InfoLabel"
-infoLabel.Size = UDim2.new(1, -20, 0, 30)
-infoLabel.Position = UDim2.new(0, 10, 0, 50)
-infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "Enter coordinates to test an item sprite"
-infoLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-infoLabel.TextSize = 14
-infoLabel.Font = Enum.Font.Gotham
-infoLabel.Parent = coordFrame
-
--- Sprite grid
-local gridFrame = Instance.new("ScrollingFrame")
-gridFrame.Name = "GridFrame"
-gridFrame.Size = UDim2.new(1, -20, 1, -140)
-gridFrame.Position = UDim2.new(0, 10, 0, 140)
-gridFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
-gridFrame.BorderSizePixel = 0
-gridFrame.ScrollBarThickness = 8
-gridFrame.Parent = mainFrame
-
-local gridCorner = Instance.new("UICorner")
-gridCorner.CornerRadius = UDim.new(0, 6)
-gridCorner.Parent = gridFrame
-
--- Grid layout
-local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.new(0, 60, 0, 60)
-gridLayout.CellPadding = UDim2.new(0, 5, 0, 5)
-gridLayout.Parent = gridFrame
-
--- Sprite sheet asset
-local SPRITE_SHEET = "rbxassetid://94665697594550"
-
--- Create sprite grid
-local function createSpriteGrid()
-    local gridSize = 20 -- 20x20 grid
-    local totalSprites = gridSize * gridSize
-    
-    for i = 0, totalSprites - 1 do
-        local x = i % gridSize
-        local y = math.floor(i / gridSize)
-        
-        local spriteFrame = Instance.new("Frame")
-        spriteFrame.Name = "Sprite_" .. x .. "_" .. y
-        spriteFrame.Size = UDim2.new(0, 60, 0, 60)
-        spriteFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-        spriteFrame.BorderSizePixel = 0
-        spriteFrame.Parent = gridFrame
-        
-        local spriteCorner = Instance.new("UICorner")
-        spriteCorner.CornerRadius = UDim.new(0, 4)
-        spriteCorner.Parent = spriteFrame
-        
-        local spriteImage = Instance.new("ImageLabel")
-        spriteImage.Name = "SpriteImage"
-        spriteImage.Size = UDim2.new(1, -4, 1, -4)
-        spriteImage.Position = UDim2.new(0, 2, 0, 2)
-        spriteImage.BackgroundTransparency = 1
-        spriteImage.Image = SPRITE_SHEET
-        spriteImage.ImageRectOffset = Vector2.new(x * 32, y * 32)
-        spriteImage.ImageRectSize = Vector2.new(32, 32)
-        spriteImage.ScaleType = Enum.ScaleType.Stretch
-        spriteImage.Parent = spriteFrame
-        
-        -- Coordinate label
-        local coordLabel = Instance.new("TextLabel")
-        coordLabel.Name = "CoordLabel"
-        coordLabel.Size = UDim2.new(1, 0, 0, 12)
-        coordLabel.Position = UDim2.new(0, 0, 1, -12)
-        coordLabel.BackgroundTransparency = 1
-        coordLabel.Text = x .. "," .. y
-        coordLabel.TextColor3 = Color3.new(0.6, 0.6, 0.6)
-        coordLabel.TextSize = 10
-        coordLabel.Font = Enum.Font.Gotham
-        coordLabel.Parent = spriteFrame
-        
-        -- Click to test
-        spriteFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                xInput.Text = tostring(x)
-                yInput.Text = tostring(y)
-                infoLabel.Text = "Selected: " .. x .. ", " .. y .. " - Click Test Item to spawn"
-            end
-        end)
-    end
-    
-    gridFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(totalSprites / 10) * 65)
-end
-
--- Test item function
-local function testItem()
-    local x = tonumber(xInput.Text) or 0
-    local y = tonumber(yInput.Text) or 0
-    
-    if x < 0 or x >= 20 or y < 0 or y >= 20 then
-        infoLabel.Text = "Invalid coordinates! Use 0-19 for both X and Y"
-        return
-    end
-    
-    -- Send test request to server
-    local testEvent = ReplicatedStorage:FindFirstChild("TestItemEvent")
-    if not testEvent then
-        testEvent = Instance.new("RemoteEvent")
-        testEvent.Name = "TestItemEvent"
-        testEvent.Parent = ReplicatedStorage
-    end
-    
-    testEvent:FireServer(x, y)
-    infoLabel.Text = "Testing item at " .. x .. ", " .. y .. " - Check the world!"
-end
-
--- Event connections
-closeButton.MouseButton1Click:Connect(function()
-    debugGui.Enabled = false
-end)
-
-testButton.MouseButton1Click:Connect(testItem)
-
--- Create the sprite grid
-createSpriteGrid()
-
-print("Debug GUI created! Press G to toggle, or find it in PlayerGui")
 
 print("✅ Animal Crossing client systems loaded!")
