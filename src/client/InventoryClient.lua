@@ -107,6 +107,7 @@ function InventoryClient:updateSlotAppearance(slot, state)
 
         if nameLabel then
             nameLabel.Text = definition and definition.name or state.itemId
+            nameLabel.Visible = false  -- Start hidden, will show on hover
         end
     else
         if icon then
@@ -167,6 +168,8 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         if nameLabel and nameLabel.Text ~= "" then
             nameLabel.Visible = true
         end
+        -- Change background color on hover
+        slot.BackgroundColor3 = Color3.fromHex("#04AFA6")
     end)
 
     clickRegion.MouseLeave:Connect(function()
@@ -174,6 +177,8 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         if nameLabel then
             nameLabel.Visible = false
         end
+        -- Reset background color to default (238, 226, 204)
+        slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     end)
 end
 
@@ -189,16 +194,17 @@ end
 
 function InventoryClient:setInventoryVisible(shouldShow)
     self.visible = shouldShow
+    print("[InventoryClient] setInventoryVisible called with:", shouldShow)
+    print("[InventoryClient] self.inventoryFrame:", self.inventoryFrame)
+    print("[InventoryClient] self.inventoryGui:", self.inventoryGui)
 
     if not self.inventoryFrame then
+        print("[InventoryClient] ❌ inventoryFrame is nil, cannot set visibility")
         return
     end
 
-    if shouldShow and self.inventoryGui then
-        self.inventoryGui.Enabled = true
-    end
-
     self.inventoryFrame.Visible = shouldShow
+    print("[InventoryClient] ✅ Set inventoryFrame.Visible to:", shouldShow)
 
     if not shouldShow and self.drag then
         self:finishDrag(nil, true)
@@ -442,19 +448,7 @@ function InventoryClient:setupRemoteHandling()
 end
 
 function InventoryClient:bindInput()
-    self:trackConnection(UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then
-            return
-        end
-
-        if input.KeyCode == Enum.KeyCode.E then
-            self:setInventoryVisible(not self.visible)
-            if self.visible then
-                self:requestInventory()
-            end
-        end
-    end))
-
+    -- Mouse input for drag-and-drop
     self:trackConnection(UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and self.drag then
             self:finishDrag(UserInputService:GetMouseLocation())
@@ -463,11 +457,14 @@ function InventoryClient:bindInput()
 end
 
 function InventoryClient:attachGui()
-    self.inventoryGui = self.gui:FindFirstChild("InventoryGUI")
+    -- Wait for GUI to be copied from StarterGui to PlayerGui
+    self.inventoryGui = self.gui:WaitForChild("InventoryGUI", 5)
     if not self.inventoryGui then
-        warn("[InventoryClient] InventoryGUI not found in PlayerGui")
+        warn("[InventoryClient] InventoryGUI not found in PlayerGui after waiting")
         return false
     end
+    
+    print("[InventoryClient] ✅ Found InventoryGUI in PlayerGui")
 
     self.inventoryFrame = self.inventoryGui:FindFirstChild("InventoryFrame")
     if not self.inventoryFrame then

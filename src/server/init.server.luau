@@ -783,29 +783,20 @@ end)
 Players.PlayerAdded:Connect(function(player)
 	print("[Server] Player added:", player.Name)
 	
-	-- Track if inventory has been initialized for this player
-	local inventoryInitialized = false
+	-- Initialize inventory immediately when player joins
+	print("[Server] Initializing inventory for:", player.Name)
+	initializePlayerInventory(player)
 	
 	player.CharacterAdded:Connect(function(character)
 		print("[Server] Character added for:", player.Name)
 		
-		-- Only initialize inventory once per player
-		if not inventoryInitialized then
-			task.wait(1)
-			print("[Server] Initializing inventory for:", player.Name)
-			initializePlayerInventory(player)
-			inventoryInitialized = true
-			
-			-- Send initial inventory to client
-			local inventory = playerInventories[player.UserId]
-			if inventory then
-				print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
-				syncInventoryToClient(player)
-			else
-				warn("[Server] No inventory found for", player.Name)
-			end
+		-- Send initial inventory to client when character spawns
+		local inventory = playerInventories[player.UserId]
+		if inventory then
+			print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
+			syncInventoryToClient(player)
 		else
-			print("[Server] Inventory already initialized for", player.Name, "- skipping")
+			warn("[Server] No inventory found for", player.Name)
 		end
 	end)
 end)
