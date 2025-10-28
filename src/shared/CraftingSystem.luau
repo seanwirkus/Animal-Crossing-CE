@@ -228,7 +228,7 @@ function CraftingSystem.getAvailableRecipes(player)
         return availableRecipes
 end
 
-function CraftingSystem.configure(options)
+function CraftingSystem.configure(options: any)
         if typeof(options) ~= "table" then
                 return
         end

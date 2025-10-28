@@ -1,22 +1,27 @@
-print("[Client] Script started - script:", script)
-print("[Client] script.Name:", script.Name)
-print("[Client] script.Parent:", script.Parent)
-print("[Client] Children of script:", script:GetChildren())
+-- Roblox globals
+local game = game
 
--- Debug: list what's in THIS script (should show modules as children)
-for i, child in ipairs(script:GetChildren()) do
-	print("[Client]   [" .. i .. "] " .. child.Name .. " (" .. child.ClassName .. ")")
-end
+-- Import services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- Modules are children of the Client script itself
+-- Load modules (they are children of this script)
+print("[Client] Loading modules from script children...")
+print("[Client] Script children:", script:GetChildren())
+
 local InventoryClient = require(script.InventoryClient)
 print("[Client] ✅ InventoryClient loaded")
 
 local KeybindManager = require(script.KeybindManager)
 print("[Client] ✅ KeybindManager loaded")
 
-local UserInputService = game:GetService("UserInputService")
-print("[Client] ✅ UserInputService loaded")
+local DebugInventoryGridModule = require(script.DebugInventoryGrid)
+print("[Client] ✅ DebugInventoryGrid module loaded")
+
+local DebugCraftingMenuModule = require(script.DebugCraftingMenu)
+print("[Client] ✅ DebugCraftingMenu module loaded")
 
 -- Initialize InventoryClient
 local inventoryClient = InventoryClient.init()
@@ -25,6 +30,10 @@ print("[Client] ✅ InventoryClient initialized")
 -- Setup KeybindManager
 local keybindManager = KeybindManager.new()
 print("[Client] ✅ KeybindManager created")
+
+-- Create DebugInventoryGrid instance (not needed as we use static methods)
+-- local debugGrid = DebugInventoryGridModule.new()
+print("[Client] ✅ DebugInventoryGrid ready")
 
 -- Register INVENTORY keybind (E key)
 keybindManager:registerBind("INVENTORY", function(inputState)
@@ -48,6 +57,7 @@ end)
 keybindManager:registerBind("CRAFTING", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] Crafting menu triggered (Tab key)")
+		DebugCraftingMenuModule.toggleGlobal()
 	end
 end)
 
@@ -55,6 +65,14 @@ end)
 keybindManager:registerBind("TOOL_WHEEL", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] Tool wheel triggered (Space key)")
+	end
+end)
+
+-- Register DEBUG_GRID keybind (G key)
+keybindManager:registerBind("DEBUG_GRID", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] Item browser toggled (G key)")
+		DebugInventoryGridModule.toggleGlobal()
 	end
 end)
 

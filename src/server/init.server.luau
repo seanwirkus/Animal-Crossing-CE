@@ -1,14 +1,30 @@
 -- Server initialization script
 -- Complete server-side inventory management
 
-print("✅ Animal Crossing server systems ready!")
-print("📊 ServerScriptService scripts will run automatically")
+-- Roblox globals
+local game = game
+local workspace = game:GetService("Workspace")
 
 -- Import services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+
+-- Roblox types and enums
+local Instance = Instance
+local Enum = Enum
+local Vector3 = Vector3
+local Vector2 = Vector2
+local CFrame = CFrame
+local Color3 = Color3
+local UDim2 = UDim2
+local TweenInfo = TweenInfo
+local tick = tick
+local task = task
+
+print("✅ Animal Crossing server systems ready!")
+print("📊 ServerScriptService scripts will run automatically")
 
 print("[Server] 🚀 Starting inventory system...")
 
@@ -41,47 +57,12 @@ end
 
 -- Initialize player inventory
 local function initializePlayerInventory(player)
-        local starterItems = {
-                -- Essential Tools
-                { itemId = "shovel", count = 1 },
-                { itemId = "net", count = 1 },
-                { itemId = "fishing_rod", count = 1 },
-                { itemId = "watering_can", count = 1 },
-                { itemId = "axe", count = 1 },
-                { itemId = "slingshot", count = 1 },
-                { itemId = "ladder", count = 1 },
+        -- Start with empty inventory (use debug GUI to add items)
+        local starterItems = {}
 
-                -- Starting Currency
-                { itemId = "bell_bag_small", count = 5 },
-                { itemId = "bell_bag_med", count = 2 },
-
-                -- Sample Flowers
-                { itemId = "rose_red", count = 3 },
-                { itemId = "rose_white", count = 2 },
-                { itemId = "tulip_red", count = 2 },
-
-                -- Sample Fish
-                { itemId = "fish_betta", count = 1 },
-                { itemId = "fish_goldfish", count = 1 },
-
-                -- Sample Bugs
-                { itemId = "bug_butterfly", count = 2 },
-                { itemId = "bug_ladybug", count = 1 },
-
-                -- Basic Materials (using items that exist in our mapping)
-                { itemId = "egg_purple", count = 3 },
-                { itemId = "egg_orange", count = 2 },
-                { itemId = "leaf_fossil", count = 1 },
-        }
-
-        local slots = table.create(MAX_SLOTS)
+        local slots = {}
         for i = 1, MAX_SLOTS do
                 slots[i] = nil
-        end
-
-        for index, item in ipairs(starterItems) do
-                if index > MAX_SLOTS then break end
-                slots[index] = { itemId = item.itemId, count = item.count }
         end
 
         playerInventories[player.UserId] = {
@@ -89,17 +70,25 @@ local function initializePlayerInventory(player)
                 maxSlots = MAX_SLOTS,
         }
 
-        print("[Server] ✅ Initialized inventory for", player.Name, "with", #starterItems, "starter items and", MAX_SLOTS, "slots")
+        print("[Server] ✅ Initialized empty inventory for", player.Name, "with", MAX_SLOTS, "slots")
 end
 
 local function cloneSlots(slots)
         local serialized = {}
+        -- Always include all slot indices to provide a full snapshot to clients.
+        -- Use an empty table {} to represent an empty slot (nil keys are dropped over the wire).
         for index = 1, MAX_SLOTS do
                 local slot = slots[index]
                 if slot and slot.itemId and slot.count and slot.count > 0 then
                         serialized[index] = {
                                 itemId = slot.itemId,
                                 count = slot.count,
+                        }
+                else
+                        -- Represent empty slot with explicit shape so Luau typechecker and clients see a consistent shape.
+                        serialized[index] = {
+                                itemId = "",
+                                count = 0,
                         }
                 end
         end
@@ -110,7 +99,7 @@ local function countFilledSlots(slots)
         local count = 0
         for index = 1, MAX_SLOTS do
                 if slots[index] then
-                        count += 1
+                        count = count + 1
                 end
         end
         return count
@@ -125,10 +114,26 @@ local function totalCountForItem(inventory, itemId)
         for index = 1, inventory.maxSlots or MAX_SLOTS do
                 local slot = inventory.slots[index]
                 if slot and slot.itemId == itemId then
-                        total += slot.count
+                        total = total + slot.count
                 end
         end
         return total
+end
+
+-- Resolve an item's max stack size from slot metadata or item data.
+-- Falls back to 99 if not specified.
+local function getMaxStackForItem(itemId, slot)
+        if slot and typeof(slot) == "table" and slot.maxStack then
+                return slot.maxStack
+        end
+        local ok, itemData = pcall(function()
+                return ItemDataFetcher.getItem(itemId)
+        end)
+        if ok and itemData then
+                -- Support multiple possible field names in data
+                return itemData.maxStack or itemData.stack or itemData.stackSize or 99
+        end
+        return 99
 end
 
 local function hasCraftingMaterials(player, materials, quantity)
@@ -177,8 +182,8 @@ local function consumeCraftingMaterials(player, materials, quantity)
                         local slot = inventory.slots[index]
                         if slot and slot.itemId == requirement.itemId then
                                 local toRemove = math.min(slot.count, remaining)
-                                slot.count -= toRemove
-                                remaining -= toRemove
+                                slot.count = slot.count - toRemove
+                                remaining = remaining - toRemove
                                 if slot.count <= 0 then
                                         inventory.slots[index] = nil
                                 end
@@ -208,7 +213,7 @@ local function grantCraftedItems(player, craftedItems)
                 for index = 1, inventory.maxSlots or MAX_SLOTS do
                         local slot = inventory.slots[index]
                         if slot and slot.itemId == itemId then
-                                slot.count += 1
+                                slot.count = slot.count + 1
                                 added = true
                                 break
                         elseif not slot then
@@ -323,11 +328,11 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         spritePart.CastShadow = false
         spritePart.Parent = model
 
-        -- Create ultra 3D layered depth effect with enhanced shadows
+        -- Create simple 3D depth effect with fewer, more subtle layers
         -- Ground shadow (darkest, largest)
         local groundShadow = Instance.new("Part")
         groundShadow.Name = "GroundShadow"
-        groundShadow.Size = Vector3.new(5.5, 0.05, 5.5) -- Larger shadow
+        groundShadow.Size = Vector3.new(4.5, 0.05, 4.5) -- Slightly larger shadow
         groundShadow.Material = Enum.Material.Neon
         groundShadow.Color = Color3.new(0, 0, 0)
         groundShadow.Transparency = 1
@@ -345,8 +350,8 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         groundShadowSprite.Size = UDim2.new(1, 0, 1, 0)
         groundShadowSprite.BackgroundTransparency = 1
         groundShadowSprite.Image = SpriteConfig.SHEET_ASSET
-        groundShadowSprite.ImageTransparency = 0.6
-        groundShadowSprite.ImageColor3 = Color3.new(0.1, 0.1, 0.1) -- Very dark shadow
+        groundShadowSprite.ImageTransparency = 0.7 -- More transparent shadow
+        groundShadowSprite.ImageColor3 = Color3.new(0.2, 0.2, 0.2) -- Lighter shadow
         groundShadowSprite.ScaleType = Enum.ScaleType.Stretch
         groundShadowSprite.Parent = groundShadowGui
 
@@ -367,22 +372,22 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         groundShadowSprite.ImageRectOffset = offset
         groundShadowSprite.ImageRectSize = size
 
-        -- Create SOLID depth layers - no transparency, solid opaque depth
+        -- Create simple depth layers - just 2 subtle layers for 3D effect
         local depthLayers = {}
-        local layerCount = 8 -- Fewer layers, all solid
+        local layerCount = 2 -- Reduced from 8
         
         for i = 1, layerCount do
                 local layerPart = Instance.new("Part")
                 layerPart.Name = "DepthLayer_" .. i
                 
-                -- Solid layer properties - all opaque, no transparency
+                -- Simple layer properties
                 local progress = i / layerCount -- 0 to 1
-                local sizeMultiplier = 1 + (progress * 0.3) -- 1.0 to 1.3 (subtle size increase)
-                local height = 0.1 -- All layers same height - solid thickness
-                local darkness = 0.1 + (progress * 0.4) -- 0.1 to 0.5 (dark to medium)
+                local sizeMultiplier = 1 + (progress * 0.15) -- 1.0 to 1.15 (subtle size increase)
+                local height = 0.05 -- Thin layers
+                local darkness = 0.3 + (progress * 0.3) -- 0.3 to 0.6 (medium darkness)
                 
-                -- Stack layers tightly together for solid depth
-                local heightOffset = 0.01 + (progress * 0.08) -- 0.01 to 0.09 (tight stacking)
+                -- Stack layers closely together
+                local heightOffset = 0.02 + (progress * 0.04) -- 0.02 to 0.06 (close stacking)
                 
                 layerPart.Size = Vector3.new(4 * sizeMultiplier, height, 4 * sizeMultiplier)
                 layerPart.Material = Enum.Material.Neon
@@ -402,7 +407,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 layerSprite.Size = UDim2.new(1, 0, 1, 0)
                 layerSprite.BackgroundTransparency = 1
                 layerSprite.Image = SpriteConfig.SHEET_ASSET
-                layerSprite.ImageTransparency = 0 -- NO TRANSPARENCY - completely opaque
+                layerSprite.ImageTransparency = 0.8 - (progress * 0.3) -- 0.8 to 0.5 (less transparent as we go up)
                 layerSprite.ImageColor3 = Color3.new(darkness, darkness, darkness)
                 layerSprite.ScaleType = Enum.ScaleType.Stretch
                 layerSprite.Parent = layerGui
@@ -437,26 +442,26 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 	-- Enhanced point light with better range and color
 	local pointLight = Instance.new("PointLight")
 	pointLight.Name = "SpriteGlow"
-	pointLight.Range = 12 -- Increased range
-	pointLight.Brightness = 2.2 -- Brighter
+	pointLight.Range = 6 -- Reduced from 12
+	pointLight.Brightness = 1.5 -- Reduced from 2.2
 	pointLight.Color = Color3.fromRGB(255, 235, 200) -- Warmer color
 	pointLight.Shadows = false
 	pointLight.Parent = spritePart
 
-	-- Enhanced sparkles with better color and effect
-	local sparkles = Instance.new("Sparkles")
-	sparkles.Name = "SpriteSparkles"
-	sparkles.SparkleColor = Color3.fromRGB(255, 245, 220) -- Warmer sparkle color
-	sparkles.Parent = spritePart
+	-- Remove sparkles - too much visual noise
+	-- local sparkles = Instance.new("Sparkles")
+	-- sparkles.Name = "SpriteSparkles"
+	-- sparkles.SparkleColor = Color3.fromRGB(255, 245, 220) -- Warmer sparkle color
+	-- sparkles.Parent = spritePart
 
-	-- Add additional ambient light for extra glow
-	local ambientLight = Instance.new("PointLight")
-	ambientLight.Name = "AmbientGlow"
-	ambientLight.Range = 8
-	ambientLight.Brightness = 1.2
-	ambientLight.Color = Color3.fromRGB(255, 250, 240)
-	ambientLight.Shadows = false
-	ambientLight.Parent = pivot
+	-- Remove ambient light - too much glow
+	-- local ambientLight = Instance.new("PointLight")
+	-- ambientLight.Name = "AmbientGlow"
+	-- ambientLight.Range = 8
+	-- ambientLight.Brightness = 1.2
+	-- ambientLight.Color = Color3.fromRGB(255, 250, 240)
+	-- ambientLight.Shadows = false
+	-- ambientLight.Parent = pivot
 
 	-- Simple ground-based items with enhanced lighting and sparkles
 	model.PrimaryPart = pivot
@@ -600,7 +605,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                                 end
 
                                 if existingIndex then
-                                        slots[existingIndex].count += count
+                                        slots[existingIndex].count = slots[existingIndex].count + count
                                 else
                                         local emptyIndex
                                         for index = 1, inventory.maxSlots or MAX_SLOTS do
@@ -705,7 +710,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 local function removeFromSlot(index)
                         local slot = slots[index]
                         if slot and slot.itemId == itemId and slot.count >= count then
-                                slot.count -= count
+                                slot.count = slot.count - count
                                 if slot.count <= 0 then
                                         slots[index] = nil
                                 end
@@ -739,9 +744,14 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
         elseif action == "MoveItem" and data then
                 local fromIndex = data.fromIndex
                 local toIndex = data.toIndex
-                local swap = data.swap
+                local swap = data.swap == true
 
-                if not fromIndex or not toIndex then
+                if type(fromIndex) ~= "number" or type(toIndex) ~= "number" then
+                        return
+                end
+
+                if fromIndex == toIndex then
+                        -- Nothing to do
                         return
                 end
 
@@ -754,19 +764,132 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 end
 
                 local slots = inventory.slots
-                local moving = slots[fromIndex]
-                if not moving then
+                local fromSlot = slots[fromIndex]
+                if not fromSlot then
                         return
                 end
 
-                if swap and slots[toIndex] then
-                        slots[fromIndex], slots[toIndex] = slots[toIndex], moving
-                else
-                        slots[toIndex] = moving
+                local toSlot = slots[toIndex]
+                local itemId = fromSlot.itemId
+
+                -- Case 1: moving into empty slot
+                if not toSlot then
+                        -- Move entire stack by reference
+                        slots[toIndex] = fromSlot
                         slots[fromIndex] = nil
+                        syncInventoryToClient(player)
+                        return
                 end
 
-                syncInventoryToClient(player)
+                -- Case 2: same itemId -> merge stacks up to maxStack
+                if toSlot.itemId == itemId then
+                        local maxStack = getMaxStackForItem(itemId, toSlot)
+                        local fromCount = math.max(0, tonumber(fromSlot.count) or 0)
+                        local toCount = math.max(0, tonumber(toSlot.count) or 0)
+                        local space = math.max(0, maxStack - toCount)
+                        
+                        if space > 0 then
+                                -- Merge what we can
+                                local toAdd = math.min(space, fromCount)
+                                toSlot.count = toCount + toAdd
+                                local remaining = fromCount - toAdd
+                                if remaining > 0 then
+                                        fromSlot.count = remaining
+                                else
+                                        slots[fromIndex] = nil
+                                end
+                                toSlot.maxStack = maxStack
+                                syncInventoryToClient(player)
+                                return
+                        end
+                        -- If no space and swap=true, fall through to swap
+                end
+
+                -- Case 3: different items or full stacks of same item -> swap
+                if swap then
+                        slots[fromIndex], slots[toIndex] = toSlot, fromSlot
+                        syncInventoryToClient(player)
+                        return
+                end
+
+                -- Otherwise, reject
+                warn("[Server] MoveItem rejected: target occupied and swap not requested; from:", fromIndex, "to:", toIndex)
+                return
+
+        elseif action == "add_item" and data then
+                -- Validate data format
+                local itemId = type(data) == "table" and data.itemId or data
+                local count = (type(data) == "table" and data.count) or 1
+                local maxStack = (type(data) == "table" and data.maxStack) or 99
+                
+                -- Check if item exists
+                local itemData = ItemDataFetcher.getItem(itemId)
+                if not itemData then
+                        warn("[Server] Debug: Item not found:", itemId)
+                        return
+                end
+                
+                -- Validate count
+                count = math.floor(count)
+                if count < 1 then
+                        warn("[Server] Invalid item count:", count)
+                        return
+                end
+                
+                -- Try to add to existing slot first
+                local slots = inventory.slots
+                local added = false
+                
+                for i = 1, inventory.maxSlots or MAX_SLOTS do
+                        local slot = slots[i]
+                        if slot and slot.itemId == itemId then
+                                -- Check stack limit
+                                if slot.count >= maxStack then
+                                        -- Try next slot if this one is full
+                                else
+                                        local spaceInStack = maxStack - slot.count
+                                        local addToStack = math.min(count, spaceInStack)
+                                        slot.count = slot.count + addToStack
+                                        count = count - addToStack
+                                        added = true
+                                        if count <= 0 then
+                                                break
+                                        end
+                                end
+                        end
+                end
+                
+                -- If not added to existing slot, find empty slot
+                -- Try to add remaining items to empty slots
+                if count > 0 then
+                        for i = 1, inventory.maxSlots or MAX_SLOTS do
+                                if not slots[i] then
+                                        local addToNewSlot = math.min(count, maxStack)
+                                        slots[i] = { 
+                                            itemId = itemId, 
+                                            count = addToNewSlot,
+                                            maxStack = maxStack  -- Store stack limit
+                                        }
+                                        count = count - addToNewSlot
+                                        added = true
+                                        if count <= 0 then
+                                            break
+                                        end
+                                end
+                        end
+                end
+                
+                if added then
+                        print("[Server] Debug: Added", itemId, "to", player.Name, "'s inventory")
+                        syncInventoryToClient(player)
+                else
+                        warn("[Server] Debug: Inventory full, cannot add", itemId)
+                end
+
+                -- Return remaining count that couldn't be added
+                if count > 0 then
+                        warn("[Server] Could not add all items - remaining:", count)
+                end
 
         elseif action == "GetWorldItems" then
                 -- Debug command to see all world items

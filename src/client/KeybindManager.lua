@@ -16,10 +16,13 @@ KeybindManager.KEYBINDS = {
 	
 	-- Tools & Crafting
 	CRAFTING = Enum.KeyCode.Tab,
-	TOOL_WHEEL = Enum.KeyCode.Space,
+	TOOL_WHEEL = Enum.KeyCode.T,
 	
 	-- Navigation
 	MAP = Enum.KeyCode.M,
+	
+	-- Debug
+	DEBUG_GRID = Enum.KeyCode.G,
 	
 	-- Future binds (placeholder)
 	EMOTE = Enum.KeyCode.V,

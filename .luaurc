@@ -1,0 +1,11 @@
+{
+  "languageMode": "recommended",
+  "typeChecking": {
+    "mode": "off"
+  },
+  "lint": {
+    "*": false
+  },
+  "lintErrors": false,
+  "typeErrors": false
+}
