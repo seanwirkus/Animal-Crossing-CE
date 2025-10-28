@@ -10,6 +10,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 
 -- Roblox types and enums
 local Instance = Instance
@@ -37,12 +38,17 @@ local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
+local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
+
+local InventoryConstants = InventoryDomain.Constants
+local InventorySchemas = InventoryDomain.Schemas
+local InventoryValidation = InventoryDomain.Validation
+local inventoryAdapterRegistry = InventoryDomain.newAdapterRegistry()
 
 -- Player inventory storage
 local playerInventories = {}
 
--- Inventory slot configuration
-local MAX_SLOTS = 20
+local MAX_SLOTS = InventoryConstants.DEFAULT_MAX_SLOTS
 
 -- World item storage - tracks all dropped items
 local worldItems = {}
@@ -65,24 +71,123 @@ local function initializePlayerInventory(player)
                 slots[i] = nil
         end
 
+        local snapshot = buildSnapshotFromState(slots, MAX_SLOTS)
         playerInventories[player.UserId] = {
                 slots = slots,
                 maxSlots = MAX_SLOTS,
+                snapshot = snapshot,
+                legacyPayload = inventoryAdapterRegistry:serializeForLegacy(InventoryConstants.LEGACY_DATASET_ID, snapshot),
         }
 
         print("[Server] ✅ Initialized empty inventory for", player.Name, "with", MAX_SLOTS, "slots")
 end
 
-local function cloneSlots(slots)
+local function buildSnapshotFromState(slots, maxSlots)
+        local snapshot = InventorySchemas.createSnapshot({
+                maxSlots = maxSlots or MAX_SLOTS,
+                source = "server-runtime",
+        })
+
+        if slots then
+                for index = 1, snapshot.maxSlots do
+                        local slot = slots[index]
+                        if slot and slot.itemId and slot.count and slot.count > 0 then
+                                snapshot.slots[index] = InventorySchemas.createSlotFromStack(index, {
+                                        id = slot.itemId,
+                                        count = slot.count,
+                                        metadata = slot.metadata,
+                                })
+                        end
+                end
+        end
+
+        return snapshot
+end
+
+local function decodeLegacyPayload(payload)
+        if typeof(payload) == "string" then
+                local ok, result = pcall(function()
+                        return HttpService:JSONDecode(payload)
+                end)
+                if not ok then
+                        warn("[Server] Failed to decode legacy payload JSON:", result)
+                        return nil
+                end
+                return result
+        end
+
+        return payload
+end
+
+local function applySnapshotToInventory(inventory, snapshot)
+        if not inventory or not snapshot then
+                return
+        end
+
+        inventory.maxSlots = snapshot.maxSlots
+        for index = 1, snapshot.maxSlots do
+                local slot = snapshot.slots[index]
+                local stack = slot and slot.stack
+                if stack and stack.id ~= "" and stack.count and stack.count > 0 then
+                        inventory.slots[index] = {
+                                itemId = stack.id,
+                                count = stack.count,
+                                metadata = stack.metadata,
+                        }
+                else
+                        inventory.slots[index] = nil
+                end
+        end
+
+        if #inventory.slots > snapshot.maxSlots then
+                for index = snapshot.maxSlots + 1, #inventory.slots do
+                        inventory.slots[index] = nil
+                end
+        end
+
+        inventory.snapshot = snapshot
+        inventory.legacyPayload = inventoryAdapterRegistry:serializeForLegacy(InventoryConstants.LEGACY_DATASET_ID, snapshot)
+end
+
+local function hydrateInventoryFromLegacy(inventory, payload, options)
+        if not inventory or not payload then
+                return
+        end
+
+        payload = decodeLegacyPayload(payload)
+        if not payload then
+                return
+        end
+
+        local success, snapshot = pcall(function()
+                return inventoryAdapterRegistry:convertLegacySnapshot(InventoryConstants.LEGACY_DATASET_ID, payload, options)
+        end)
+
+        if not success then
+                warn("[Server] Failed to hydrate inventory from legacy payload:", snapshot)
+                return
+        end
+
+        applySnapshotToInventory(inventory, snapshot)
+end
+
+local function cloneSlots(slots, maxSlots)
+        local snapshot = buildSnapshotFromState(slots, maxSlots)
+        local ok, reason = InventoryValidation.validateSnapshot(snapshot)
+        if not ok then
+                warn("[Server] Inventory snapshot validation failed:", reason)
+        end
+
         local serialized = {}
         -- Always include all slot indices to provide a full snapshot to clients.
         -- Use an empty table {} to represent an empty slot (nil keys are dropped over the wire).
-        for index = 1, MAX_SLOTS do
-                local slot = slots[index]
-                if slot and slot.itemId and slot.count and slot.count > 0 then
+        for index = 1, snapshot.maxSlots do
+                local slot = snapshot.slots[index]
+                local stack = slot and slot.stack
+                if stack and stack.id and stack.count and stack.count > 0 then
                         serialized[index] = {
-                                itemId = slot.itemId,
-                                count = slot.count,
+                                itemId = stack.id,
+                                count = stack.count,
                         }
                 else
                         -- Represent empty slot with explicit shape so Luau typechecker and clients see a consistent shape.
@@ -92,7 +197,8 @@ local function cloneSlots(slots)
                         }
                 end
         end
-        return serialized
+
+        return serialized, snapshot
 end
 
 local function countFilledSlots(slots)
@@ -131,9 +237,9 @@ local function getMaxStackForItem(itemId, slot)
         end)
         if ok and itemData then
                 -- Support multiple possible field names in data
-                return itemData.maxStack or itemData.stack or itemData.stackSize or 99
+                return itemData.maxStack or itemData.stack or itemData.stackSize or InventoryConstants.DEFAULT_MAX_STACK
         end
-        return 99
+        return InventoryConstants.DEFAULT_MAX_STACK
 end
 
 local function hasCraftingMaterials(player, materials, quantity)
@@ -158,9 +264,13 @@ local function syncInventoryToClient(player)
         local inventory = playerInventories[player.UserId]
         if not inventory then return end
 
+        local serializedSlots, snapshot = cloneSlots(inventory.slots, inventory.maxSlots)
+        inventory.snapshot = snapshot
+        inventory.legacyPayload = inventoryAdapterRegistry:serializeForLegacy(InventoryConstants.LEGACY_DATASET_ID, snapshot)
+
         inventoryRemote:FireClient(player, "SyncInventory", {
                 maxSlots = inventory.maxSlots or MAX_SLOTS,
-                slots = cloneSlots(inventory.slots),
+                slots = serializedSlots,
         })
 end
 
@@ -697,6 +807,11 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 print("[Server] Sending inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
                 syncInventoryToClient(player)
 
+        elseif action == "ImportLegacyInventory" and data then
+                print("[Server] Importing legacy inventory payload for", player.Name)
+                hydrateInventoryFromLegacy(inventory, data.payload, data.options)
+                syncInventoryToClient(player)
+
         elseif action == "DropItem" and data then
                 local itemId = data.itemId
                 local count = data.count or 1
@@ -907,21 +1022,32 @@ Players.PlayerAdded:Connect(function(player)
 	print("[Server] Player added:", player.Name)
 	
 	-- Initialize inventory immediately when player joins
-	print("[Server] Initializing inventory for:", player.Name)
-	initializePlayerInventory(player)
-	
-	player.CharacterAdded:Connect(function(character)
-		print("[Server] Character added for:", player.Name)
-		
-		-- Send initial inventory to client when character spawns
-		local inventory = playerInventories[player.UserId]
-		if inventory then
-			print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(inventory.slots), "items")
-			syncInventoryToClient(player)
-		else
-			warn("[Server] No inventory found for", player.Name)
-		end
-	end)
+        print("[Server] Initializing inventory for:", player.Name)
+        initializePlayerInventory(player)
+
+        local inventory = playerInventories[player.UserId]
+        local legacyAttribute = player:GetAttribute("LegacyInventoryPayload")
+        if legacyAttribute then
+                print("[Server] Found legacy payload attribute for", player.Name)
+                hydrateInventoryFromLegacy(inventory, legacyAttribute, {
+                        source = "player-attribute",
+                        dataset = InventoryConstants.LEGACY_DATASET_ID,
+                })
+                syncInventoryToClient(player)
+        end
+
+        player.CharacterAdded:Connect(function(character)
+                print("[Server] Character added for:", player.Name)
+
+                -- Send initial inventory to client when character spawns
+                local currentInventory = playerInventories[player.UserId]
+                if currentInventory then
+                        print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(currentInventory.slots), "items")
+                        syncInventoryToClient(player)
+                else
+                        warn("[Server] No inventory found for", player.Name)
+                end
+        end)
 end)
 
 Players.PlayerRemoving:Connect(function(player)

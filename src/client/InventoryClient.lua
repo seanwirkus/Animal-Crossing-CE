@@ -8,7 +8,13 @@ local RunService = game:GetService("RunService")
 
 local InventoryClient = {}
 InventoryClient.__index = InventoryClient
-InventoryClient.MAX_SLOTS = 20  -- Constant for maximum inventory slots
+InventoryClient.MAX_SLOTS = InventoryConstants.DEFAULT_MAX_SLOTS  -- Constant for maximum inventory slots
+
+local InventoryClientModule = require(script.Parent:WaitForChild("inventory"))
+local InventoryDomain = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("inventory"))
+local InventorySchemas = InventoryDomain.Schemas
+local InventoryValidation = InventoryDomain.Validation
+local InventoryConstants = InventoryDomain.Constants
 
 local function cloneState(state)
     if not state then
@@ -35,6 +41,13 @@ function InventoryClient.new()
 
     self.displayItems = self.itemDataFetcher.getDisplayItemMap()
 
+    self.inventoryStore = InventoryClientModule.StateStore.new({
+        maxSlots = InventoryClient.MAX_SLOTS,
+    })
+    self.inventoryAdapterRegistry = InventoryDomain.newAdapterRegistry()
+
+    self.latestSnapshot = self.inventoryStore:getSnapshot()
+
     self.inventoryGui = nil
     self.inventoryFrame = nil
     self.inventoryItems = nil
@@ -42,7 +55,7 @@ function InventoryClient.new()
 
     self.visible = false
     self.slotsByIndex = {}
-    self.maxSlots = 20  -- Match server's MAX_SLOTS
+    self.maxSlots = InventoryClient.MAX_SLOTS
     self.slotState = {}
     self.drag = nil
     self.pendingData = nil
@@ -58,6 +71,11 @@ function InventoryClient:disconnectAll()
     end
     for k in pairs(self.connections) do
         self.connections[k] = nil
+    end
+
+    if self.inventoryStore then
+        self.inventoryStore:destroy()
+        self.inventoryStore = nil
     end
 end
 
@@ -128,6 +146,79 @@ function InventoryClient:updateSlotAppearance(slot, state)
             nameLabel.Visible = false
         end
     end
+end
+
+function InventoryClient:buildSnapshotFromWire(payload)
+    local maxSlots = payload and payload.maxSlots or self.maxSlots or InventoryClient.MAX_SLOTS
+    local snapshot = InventorySchemas.createSnapshot({
+        maxSlots = maxSlots,
+        source = "client-wire",
+    })
+
+    local sourceSlots = nil
+
+    if payload and typeof(payload.slots) == "table" then
+        sourceSlots = payload.slots
+    elseif typeof(payload) == "table" then
+        sourceSlots = payload
+    end
+
+    if sourceSlots then
+        for index = 1, snapshot.maxSlots do
+            local slotData = sourceSlots[index]
+            if slotData and slotData.itemId and slotData.itemId ~= "" and slotData.count and slotData.count > 0 then
+                snapshot.slots[index] = InventorySchemas.createSlotFromStack(index, {
+                    id = slotData.itemId,
+                    count = slotData.count,
+                })
+            else
+                snapshot.slots[index] = InventorySchemas.createEmptySlot(index)
+            end
+        end
+    end
+
+    return snapshot
+end
+
+function InventoryClient:_applySnapshot(snapshot, sourceLabel)
+    if not snapshot then
+        return
+    end
+
+    local ok, reason = InventoryValidation.validateSnapshot(snapshot)
+    if not ok then
+        warn("[InventoryClient] Snapshot from", sourceLabel or "unknown", "failed validation:", reason)
+        return
+    end
+
+    self.inventoryStore:setSnapshot(snapshot)
+    self.latestSnapshot = self.inventoryStore:getSnapshot()
+    self.maxSlots = self.latestSnapshot.maxSlots
+
+    for index = 1, self.maxSlots do
+        local slot = self.latestSnapshot.slots[index]
+        if slot and slot.stack then
+            self.slotState[index] = {
+                itemId = slot.stack.id,
+                count = slot.stack.count,
+            }
+        else
+            self.slotState[index] = nil
+        end
+        self:refreshSlot(index)
+    end
+
+    for index, slot in pairs(self.slotsByIndex) do
+        if index > self.maxSlots then
+            slot.Visible = false
+            self.slotState[index] = nil
+        end
+    end
+end
+
+function InventoryClient:exportLegacyPayload(dataset)
+    local targetDataset = dataset or InventoryConstants.LEGACY_DATASET_ID
+    return self.inventoryStore:exportLegacyPayload(self.inventoryAdapterRegistry, targetDataset)
 end
 
 function InventoryClient:ensureSlot(slotIndex)
@@ -477,9 +568,7 @@ end
 function InventoryClient:populateFromServer(payload)
     print("[POPULATE DEBUG] populateFromServer called")
     print("[POPULATE DEBUG] Payload:", payload)
-    print("[POPULATE DEBUG] inventoryItems exists:", self.inventoryItems ~= nil)
-    print("[POPULATE DEBUG] slotTemplate exists:", self.slotTemplate ~= nil)
-    
+
     if not self.inventoryItems or not self.slotTemplate then
         print("[POPULATE DEBUG] Not ready yet, storing as pendingData")
         self.pendingData = payload
@@ -491,78 +580,8 @@ function InventoryClient:populateFromServer(payload)
         self:finishDrag(nil, true)
     end
 
-    local maxSlots = 20
-    local incomingSlots = {}
-
-    if typeof(payload) == "table" then
-        if payload.maxSlots then
-            maxSlots = payload.maxSlots
-            print("[POPULATE DEBUG] Max slots from server:", maxSlots)
-        end
-
-        if payload.slots then
-            print("[POPULATE DEBUG] Using payload.slots")
-            for index, slot in pairs(payload.slots) do
-                incomingSlots[index] = slot
-            end
-        else
-            print("[POPULATE DEBUG] Using payload as array")
-            for index, slot in ipairs(payload) do
-                incomingSlots[index] = slot
-            end
-        end
-    end
-
-    print("[POPULATE DEBUG] Incoming slots data:")
-    for index, slot in pairs(incomingSlots) do
-        if slot then
-            print("[POPULATE DEBUG]   Slot", index, ":", slot.itemId, "x" .. (slot.count or 0))
-        end
-    end
-
-    self.maxSlots = maxSlots
-
-    print("[POPULATE DEBUG] Current state before populate:")
-    for i = 1, self.maxSlots do
-        if self.slotState[i] then
-            print("[POPULATE DEBUG]   Slot", i, ":", self.slotState[i].itemId, "x" .. self.slotState[i].count)
-        end
-    end
-
-    -- First, clear all slots
-    for index = 1, self.maxSlots do
-        self.slotState[index] = nil
-    end
-    
-    -- Then, set only the slots that have items (from server data)
-    for index, slotData in pairs(incomingSlots) do
-        if slotData and slotData.itemId and slotData.count and slotData.count > 0 then
-            self.slotState[index] = {
-                itemId = slotData.itemId,
-                count = slotData.count,
-            }
-            print("[POPULATE DEBUG] Set slot", index, "to:", slotData.itemId, "x" .. slotData.count)
-        end
-    end
-    
-    -- Finally, refresh all slot UIs
-    for index = 1, self.maxSlots do
-        self:refreshSlot(index)
-    end
-
-    print("[POPULATE DEBUG] Final state after populate:")
-    for i = 1, self.maxSlots do
-        if self.slotState[i] then
-            print("[POPULATE DEBUG]   Slot", i, ":", self.slotState[i].itemId, "x" .. self.slotState[i].count)
-        end
-    end
-
-    for index, slot in pairs(self.slotsByIndex) do
-        if index > self.maxSlots then
-            slot.Visible = false
-            self.slotState[index] = nil
-        end
-    end
+    local snapshot = self:buildSnapshotFromWire(payload)
+    self:_applySnapshot(snapshot, "populateFromServer")
 end
 
 function InventoryClient:requestInventory()
@@ -588,57 +607,16 @@ function InventoryClient:bindInput()
             print("[SYNC DEBUG] SyncInventory received from server")
             print("[SYNC DEBUG] Data received:", data)
             
-            -- Save current state for items being dragged
-            local draggedState = self.drag and self.drag.state
-            local dragOrigin = self.drag and self.drag.originSlot
-            
-            if draggedState then
-                print("[SYNC DEBUG] Preserving dragged item:", draggedState.itemId, "from slot", dragOrigin)
+            local snapshot = self:buildSnapshotFromWire(data)
+            self:_applySnapshot(snapshot, "bindInput:SyncInventory")
+
+            if self.drag and self.drag.originSlot then
+                print("[SYNC DEBUG] Reinforcing dragged slot", self.drag.originSlot)
+                self.slotState[self.drag.originSlot] = cloneState(self.drag.state)
+                self:refreshSlot(self.drag.originSlot)
             end
-            
-            -- Log current state before sync
-            print("[SYNC DEBUG] Client state before sync:")
-            for i = 1, self.maxSlots do
-                if self.slotState[i] then
-                    print("[SYNC DEBUG]   Slot", i, ":", self.slotState[i].itemId, "x" .. self.slotState[i].count)
-                end
-            end
-            
-            -- Update state
-            if data and data.slots then
-                print("[SYNC DEBUG] Updating slots from server data")
-                for i = 1, data.maxSlots or self.maxSlots do
-                    if data.slots[i] then
-                        self.slotState[i] = {
-                            itemId = data.slots[i].itemId,
-                            count = data.slots[i].count
-                        }
-                    else
-                        self.slotState[i] = nil
-                    end
-                end
-            end
-            
-            -- Restore dragged item state if needed
-            if draggedState and dragOrigin then
-                print("[SYNC DEBUG] Restoring dragged item to slot", dragOrigin)
-                self.slotState[dragOrigin] = draggedState
-            end
-            
-            -- Log state after sync
-            print("[SYNC DEBUG] Client state after sync:")
-            for i = 1, self.maxSlots do
-                if self.slotState[i] then
-                    print("[SYNC DEBUG]   Slot", i, ":", self.slotState[i].itemId, "x" .. self.slotState[i].count)
-                end
-            end
-            
-            -- Refresh all slots
-            for i = 1, self.maxSlots do
-                self:refreshSlot(i)
-            end
-            
-            print("[SYNC DEBUG] ✅ Sync complete, all slots refreshed")
+
+            print("[SYNC DEBUG] ✅ Sync complete, snapshot applied")
         end
     end))
 end
