@@ -318,14 +318,15 @@ function CraftingMenu:createRecipeCard(recipe, index)
         icon.Size = UDim2.new(0, 48, 0, 48)
         icon.Position = UDim2.new(0, 130, 0.5, -24)  -- Centered vertically
         icon.BackgroundTransparency = 1
-        icon.Image = self.spriteConfig.SHEET_ASSET
         icon.ScaleType = Enum.ScaleType.Stretch
         icon.ZIndex = 5
         icon.Parent = card
-        
-        local offset, size = self.spriteConfig.getSpriteRect(itemData.spriteIndex)
-        icon.ImageRectOffset = offset
-        icon.ImageRectSize = size
+
+        if not self.spriteConfig.applySprite(icon, itemData.spriteIndex) then
+            icon.Image = ""
+            icon.ImageRectOffset = Vector2.new(0, 0)
+            icon.ImageRectSize = self.spriteConfig.DEFAULT_IMAGE_RECT_SIZE
+        end
     end
     
     -- Station indicator
@@ -397,14 +398,15 @@ function CraftingMenu:createRecipeCard(recipe, index)
                     matIcon.Position = UDim2.new(0.5, -12, 0, 0)
                     matIcon.AnchorPoint = Vector2.new(0.5, 0)
                     matIcon.BackgroundTransparency = 1
-                    matIcon.Image = self.spriteConfig.SHEET_ASSET
                     matIcon.ScaleType = Enum.ScaleType.Stretch
                     matIcon.ZIndex = 7
                     matIcon.Parent = matFrame
-                    
-                    local offset, size = self.spriteConfig.getSpriteRect(matItem.spriteIndex)
-                    matIcon.ImageRectOffset = offset
-                    matIcon.ImageRectSize = size
+
+                    if not self.spriteConfig.applySprite(matIcon, matItem.spriteIndex) then
+                        matIcon.Image = ""
+                        matIcon.ImageRectOffset = Vector2.new(0, 0)
+                        matIcon.ImageRectSize = self.spriteConfig.DEFAULT_IMAGE_RECT_SIZE
+                    end
                 end
                 
                 -- Material name

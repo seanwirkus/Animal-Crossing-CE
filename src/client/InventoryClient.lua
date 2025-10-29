@@ -78,15 +78,11 @@ function InventoryClient:updateItemIcon(icon, itemDefinition)
         return
     end
 
-    local offset, size = self.spriteConfig.getSpriteRect(itemDefinition.spriteIndex)
-    if not offset or not size then
+    if not self.spriteConfig.applySprite(icon, itemDefinition.spriteIndex) then
         icon.Image = ""
-        return
+        icon.ImageRectOffset = Vector2.new(0, 0)
+        icon.ImageRectSize = self.spriteConfig.DEFAULT_IMAGE_RECT_SIZE
     end
-
-    icon.Image = self.spriteConfig.SHEET_ASSET
-    icon.ImageRectOffset = offset
-    icon.ImageRectSize = size
 end
 
 function InventoryClient:updateSlotAppearance(slot, state)

@@ -470,21 +470,14 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         groundShadowSprite.Parent = groundShadowGui
 
         -- Calculate sprite rect for this specific item
-        local offset, size = Vector2.new(0, 0), Vector2.new(36, 36)
-        if item.index then
-                local i0 = item.index - 1
-                local col = i0 % SpriteConfig.COLUMNS
-                local row = math.floor(i0 / SpriteConfig.COLUMNS)
-                local x = math.floor(SpriteConfig.OUTER.X + col * (SpriteConfig.TILE + SpriteConfig.INNER.X) + 0.5)
-                local y = math.floor(SpriteConfig.OUTER.Y + row * (SpriteConfig.TILE + SpriteConfig.INNER.Y) + 0.5)
-                local spriteSize = math.floor(SpriteConfig.TILE - SpriteConfig.BLEED_FIX * 2 + 0.5)
-                offset = Vector2.new(x + SpriteConfig.BLEED_FIX, y + SpriteConfig.BLEED_FIX)
-                size = Vector2.new(spriteSize, spriteSize)
+        local spriteOffset, spriteSize = SpriteConfig.getSpriteRect(item.index)
+        if not spriteOffset or not spriteSize then
+                spriteOffset = Vector2.new(0, 0)
+                spriteSize = SpriteConfig.DEFAULT_IMAGE_RECT_SIZE
         end
 
-        -- Apply sprite rect to ground shadow
-        groundShadowSprite.ImageRectOffset = offset
-        groundShadowSprite.ImageRectSize = size
+        groundShadowSprite.ImageRectOffset = spriteOffset
+        groundShadowSprite.ImageRectSize = spriteSize
 
         -- Create simple depth layers - just 2 subtle layers for 3D effect
         local depthLayers = {}
@@ -527,8 +520,8 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 layerSprite.Parent = layerGui
                 
                 -- Apply sprite rect for proper item display
-                layerSprite.ImageRectOffset = offset
-                layerSprite.ImageRectSize = size
+                layerSprite.ImageRectOffset = spriteOffset
+                layerSprite.ImageRectSize = spriteSize
                 
                 table.insert(depthLayers, {
                         part = layerPart,
@@ -550,8 +543,8 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         imageLabel.Parent = topGui
 
         -- Apply sprite rect to main sprite
-        imageLabel.ImageRectOffset = offset
-        imageLabel.ImageRectSize = size
+        imageLabel.ImageRectOffset = spriteOffset
+        imageLabel.ImageRectSize = spriteSize
 
 	-- Enhanced point light with better range and color
 	local pointLight = Instance.new("PointLight")
@@ -1208,10 +1201,17 @@ testItemEvent.OnServerEvent:Connect(function(player, x, y)
     spriteImage.ImageTransparency = 0
     spriteImage.ScaleType = Enum.ScaleType.Stretch
     spriteImage.Parent = spriteGui
-    
+
     -- Apply the specified sprite coordinates
-    spriteImage.ImageRectOffset = Vector2.new(x * 32, y * 32)
-    spriteImage.ImageRectSize = Vector2.new(32, 32)
+    local spriteIndex = SpriteConfig.getIndexFromGrid(x, y)
+    local offset, size = SpriteConfig.getSpriteRect(spriteIndex)
+    if offset and size then
+        spriteImage.ImageRectOffset = offset
+        spriteImage.ImageRectSize = size
+    else
+        spriteImage.ImageRectOffset = Vector2.new(0, 0)
+        spriteImage.ImageRectSize = SpriteConfig.DEFAULT_IMAGE_RECT_SIZE
+    end
     
     -- Add click detector for pickup
     local clickDetector = Instance.new("ClickDetector")
