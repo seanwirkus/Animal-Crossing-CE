@@ -239,17 +239,15 @@ function ItemBrowser:createItemButton(item)
         spriteImage.Size = UDim2.new(0.8, 0, 0.65, 0)
         spriteImage.Position = UDim2.new(0.1, 0, 0.05, 0)
         spriteImage.BackgroundTransparency = 1
-        spriteImage.Image = self.spriteConfig.SHEET_ASSET
-        spriteImage.ImageRectSize = Vector2.new(36, 36)
+        spriteImage.ScaleType = Enum.ScaleType.Stretch
         spriteImage.ZIndex = 6
-        
-        local zeroBased = item.spriteIndex - 1
-        local col = zeroBased % self.spriteConfig.COLUMNS
-        local row = math.floor(zeroBased / self.spriteConfig.COLUMNS)
-        local offsetX = self.spriteConfig.OUTER.X + col * (self.spriteConfig.TILE + self.spriteConfig.INNER.X)
-        local offsetY = self.spriteConfig.OUTER.Y + row * (self.spriteConfig.TILE + self.spriteConfig.INNER.Y)
-        
-        spriteImage.ImageRectOffset = Vector2.new(math.floor(offsetX + 0.5), math.floor(offsetY + 0.5))
+
+        if not self.spriteConfig.applySprite(spriteImage, item.spriteIndex) then
+            spriteImage.Image = ""
+            spriteImage.ImageRectOffset = Vector2.new(0, 0)
+            spriteImage.ImageRectSize = self.spriteConfig.DEFAULT_IMAGE_RECT_SIZE
+        end
+
         spriteImage.Parent = button
     end
     
