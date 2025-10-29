@@ -1,20 +1,11 @@
-local game = game
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-
--- Roblox globals are available automatically in Roblox environment
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local InventoryClient = {}
 InventoryClient.__index = InventoryClient
-InventoryClient.MAX_SLOTS = InventoryConstants.DEFAULT_MAX_SLOTS  -- Constant for maximum inventory slots
-
-local InventoryClientModule = require(script.Parent:WaitForChild("inventory"))
-local InventoryDomain = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("inventory"))
-local InventorySchemas = InventoryDomain.Schemas
-local InventoryValidation = InventoryDomain.Validation
-local InventoryConstants = InventoryDomain.Constants
+InventoryClient.MAX_SLOTS = 20  -- Constant for maximum inventory slots
 
 local function cloneState(state)
     if not state then
@@ -41,13 +32,6 @@ function InventoryClient.new()
 
     self.displayItems = self.itemDataFetcher.getDisplayItemMap()
 
-    self.inventoryStore = InventoryClientModule.StateStore.new({
-        maxSlots = InventoryClient.MAX_SLOTS,
-    })
-    self.inventoryAdapterRegistry = InventoryDomain.newAdapterRegistry()
-
-    self.latestSnapshot = self.inventoryStore:getSnapshot()
-
     self.inventoryGui = nil
     self.inventoryFrame = nil
     self.inventoryItems = nil
@@ -55,7 +39,7 @@ function InventoryClient.new()
 
     self.visible = false
     self.slotsByIndex = {}
-    self.maxSlots = InventoryClient.MAX_SLOTS
+    self.maxSlots = 20  -- Match server's MAX_SLOTS
     self.slotState = {}
     self.drag = nil
     self.pendingData = nil
@@ -71,11 +55,6 @@ function InventoryClient:disconnectAll()
     end
     for k in pairs(self.connections) do
         self.connections[k] = nil
-    end
-
-    if self.inventoryStore then
-        self.inventoryStore:destroy()
-        self.inventoryStore = nil
     end
 end
 
@@ -148,79 +127,6 @@ function InventoryClient:updateSlotAppearance(slot, state)
     end
 end
 
-function InventoryClient:buildSnapshotFromWire(payload)
-    local maxSlots = payload and payload.maxSlots or self.maxSlots or InventoryClient.MAX_SLOTS
-    local snapshot = InventorySchemas.createSnapshot({
-        maxSlots = maxSlots,
-        source = "client-wire",
-    })
-
-    local sourceSlots = nil
-
-    if payload and typeof(payload.slots) == "table" then
-        sourceSlots = payload.slots
-    elseif typeof(payload) == "table" then
-        sourceSlots = payload
-    end
-
-    if sourceSlots then
-        for index = 1, snapshot.maxSlots do
-            local slotData = sourceSlots[index]
-            if slotData and slotData.itemId and slotData.itemId ~= "" and slotData.count and slotData.count > 0 then
-                snapshot.slots[index] = InventorySchemas.createSlotFromStack(index, {
-                    id = slotData.itemId,
-                    count = slotData.count,
-                })
-            else
-                snapshot.slots[index] = InventorySchemas.createEmptySlot(index)
-            end
-        end
-    end
-
-    return snapshot
-end
-
-function InventoryClient:_applySnapshot(snapshot, sourceLabel)
-    if not snapshot then
-        return
-    end
-
-    local ok, reason = InventoryValidation.validateSnapshot(snapshot)
-    if not ok then
-        warn("[InventoryClient] Snapshot from", sourceLabel or "unknown", "failed validation:", reason)
-        return
-    end
-
-    self.inventoryStore:setSnapshot(snapshot)
-    self.latestSnapshot = self.inventoryStore:getSnapshot()
-    self.maxSlots = self.latestSnapshot.maxSlots
-
-    for index = 1, self.maxSlots do
-        local slot = self.latestSnapshot.slots[index]
-        if slot and slot.stack then
-            self.slotState[index] = {
-                itemId = slot.stack.id,
-                count = slot.stack.count,
-            }
-        else
-            self.slotState[index] = nil
-        end
-        self:refreshSlot(index)
-    end
-
-    for index, slot in pairs(self.slotsByIndex) do
-        if index > self.maxSlots then
-            slot.Visible = false
-            self.slotState[index] = nil
-        end
-    end
-end
-
-function InventoryClient:exportLegacyPayload(dataset)
-    local targetDataset = dataset or InventoryConstants.LEGACY_DATASET_ID
-    return self.inventoryStore:exportLegacyPayload(self.inventoryAdapterRegistry, targetDataset)
-end
-
 function InventoryClient:ensureSlot(slotIndex)
     if self.slotsByIndex[slotIndex] and self.slotsByIndex[slotIndex].Parent then
         return self.slotsByIndex[slotIndex]
@@ -269,47 +175,14 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         clickRegion.Parent = slot
     end
 
-    -- Primary click behaviour for drag/drop
     clickRegion.MouseButton1Down:Connect(function()
-        print("[SLOT INTERACTION] Mouse down on slot", slotIndex)
-
         if self.drag then
-            print("[SLOT INTERACTION] Attempting to drop currently dragged item")
-            self.drag.justPickedUp = false
-            local mousePos = UserInputService:GetMouseLocation()
-            local destinationIndex = self:getSlotIndexFromPoint(mousePos) or slotIndex
-            self:finishDrag(mousePos, false, destinationIndex)
-            return
+            self:finishDrag(UserInputService:GetMouseLocation(), false, slotIndex)
+        else
+            if self.slotState[slotIndex] then
+                self:beginDrag(slotIndex)
+            end
         end
-
-        if not self.slotState[slotIndex] then
-            print("[SLOT INTERACTION] Slot", slotIndex, "has no item to drag")
-            return
-        end
-
-        print("[SLOT INTERACTION] Starting drag from slot", slotIndex)
-        self:beginDrag(slotIndex)
-    end)
-
-    -- Mouse up finalises drag when the item has already been picked up
-    clickRegion.MouseButton1Up:Connect(function()
-        print("[SLOT INTERACTION] Mouse up on slot", slotIndex)
-        if not self.drag then
-            return
-        end
-
-        local mousePos = UserInputService:GetMouseLocation()
-        local destinationIndex = self:getSlotIndexFromPoint(mousePos)
-
-        if self.drag.justPickedUp and (not destinationIndex or destinationIndex == self.drag.originSlot) then
-            print("[SLOT INTERACTION] Release on origin immediately after pickup - keeping item attached")
-            self.drag.justPickedUp = false
-            return
-        end
-
-        self.drag.justPickedUp = false
-        print("[SLOT INTERACTION] Finishing drag from mouse up; destination:", destinationIndex)
-        self:finishDrag(mousePos, false, destinationIndex)
     end)
 
     clickRegion.MouseEnter:Connect(function()
@@ -319,7 +192,6 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
             nameLabel.Text = self.displayItems[state.itemId].name
             nameLabel.Visible = true
         end
-        -- Change background color on hover
         slot.BackgroundColor3 = Color3.fromHex("#04AFA6")
     end)
 
@@ -328,7 +200,6 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         if nameLabel then
             nameLabel.Visible = false
         end
-        -- Reset background color to default (238, 226, 204)
         slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     end)
 end
@@ -410,25 +281,19 @@ function InventoryClient:updateGhostPosition()
     end
 
     local position = UserInputService:GetMouseLocation()
-    self.drag.ghost.Position = UDim2.fromOffset(position.X, position.Y)
+    local ghostSize = self.drag.ghost.AbsoluteSize
+    local yOffset = ghostSize.Y > 0 and ghostSize.Y * 0.4 or 20
+    self.drag.ghost.Position = UDim2.fromOffset(position.X, position.Y - yOffset)
 end
 
 function InventoryClient:beginDrag(slotIndex)
-    print("[DRAG DEBUG] beginDrag called for slot:", slotIndex)
-    print("[DRAG DEBUG] Current slotState for slot " .. slotIndex .. ":", self.slotState[slotIndex])
-    
     if self.drag then
-        print("[DRAG DEBUG] Already dragging, finishing previous drag")
-        self:finishDrag(nil, true)
+        self:finishDrag(nil, true) -- Cancel previous drag
     end
 
     local state = self.slotState[slotIndex]
-    if not state then
-        print("[DRAG DEBUG] ❌ No state found for slot", slotIndex, "- aborting drag")
-        return
-    end
+    if not state then return end
 
-    print("[DRAG DEBUG] Removing item from slot", slotIndex, "temporarily")
     self.slotState[slotIndex] = nil
     self:refreshSlot(slotIndex)
 
@@ -441,10 +306,8 @@ function InventoryClient:beginDrag(slotIndex)
         connection = RunService.RenderStepped:Connect(function()
             self:updateGhostPosition()
         end),
-        justPickedUp = true,
     }
 
-    print("[DRAG DEBUG] ✅ Drag started successfully for item:", state.itemId, "count:", state.count)
     self:updateGhostPosition()
 end
 
@@ -465,110 +328,101 @@ function InventoryClient:getSlotIndexFromPoint(point)
     return nil
 end
 
-function InventoryClient:dropItemToWorld(dragState, mousePosition)
-    self.slotState[dragState.originSlot] = nil
-    self:refreshSlot(dragState.originSlot)
-
-    -- Drop item at a fixed short distance in front of the player instead of raycasting to mouse
+function InventoryClient:dropItemToWorld(dragState, mousePos)
+    print("[DRAG DEBUG] Attempting to drop item to world")
     local character = self.player.Character
-    local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-
-    local worldPosition
-    if humanoidRootPart then
-        -- Drop 2-3 feet in front of the player
-        local forwardDirection = humanoidRootPart.CFrame.LookVector
-        worldPosition = humanoidRootPart.Position + forwardDirection * 3 + Vector3.new(0, 0, 0)  -- 3 studs forward
-    else
-        -- Fallback to camera position if no character
-        local camera = workspace.CurrentCamera
-        worldPosition = camera.CFrame.Position + camera.CFrame.LookVector * 6
+    if not character then
+        print("[DRAG DEBUG] ❌ No character found to drop item from")
+        self:finishDrag(mousePos, true) -- Cancel drag
+        return
     end
+
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        print("[DRAG DEBUG] ❌ No HumanoidRootPart found")
+        self:finishDrag(mousePos, true) -- Cancel drag
+        return
+    end
+
+    local camera = workspace.CurrentCamera
+    if not camera then
+        print("[DRAG DEBUG] ❌ No camera found")
+        self:finishDrag(mousePos, true) -- Cancel drag
+        return
+    end
+
+    -- Drop it a few studs in front of the player
+    local forwardDirection = humanoidRootPart.CFrame.LookVector
+    local worldPosition = humanoidRootPart.Position + forwardDirection * 3 + Vector3.new(0, 0, 0) -- 3 studs forward
 
     self.inventoryRemote:FireServer("DropItem", {
         itemId = dragState.state.itemId,
         count = dragState.state.count,
-        slotIndex = dragState.originSlot,
-        worldPosition = worldPosition,
+        position = worldPosition,
     })
+
+    print("[DRAG DEBUG] ✅ Fired DropItem event to server")
 end
 
 function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
-    print("[DRAG DEBUG] finishDrag called - cancelled:", cancelled, "targetIndex:", targetIndex)
-    
     local dragState = self.drag
-    if not dragState then
-        print("[DRAG DEBUG] ❌ No drag state found!")
-        return
-    end
+    if not dragState then return end
 
     if dragState.connection then
         dragState.connection:Disconnect()
     end
-
     if dragState.ghost then
         dragState.ghost:Destroy()
     end
-
     self.drag = nil
 
     if cancelled then
-        print("[DRAG DEBUG] Drag cancelled - restoring item to slot", dragState.originSlot)
         self.slotState[dragState.originSlot] = cloneState(dragState.state)
         self:refreshSlot(dragState.originSlot)
         return
     end
 
-    -- If no target index provided, try to find it from mouse position
     local destinationIndex = targetIndex or self:getSlotIndexFromPoint(mousePos or UserInputService:GetMouseLocation())
-    
-    print("[DRAG DEBUG] Destination index:", destinationIndex, "Origin slot:", dragState.originSlot)
 
     if not destinationIndex then
-        print("[DRAG DEBUG] Dropped outside inventory grid - sending to world")
+        -- Dropped outside of inventory, put it back for now.
+        -- World drop can be re-implemented here if desired.
+        self.slotState[dragState.originSlot] = cloneState(dragState.state)
+        self:refreshSlot(dragState.originSlot)
+        -- Fire drop event
         self:dropItemToWorld(dragState, mousePos)
         return
     end
 
     if destinationIndex == dragState.originSlot then
-        print("[DRAG DEBUG] Dropped back on origin slot - restoring")
         self.slotState[dragState.originSlot] = cloneState(dragState.state)
         self:refreshSlot(dragState.originSlot)
         return
     end
 
-    -- Simple swap/move logic
-    print("[DRAG DEBUG] Swapping items between slot", dragState.originSlot, "and", destinationIndex)
-    
+    -- Optimistically update client state
     local destinationItem = self.slotState[destinationIndex]
-    
-    -- Put dragged item in destination
     self.slotState[destinationIndex] = cloneState(dragState.state)
-    
-    -- Put what was at destination into origin (if anything)
     if destinationItem then
         self.slotState[dragState.originSlot] = cloneState(destinationItem)
     else
         self.slotState[dragState.originSlot] = nil
     end
-    
-    -- Refresh UI
+
     self:refreshSlot(dragState.originSlot)
     self:refreshSlot(destinationIndex)
-    
-    -- Send to server - always use swap=true for drag operations
+
+    -- Inform server of the move
     self.inventoryRemote:FireServer("MoveItem", {
         fromIndex = dragState.originSlot,
         toIndex = destinationIndex,
         swap = true,
     })
-    
-    print("[DRAG DEBUG] ✅ Move complete, sent to server")
 end
 
 function InventoryClient:populateFromServer(payload)
     print("[POPULATE DEBUG] populateFromServer called")
-    print("[POPULATE DEBUG] Payload:", payload)
-
+    
     if not self.inventoryItems or not self.slotTemplate then
         print("[POPULATE DEBUG] Not ready yet, storing as pendingData")
         self.pendingData = payload
@@ -576,12 +430,42 @@ function InventoryClient:populateFromServer(payload)
     end
 
     if self.drag then
-        print("[POPULATE DEBUG] Cancelling current drag operation")
+        print("[POPULATE DEBUG] Cancelling current drag operation due to server sync")
         self:finishDrag(nil, true)
     end
 
-    local snapshot = self:buildSnapshotFromWire(payload)
-    self:_applySnapshot(snapshot, "populateFromServer")
+    local maxSlots = (payload and payload.maxSlots) or self.maxSlots or 20
+    local incomingSlots = (payload and payload.slots) or {}
+
+    self.maxSlots = maxSlots
+
+    -- Create a fresh state table
+    local newState = {}
+    for i = 1, self.maxSlots do
+        local slotData = incomingSlots[tostring(i)] or incomingSlots[i]
+        if slotData and slotData.itemId and slotData.count and slotData.count > 0 then
+            newState[i] = {
+                itemId = slotData.itemId,
+                count = slotData.count,
+            }
+        end
+    end
+    
+    self.slotState = newState
+
+    -- Refresh all visible slots
+    for i = 1, self.maxSlots do
+        self:refreshSlot(i)
+    end
+
+    -- Hide slots that are no longer in use
+    for index, slot in pairs(self.slotsByIndex) do
+        if index > self.maxSlots then
+            slot.Visible = false
+        end
+    end
+    
+    print("[POPULATE DEBUG] ✅ Population complete. Slots refreshed.")
 end
 
 function InventoryClient:requestInventory()
@@ -596,29 +480,19 @@ function InventoryClient:setupRemoteHandling()
             self:populateFromServer(data)
         end
     end))
+
+    self:trackConnection(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and self.drag then
+            local mousePos = UserInputService:GetMouseLocation()
+            if not self:getSlotIndexFromPoint(mousePos) then
+                self:finishDrag(mousePos, false, nil)
+            end
+        end
+    end))
 end
 
 function InventoryClient:bindInput()
-    -- Handle sync from server
-    self:trackConnection(self.inventoryRemote.OnClientEvent:Connect(function(action, data)
-        print("[SYNC DEBUG] Received server event - action:", action)
-        
-        if action == "SyncInventory" then
-            print("[SYNC DEBUG] SyncInventory received from server")
-            print("[SYNC DEBUG] Data received:", data)
-            
-            local snapshot = self:buildSnapshotFromWire(data)
-            self:_applySnapshot(snapshot, "bindInput:SyncInventory")
-
-            if self.drag and self.drag.originSlot then
-                print("[SYNC DEBUG] Reinforcing dragged slot", self.drag.originSlot)
-                self.slotState[self.drag.originSlot] = cloneState(self.drag.state)
-                self:refreshSlot(self.drag.originSlot)
-            end
-
-            print("[SYNC DEBUG] ✅ Sync complete, snapshot applied")
-        end
-    end))
+    -- This is now handled by setupRemoteHandling to avoid duplicate listeners
 end
 
 function InventoryClient:attachGui()

@@ -52,6 +52,13 @@ function CraftingMenu.new()
     return self
 end
 
+function CraftingMenu:Init(parent)
+    self.parent = parent
+    self:createGui()
+    self:switchTab("RECIPES") -- Default to recipes
+    print("[CraftingMenu] ✅ Initialized for DebugManager")
+end
+
 function CraftingMenu:loadRecipes()
     self.allRecipes = self.itemDataFetcher.getCraftableItems() or {}
     
@@ -90,51 +97,21 @@ function CraftingMenu:getStationColor(stationType)
 end
 
 function CraftingMenu:createGui()
-    if self.screenGui then
+    if self.mainFrame then
         print("[CraftingMenu] GUI already exists, returning early")
         return
     end
 
     print("[CraftingMenu] Creating GUI from scratch...")
 
-    -- Main ScreenGui
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CraftingMenu"
-    screenGui.ResetOnSpawn = false
-    screenGui.DisplayOrder = 150
-    screenGui.Parent = self.gui
-    self.screenGui = screenGui
-    print("[CraftingMenu] ✅ Created ScreenGui")
-    
-    -- Modal background
-    local modalBg = Instance.new("Frame")
-    modalBg.Name = "ModalBackground"
-    modalBg.Size = UDim2.new(1, 0, 1, 0)
-    modalBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    modalBg.BackgroundTransparency = 0.5
-    modalBg.BorderSizePixel = 0
-    modalBg.ZIndex = 1
-    modalBg.Parent = screenGui
-    print("[CraftingMenu] ✅ Created modal background")
-    
-    -- Close on background click
-    modalBg.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self:close()
-        end
-    end)
-    
     -- Main frame
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 700, 0, 500)
-    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    mainFrame.Size = UDim2.new(1, 0, 1, 0)
     mainFrame.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
-    mainFrame.BorderSizePixel = 3
-    mainFrame.BorderColor3 = Color3.fromRGB(120, 100, 80)
+    mainFrame.BorderSizePixel = 0
     mainFrame.ZIndex = 2
-    mainFrame.Parent = screenGui
+    mainFrame.Parent = self.parent
     self.mainFrame = mainFrame
     print("[CraftingMenu] ✅ Created main frame")
     
@@ -193,24 +170,6 @@ function CraftingMenu:createTitleBar()
     local titlePadding = Instance.new("UIPadding")
     titlePadding.PaddingLeft = UDim.new(0, 15)
     titlePadding.Parent = titleLabel
-    
-    -- Close button
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Name = "CloseButton"
-    closeBtn.Text = "✕"
-    closeBtn.Size = UDim2.new(0, 40, 0, 40)
-    closeBtn.Position = UDim2.new(1, -40, 0, 0)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
-    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeBtn.TextSize = 20
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.BorderSizePixel = 0
-    closeBtn.ZIndex = 4
-    closeBtn.Parent = titleBar
-    
-    closeBtn.MouseButton1Click:Connect(function()
-        self:close()
-    end)
 end
 
 function CraftingMenu:createTabButtons()
@@ -278,6 +237,7 @@ function CraftingMenu:createContentArea()
     local listLayout = Instance.new("UIListLayout")
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Padding = UDim.new(0, 5)
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     listLayout.Parent = contentFrame
     
     listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -288,7 +248,7 @@ end
 function CraftingMenu:createInstructions()
     local instructions = Instance.new("TextLabel")
     instructions.Name = "Instructions"
-    instructions.Text = "Click recipe to craft instantly (ignores materials) | ESC or C to close"
+    instructions.Text = "Click recipe to craft instantly (ignores materials)"
     instructions.Size = UDim2.new(1, -20, 0, 30)
     instructions.Position = UDim2.new(0, 10, 1, -40)
     instructions.BackgroundTransparency = 1
@@ -343,12 +303,30 @@ end
 function CraftingMenu:createRecipeCard(recipe, index)
     local card = Instance.new("Frame")
     card.Name = "Recipe_" .. index
-    card.Size = UDim2.new(1, -10, 0, 80)
+    card.Size = UDim2.new(1, -10, 0, 100)
     card.BackgroundColor3 = Color3.fromRGB(255, 250, 240)
     card.BorderSizePixel = 2
     card.BorderColor3 = Color3.fromRGB(180, 170, 150)
     card.LayoutOrder = index
     card.ZIndex = 4
+    
+    -- Item icon
+    local itemData = self.itemDataFetcher.getItem(recipe.id)
+    if itemData and itemData.spriteIndex then
+        local icon = Instance.new("ImageLabel")
+        icon.Name = "Icon"
+        icon.Size = UDim2.new(0, 48, 0, 48)
+        icon.Position = UDim2.new(0, 130, 0.5, -24)  -- Centered vertically
+        icon.BackgroundTransparency = 1
+        icon.Image = self.spriteConfig.SHEET_ASSET
+        icon.ScaleType = Enum.ScaleType.Stretch
+        icon.ZIndex = 5
+        icon.Parent = card
+        
+        local offset, size = self.spriteConfig.getSpriteRect(itemData.spriteIndex)
+        icon.ImageRectOffset = offset
+        icon.ImageRectSize = size
+    end
     
     -- Station indicator
     local stationLabel = Instance.new("TextLabel")
@@ -372,8 +350,8 @@ function CraftingMenu:createRecipeCard(recipe, index)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
     nameLabel.Text = recipe.name or recipe.id or "Unknown Recipe"
-    nameLabel.Size = UDim2.new(1, -140, 0, 25)
-    nameLabel.Position = UDim2.new(0, 5, 0, 28)
+    nameLabel.Size = UDim2.new(1, -190, 0, 25)
+    nameLabel.Position = UDim2.new(0, 185, 0, 20)  -- Adjusted
     nameLabel.BackgroundTransparency = 1
     nameLabel.TextColor3 = Color3.fromRGB(40, 30, 20)
     nameLabel.TextSize = 14
@@ -384,32 +362,94 @@ function CraftingMenu:createRecipeCard(recipe, index)
     nameLabel.Parent = card
     
     -- Materials list
-    local materialsText = "Materials: "
+    local materialsFrame = Instance.new("Frame")
+    materialsFrame.Name = "MaterialsFrame"
+    materialsFrame.Size = UDim2.new(1, -190, 0, 30)
+    materialsFrame.Position = UDim2.new(0, 185, 0, 50)
+    materialsFrame.BackgroundTransparency = 1
+    materialsFrame.ZIndex = 5
+    materialsFrame.Parent = card
+    
+    local materialsLayout = Instance.new("UIListLayout")
+    materialsLayout.FillDirection = Enum.FillDirection.Horizontal
+    materialsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    materialsLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    materialsLayout.Padding = UDim.new(0, 5)
+    materialsLayout.Parent = materialsFrame
+    
     if recipe.materials and #recipe.materials > 0 then
-        local matParts = {}
         for _, mat in ipairs(recipe.materials) do
             local matItem = self.itemDataFetcher.getItem(mat.itemId)
-            local matName = matItem and matItem.name or mat.itemId
-            table.insert(matParts, (mat.count or 1) .. "x " .. matName)
+            if matItem then
+                -- Material icon and quantity
+                local matFrame = Instance.new("Frame")
+                matFrame.Name = "Mat_" .. mat.itemId
+                matFrame.Size = UDim2.new(0, 60, 0, 40)
+                matFrame.BackgroundTransparency = 1
+                matFrame.ZIndex = 6
+                matFrame.Parent = materialsFrame
+                
+                -- Only show icon if sprite exists
+                if matItem.spriteIndex then
+                    local matIcon = Instance.new("ImageLabel")
+                    matIcon.Name = "Icon"
+                    matIcon.Size = UDim2.new(0, 24, 0, 24)
+                    matIcon.Position = UDim2.new(0.5, -12, 0, 0)
+                    matIcon.AnchorPoint = Vector2.new(0.5, 0)
+                    matIcon.BackgroundTransparency = 1
+                    matIcon.Image = self.spriteConfig.SHEET_ASSET
+                    matIcon.ScaleType = Enum.ScaleType.Stretch
+                    matIcon.ZIndex = 7
+                    matIcon.Parent = matFrame
+                    
+                    local offset, size = self.spriteConfig.getSpriteRect(matItem.spriteIndex)
+                    matIcon.ImageRectOffset = offset
+                    matIcon.ImageRectSize = size
+                end
+                
+                -- Material name
+                local matName = Instance.new("TextLabel")
+                matName.Name = "Name"
+                matName.Text = (matItem.displayName or matItem.name or mat.itemId)
+                matName.Size = UDim2.new(1, 0, 0, 20)
+                matName.Position = UDim2.new(0, 0, 0, 0)
+                matName.BackgroundTransparency = 1
+                matName.TextColor3 = Color3.fromRGB(80, 60, 40)
+                matName.TextSize = 9
+                matName.Font = Enum.Font.Gotham
+                matName.TextXAlignment = Enum.TextXAlignment.Center
+                matName.TextScaled = true
+                matName.ZIndex = 7
+                matName.Parent = matFrame
+                
+                local matQuantity = Instance.new("TextLabel")
+                matQuantity.Name = "Quantity"
+                matQuantity.Text = "x" .. (mat.count or 1)
+                matQuantity.Size = UDim2.new(1, 0, 0, 12)
+                matQuantity.Position = UDim2.new(0, 0, 1, -12)
+                matQuantity.BackgroundTransparency = 1
+                matQuantity.TextColor3 = Color3.fromRGB(120, 90, 60)
+                matQuantity.TextSize = 10
+                matQuantity.Font = Enum.Font.GothamBold
+                matQuantity.TextXAlignment = Enum.TextXAlignment.Center
+                matQuantity.ZIndex = 7
+                matQuantity.Parent = matFrame
+            end
         end
-        materialsText = materialsText .. table.concat(matParts, ", ")
     else
-        materialsText = materialsText .. "None"
+        -- No materials
+        local noMatsLabel = Instance.new("TextLabel")
+        noMatsLabel.Name = "NoMaterials"
+        noMatsLabel.Text = "No materials required"
+        noMatsLabel.Size = UDim2.new(0, 150, 1, 0)
+        noMatsLabel.BackgroundTransparency = 1
+        noMatsLabel.TextColor3 = Color3.fromRGB(100, 80, 60)
+        noMatsLabel.TextSize = 10
+        noMatsLabel.Font = Enum.Font.Gotham
+        noMatsLabel.TextXAlignment = Enum.TextXAlignment.Left
+        noMatsLabel.ZIndex = 6
+        noMatsLabel.Parent = materialsFrame
     end
-    
-    local materialsLabel = Instance.new("TextLabel")
-    materialsLabel.Name = "Materials"
-    materialsLabel.Text = materialsText
-    materialsLabel.Size = UDim2.new(1, -140, 0, 20)
-    materialsLabel.Position = UDim2.new(0, 5, 0, 53)
-    materialsLabel.BackgroundTransparency = 1
-    materialsLabel.TextColor3 = Color3.fromRGB(100, 80, 60)
-    materialsLabel.TextSize = 10
-    materialsLabel.Font = Enum.Font.Gotham
-    materialsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    materialsLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    materialsLabel.ZIndex = 5
-    materialsLabel.Parent = card
     
     -- Craft button
     local craftBtn = Instance.new("TextButton")
@@ -434,12 +474,10 @@ function CraftingMenu:createRecipeCard(recipe, index)
     end)
     
     craftBtn.MouseButton1Click:Connect(function()
-        print("[CraftingMenu] Debug craft:", recipe.id)
-        -- Debug: directly add crafted item to inventory
-        self.inventoryRemote:FireServer("add_item", {
-            itemId = recipe.id,
-            count = 1,
-            maxStack = 99
+        print("[CraftingMenu] Crafting:", recipe.id)
+        -- Send craft request to server
+        self.inventoryRemote:FireServer("craft_item", {
+            itemId = recipe.id
         })
     end)
     

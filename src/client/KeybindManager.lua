@@ -22,7 +22,7 @@ KeybindManager.KEYBINDS = {
 	MAP = Enum.KeyCode.M,
 	
 	-- Debug
-	DEBUG_GRID = Enum.KeyCode.G,
+	DEBUG_GUI = Enum.KeyCode.G,
 	
 	-- Future binds (placeholder)
 	EMOTE = Enum.KeyCode.V,

@@ -1,11 +1,11 @@
 local SpriteConfig = {
-    SHEET_ASSET = "rbxassetid://74324628581851",
+    SHEET_ASSET = "rbxassetid://102758508019146",
     COLUMNS = 21,
     ROWS = 24,
-    TILE = 36.6,
-    INNER = Vector2.new(6, 6),
-    OUTER = Vector2.new(4, 4),
-    BLEED_FIX = 0.25,
+    TILE = 73.2,  -- 36.6 * 2 for 2x resolution
+    INNER = Vector2.new(12, 12),  -- 6 * 2
+    OUTER = Vector2.new(8, 8),    -- 4 * 2
+    BLEED_FIX = 0.5,  -- 0.25 * 2
 }
 
 function SpriteConfig.getSpriteRect(index)

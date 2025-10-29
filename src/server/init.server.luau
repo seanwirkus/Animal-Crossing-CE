@@ -44,6 +44,10 @@ local InventoryConstants = InventoryDomain.Constants
 local InventorySchemas = InventoryDomain.Schemas
 local InventoryValidation = InventoryDomain.Validation
 local inventoryAdapterRegistry = InventoryDomain.newAdapterRegistry()
+inventoryAdapterRegistry:registerLegacyAdapter(
+	InventoryConstants.LEGACY_DATASET_ID,
+	InventoryDomain.AdapterClass.defaultLegacyAdapter
+)
 
 -- Player inventory storage
 local playerInventories = {}
@@ -61,10 +65,31 @@ local function getInventoryForPlayer(player)
         return playerInventories[player.UserId]
 end
 
+local function buildSnapshotFromState(slots, maxSlots)
+        local snapshot = InventorySchemas.createSnapshot({
+                maxSlots = maxSlots or MAX_SLOTS,
+                source = "server-runtime",
+        })
+
+        if slots then
+                for index = 1, snapshot.maxSlots do
+                        local slot = slots[index]
+                        if slot and slot.itemId and slot.count and slot.count > 0 then
+                                snapshot.slots[index] = InventorySchemas.createSlotFromStack(index, {
+                                        id = slot.itemId,
+                                        count = slot.count,
+                                })
+                        end
+                end
+        end
+
+        return snapshot
+end
+
 -- Initialize player inventory
 local function initializePlayerInventory(player)
         -- Start with empty inventory (use debug GUI to add items)
-        local starterItems = {}
+        local _starterItems = {}
 
         local slots = {}
         for i = 1, MAX_SLOTS do
@@ -80,28 +105,6 @@ local function initializePlayerInventory(player)
         }
 
         print("[Server] ✅ Initialized empty inventory for", player.Name, "with", MAX_SLOTS, "slots")
-end
-
-local function buildSnapshotFromState(slots, maxSlots)
-        local snapshot = InventorySchemas.createSnapshot({
-                maxSlots = maxSlots or MAX_SLOTS,
-                source = "server-runtime",
-        })
-
-        if slots then
-                for index = 1, snapshot.maxSlots do
-                        local slot = slots[index]
-                        if slot and slot.itemId and slot.count and slot.count > 0 then
-                                snapshot.slots[index] = InventorySchemas.createSlotFromStack(index, {
-                                        id = slot.itemId,
-                                        count = slot.count,
-                                        metadata = slot.metadata,
-                                })
-                        end
-                end
-        end
-
-        return snapshot
 end
 
 local function decodeLegacyPayload(payload)
@@ -301,6 +304,7 @@ local function consumeCraftingMaterials(player, materials, quantity)
                                         break
                                 end
                         end
+
                 end
 
                 if remaining > 0 then
@@ -1004,6 +1008,103 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 -- Return remaining count that couldn't be added
                 if count > 0 then
                         warn("[Server] Could not add all items - remaining:", count)
+                end
+
+        elseif action == "craft_item" and data then
+                local itemId = data.itemId
+                local recipe = ItemDataFetcher.getCraftingRecipe(itemId)
+                if not recipe then
+                        warn("[Server] Craft failed: No recipe for", itemId)
+                        return
+                end
+                
+                -- Check if player has all required materials
+                local slots = inventory.slots
+                local hasMaterials = true
+                local materialsToRemove = {}
+                
+                for _, mat in ipairs(recipe.materials or {}) do
+                        local needed = mat.count or 1
+                        local found = 0
+                        
+                        for slotIndex, slot in pairs(slots) do
+                                if slot and slot.itemId == mat.itemId then
+                                        found = found + slot.count
+                                end
+                        end
+                        
+                        if found < needed then
+                                hasMaterials = false
+                                break
+                        end
+                        
+                        -- Record what to remove
+                        materialsToRemove[mat.itemId] = needed
+                end
+                
+                if not hasMaterials then
+                        warn("[Server] Craft failed: Insufficient materials for", itemId)
+                        return
+                end
+                
+                -- Remove materials
+                for matId, needed in pairs(materialsToRemove) do
+                        local remaining = needed
+                        for slotIndex = 1, inventory.maxSlots or MAX_SLOTS do
+                                local slot = slots[slotIndex]
+                                if slot and slot.itemId == matId then
+                                        if slot.count >= remaining then
+                                                slot.count = slot.count - remaining
+                                                if slot.count <= 0 then
+                                                        slots[slotIndex] = nil
+                                                end
+                                                break
+                                        else
+                                                remaining = remaining - slot.count
+                                                slots[slotIndex] = nil
+                                        end
+                                end
+                        end
+                end
+                
+                -- Add crafted item
+                local _craftedData = { itemId = itemId, count = 1 }
+                -- Reuse the add_item logic
+                local itemData = ItemDataFetcher.getItem(itemId)
+                if itemData then
+                        local maxStack = 99  -- Default for crafted items
+                        local _count = 1
+                        local added = false
+                        
+                        -- Try to add to existing slot first
+                        for i = 1, inventory.maxSlots or MAX_SLOTS do
+                                local slot = slots[i]
+                                if slot and slot.itemId == itemId then
+                                        if slot.count < maxStack then
+                                                slot.count = slot.count + 1
+                                                added = true
+                                                break
+                                        end
+                                end
+                        end
+                        
+                        -- If not added, find empty slot
+                        if not added then
+                                for i = 1, inventory.maxSlots or MAX_SLOTS do
+                                        if not slots[i] then
+                                                slots[i] = { itemId = itemId, count = 1, maxStack = maxStack }
+                                                added = true
+                                                break
+                                        end
+                                end
+                        end
+                        
+                        if added then
+                                print("[Server] Crafted", itemId, "for", player.Name)
+                                syncInventoryToClient(player)
+                        else
+                                warn("[Server] Craft failed: Inventory full for", itemId)
+                        end
                 end
 
         elseif action == "GetWorldItems" then
