@@ -78,10 +78,13 @@ function InventoryClient:updateItemIcon(icon, itemDefinition)
         return
     end
 
+    -- Ensure proper ScaleType for sprite rendering
+    if icon.ScaleType ~= Enum.ScaleType.Fit then
+        icon.ScaleType = Enum.ScaleType.Fit
+    end
+
     if not self.spriteConfig.applySprite(icon, itemDefinition.spriteIndex) then
         icon.Image = ""
-        icon.ImageRectOffset = Vector2.new(0, 0)
-        icon.ImageRectSize = self.spriteConfig.DEFAULT_IMAGE_RECT_SIZE
     end
 end
 
@@ -492,14 +495,29 @@ function InventoryClient:bindInput()
 end
 
 function InventoryClient:attachGui()
-    -- Wait for GUI to be copied from StarterGui to PlayerGui
-    self.inventoryGui = self.gui:WaitForChild("InventoryGUI", 5)
+    -- The GUI should already be created by InventoryGuiSetup before this is called
+    print("[InventoryClient] Looking for InventoryGUI in PlayerGui...")
+    print("[InventoryClient] PlayerGui children count:", #self.gui:GetChildren())
+    
+    for _, child in ipairs(self.gui:GetChildren()) do
+        print("[InventoryClient] - Found in PlayerGui:", child.Name, "(Enabled=" .. tostring(child:FindFirstChildOfClass("ScreenGui") and child:FindFirstChildOfClass("ScreenGui").Enabled or "N/A") .. ")")
+    end
+    
+    self.inventoryGui = self.gui:FindFirstChild("InventoryGUI")
     if not self.inventoryGui then
-        warn("[InventoryClient] InventoryGUI not found in PlayerGui after waiting")
+        -- Try waiting a bit in case of timing issues
+        warn("[InventoryClient] InventoryGUI not found immediately, waiting...")
+        self.inventoryGui = self.gui:WaitForChild("InventoryGUI", 10)
+    end
+    
+    if not self.inventoryGui then
+        warn("[InventoryClient] ❌ InventoryGUI not found in PlayerGui after waiting")
+        warn("[InventoryClient] PlayerGui children:", self.gui:GetChildren())
         return false
     end
     
     print("[InventoryClient] ✅ Found InventoryGUI in PlayerGui")
+    print("[InventoryClient] InventoryGUI.Enabled:", self.inventoryGui.Enabled)
 
     self.inventoryFrame = self.inventoryGui:FindFirstChild("InventoryFrame")
     if not self.inventoryFrame then
@@ -522,6 +540,8 @@ function InventoryClient:attachGui()
     self.slotTemplate.Visible = false
     self.inventoryGui.Enabled = true
     self.inventoryFrame.Visible = false
+    
+    print("[InventoryClient] ✅ After attachGui: inventoryGui.Enabled=" .. tostring(self.inventoryGui.Enabled) .. ", inventoryFrame.Visible=" .. tostring(self.inventoryFrame.Visible))
 
     for index, slot in pairs(self.slotsByIndex) do
         if slot.Parent ~= self.inventoryItems then

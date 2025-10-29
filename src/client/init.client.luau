@@ -14,6 +14,9 @@ print("[Client] Script children:", script:GetChildren())
 local InventoryClient = require(script.InventoryClient)
 print("[Client] ✅ InventoryClient loaded")
 
+local InventoryGuiSetup = require(script.Modules.InventoryGuiSetup)
+print("[Client] ✅ InventoryGuiSetup loaded")
+
 local KeybindManager = require(script.KeybindManager)
 print("[Client] ✅ KeybindManager loaded")
 
@@ -25,6 +28,16 @@ print("[Client] ✅ DebugCraftingMenu module loaded")
 
 local DebugManager = require(script.Modules.DebugManager)
 print("[Client] ✅ DebugManager module loaded")
+
+-- Create GUI structures first
+InventoryGuiSetup.createInventoryGui()
+print("[Client] ✅ Main inventory GUI created")
+
+InventoryGuiSetup.createDebugInventoryGui()
+print("[Client] ✅ Debug inventory GUI created")
+
+InventoryGuiSetup.setupResponsiveLayout()
+print("[Client] ✅ Responsive layout enabled")
 
 -- Initialize InventoryClient
 local inventoryClient = InventoryClient.init()

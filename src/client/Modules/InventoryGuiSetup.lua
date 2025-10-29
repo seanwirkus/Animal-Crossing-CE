@@ -1,0 +1,360 @@
+-- InventoryGuiSetup.lua
+-- Creates the inventory GUI structure with responsive slot templates
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local InventoryGuiSetup = {}
+
+function InventoryGuiSetup.createInventoryGui()
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Remove existing if present
+    local existing = playerGui:FindFirstChild("InventoryGUI")
+    if existing then
+        existing:Destroy()
+    end
+    
+    -- Create main ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "InventoryGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 10
+    screenGui.Enabled = true
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    
+    print("[InventoryGuiSetup] 🔍 DEBUG - ScreenGui parent:", screenGui.Parent.Name)
+    print("[InventoryGuiSetup] 🔍 DEBUG - ScreenGui in PlayerGui:", playerGui:FindFirstChild("InventoryGUI") ~= nil)
+    
+    -- Create TEST rectangle to verify ScreenGui renders
+    local testRect = Instance.new("Frame")
+    testRect.Name = "TEST_RECT"
+    testRect.Size = UDim2.new(0, 400, 0, 300)
+    testRect.Position = UDim2.new(0.5, -200, 0.5, -150)
+    testRect.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    testRect.BorderSizePixel = 5
+    testRect.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    testRect.Parent = screenGui
+    testRect.ZIndex = 999
+    
+    local testLabel = Instance.new("TextLabel")
+    testLabel.Name = "TestLabel"
+    testLabel.Size = UDim2.new(1, 0, 0, 60)
+    testLabel.Position = UDim2.new(0, 0, 0, 10)
+    testLabel.BackgroundTransparency = 1
+    testLabel.Text = "🎒 RED TEST GUI"
+    testLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    testLabel.TextSize = 28
+    testLabel.Font = Enum.Font.GothamBold
+    testLabel.TextXAlignment = Enum.TextXAlignment.Center
+    testLabel.Parent = testRect
+    
+    print("[InventoryGuiSetup] 🔍 TEST RECT CREATED - This red rectangle should be visible if ScreenGui works!")
+    
+    -- Create main inventory frame
+    local inventoryFrame = Instance.new("Frame")
+    inventoryFrame.Name = "InventoryFrame"
+    inventoryFrame.Size = UDim2.new(0.8, 0, 0.7, 0)
+    inventoryFrame.Position = UDim2.new(0.1, 0, 0.15, 0)
+    inventoryFrame.AnchorPoint = Vector2.new(0, 0)
+    inventoryFrame.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
+    inventoryFrame.BorderSizePixel = 2
+    inventoryFrame.BorderColor3 = Color3.fromRGB(150, 130, 110)
+    inventoryFrame.Visible = false
+    inventoryFrame.ClipsDescendants = false
+    inventoryFrame.Parent = screenGui
+    
+    -- Add UICorner for rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = inventoryFrame
+    
+    -- Add UIPadding (leaving room for title bar)
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 50)  -- Space for title bar
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+    padding.Parent = inventoryFrame
+    
+    -- Create title bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(139, 90, 43)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = inventoryFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.Parent = titleBar
+    
+    -- Title text
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.Size = UDim2.new(1, -40, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "🎒 Inventory"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 20
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+    
+    -- Close button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -35, 0, 5)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 18
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 4)
+    closeCorner.Parent = closeButton
+    
+    -- Create scrolling frame for items
+    local inventoryItems = Instance.new("ScrollingFrame")
+    inventoryItems.Name = "InventoryItems"
+    inventoryItems.Size = UDim2.new(1, 0, 1, 0)
+    inventoryItems.Position = UDim2.new(0, 0, 0, 0)
+    inventoryItems.BackgroundColor3 = Color3.fromRGB(222, 210, 188)
+    inventoryItems.BackgroundTransparency = 0
+    inventoryItems.BorderSizePixel = 0
+    inventoryItems.ScrollBarThickness = 8
+    inventoryItems.ScrollBarImageColor3 = Color3.fromRGB(120, 100, 80)
+    inventoryItems.CanvasSize = UDim2.new(0, 0, 0, 0)
+    inventoryItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    inventoryItems.Parent = inventoryFrame
+    
+    -- Add UIListLayout for responsive grid
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.FillDirection = Enum.FillDirection.Horizontal
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 5)
+    listLayout.Wraps = true
+    listLayout.Parent = inventoryItems
+    
+    -- Add empty state message
+    local emptyMessage = Instance.new("TextLabel")
+    emptyMessage.Name = "EmptyMessage"
+    emptyMessage.Size = UDim2.new(1, 0, 0, 100)
+    emptyMessage.Position = UDim2.new(0, 0, 0, 50)
+    emptyMessage.BackgroundTransparency = 1
+    emptyMessage.Text = "Your inventory is empty!\n\nPress G to open the item browser\nand add items to your inventory."
+    emptyMessage.TextColor3 = Color3.fromRGB(120, 100, 80)
+    emptyMessage.TextSize = 16
+    emptyMessage.Font = Enum.Font.Gotham
+    emptyMessage.TextWrapped = true
+    emptyMessage.TextXAlignment = Enum.TextXAlignment.Center
+    emptyMessage.TextYAlignment = Enum.TextYAlignment.Top
+    emptyMessage.Parent = inventoryFrame
+    
+    -- Create item slot template
+    local slotTemplate = InventoryGuiSetup.createSlotTemplate()
+    slotTemplate.Name = "ItemSlotTemplate"
+    slotTemplate.Visible = false
+    slotTemplate.Parent = inventoryItems
+    
+    -- Connect close button click handler
+    closeButton.MouseButton1Click:Connect(function()
+        inventoryFrame.Visible = false
+        print("✓ Inventory closed via close button")
+    end)
+    
+    print("[InventoryGuiSetup] ✅ Created InventoryGUI with structure:")
+    print("  - ScreenGui: InventoryGUI (Enabled=" .. tostring(screenGui.Enabled) .. ", DisplayOrder=" .. screenGui.DisplayOrder .. ")")
+    print("  - Frame: InventoryFrame (Size=" .. tostring(inventoryFrame.Size) .. ", Visible=" .. tostring(inventoryFrame.Visible) .. ")")
+    print("  - TitleBar with close button")
+    print("  - ScrollingFrame: InventoryItems (BackgroundColor=" .. tostring(inventoryItems.BackgroundColor3) .. ")")
+    print("  - EmptyMessage")
+    print("  - Template: ItemSlotTemplate")
+    
+    return screenGui
+end
+
+function InventoryGuiSetup.createSlotTemplate()
+    -- Determine slot size based on screen size (responsive)
+    local viewportSize = workspace.CurrentCamera.ViewportSize
+    local isDesktop = viewportSize.X > 1000
+    
+    -- Desktop: 10 items per row, Mobile: 5 items per row
+    local slotsPerRow = isDesktop and 10 or 5
+    local slotSize = math.floor((viewportSize.X * 0.8 - 100) / slotsPerRow)
+    slotSize = math.clamp(slotSize, 50, 80)
+    
+    local slot = Instance.new("Frame")
+    slot.Name = "ItemSlot"
+    slot.Size = UDim2.new(0, slotSize, 0, slotSize)
+    slot.BackgroundColor3 = Color3.fromRGB(255, 250, 240)
+    slot.BorderSizePixel = 2
+    slot.BorderColor3 = Color3.fromRGB(180, 170, 150)
+    
+    local slotCorner = Instance.new("UICorner")
+    slotCorner.CornerRadius = UDim.new(0, 4)
+    slotCorner.Parent = slot
+    
+    -- Item icon (sprite)
+    local itemIcon = Instance.new("ImageLabel")
+    itemIcon.Name = "ItemIcon"
+    itemIcon.Size = UDim2.new(0.8, 0, 0.7, 0)
+    itemIcon.Position = UDim2.new(0.1, 0, 0.05, 0)
+    itemIcon.AnchorPoint = Vector2.new(0, 0)
+    itemIcon.BackgroundTransparency = 1
+    itemIcon.Image = ""
+    itemIcon.ScaleType = Enum.ScaleType.Fit
+    itemIcon.ImageRectSize = Vector2.new(36, 36)  -- Default sprite size from config
+    itemIcon.Parent = slot
+    
+    -- Item count label
+    local itemCount = Instance.new("TextLabel")
+    itemCount.Name = "ItemCount"
+    itemCount.Size = UDim2.new(0.4, 0, 0.25, 0)
+    itemCount.Position = UDim2.new(0.58, 0, 0.73, 0)
+    itemCount.AnchorPoint = Vector2.new(0, 0)
+    itemCount.BackgroundTransparency = 1
+    itemCount.Text = ""
+    itemCount.TextColor3 = Color3.fromRGB(60, 50, 40)
+    itemCount.TextSize = 12
+    itemCount.Font = Enum.Font.GothamBold
+    itemCount.TextXAlignment = Enum.TextXAlignment.Right
+    itemCount.TextYAlignment = Enum.TextYAlignment.Bottom
+    itemCount.Visible = false
+    itemCount.Parent = slot
+    
+    -- Item name label (shown on hover)
+    local itemName = Instance.new("TextLabel")
+    itemName.Name = "ItemName"
+    itemName.Size = UDim2.new(1, 0, 0.3, 0)
+    itemName.Position = UDim2.new(0, 0, 0.7, 0)
+    itemName.BackgroundTransparency = 0.3
+    itemName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    itemName.Text = ""
+    itemName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    itemName.TextSize = 10
+    itemName.Font = Enum.Font.Gotham
+    itemName.TextWrapped = true
+    itemName.TextScaled = true
+    itemName.Visible = false
+    itemName.Parent = slot
+    
+    return slot
+end
+
+function InventoryGuiSetup.createDebugInventoryGui()
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Remove existing if present
+    local existing = playerGui:FindFirstChild("DebugInventoryGUI")
+    if existing then
+        existing:Destroy()
+    end
+    
+    -- Create main ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "DebugInventoryGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 15
+    screenGui.Enabled = true
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    
+    -- Create debug inventory frame
+    local debugFrame = Instance.new("Frame")
+    debugFrame.Name = "DebugInventoryFrame"
+    debugFrame.Size = UDim2.new(0.85, 0, 0.8, 0)
+    debugFrame.Position = UDim2.new(0.075, 0, 0.1, 0)
+    debugFrame.AnchorPoint = Vector2.new(0, 0)
+    debugFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    debugFrame.BorderSizePixel = 0
+    debugFrame.Visible = false
+    debugFrame.Parent = screenGui
+    
+    -- Add UICorner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = debugFrame
+    
+    -- Add UIPadding
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+    padding.Parent = debugFrame
+    
+    -- Create scrolling frame for debug items
+    local debugItems = Instance.new("ScrollingFrame")
+    debugItems.Name = "DebugInventoryItems"
+    debugItems.Size = UDim2.new(1, 0, 1, 0)
+    debugItems.Position = UDim2.new(0, 0, 0, 0)
+    debugItems.BackgroundTransparency = 1
+    debugItems.BorderSizePixel = 0
+    debugItems.ScrollBarThickness = 10
+    debugItems.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+    debugItems.CanvasSize = UDim2.new(0, 0, 0, 0)
+    debugItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    debugItems.Parent = debugFrame
+    
+    -- Add UIListLayout for responsive grid
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.FillDirection = Enum.FillDirection.Horizontal
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 8)
+    listLayout.Wraps = true
+    listLayout.Parent = debugItems
+    
+    -- Create debug item slot template
+    local debugSlotTemplate = InventoryGuiSetup.createSlotTemplate()
+    debugSlotTemplate.Name = "DebugItemSlotTemplate"
+    debugSlotTemplate.Visible = false
+    debugSlotTemplate.Parent = debugItems
+    
+    print("[InventoryGuiSetup] ✅ Created DebugInventoryGUI")
+    return screenGui
+end
+
+-- Auto-detect screen size changes and update layouts
+function InventoryGuiSetup.setupResponsiveLayout()
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        -- Recreate GUIs with new responsive sizing
+        local inventoryGui = playerGui:FindFirstChild("InventoryGUI")
+        local debugGui = playerGui:FindFirstChild("DebugInventoryGUI")
+        
+        if inventoryGui then
+            local wasVisible = inventoryGui:FindFirstChild("InventoryFrame") 
+                and inventoryGui.InventoryFrame.Visible
+            InventoryGuiSetup.createInventoryGui()
+            if wasVisible and inventoryGui:FindFirstChild("InventoryFrame") then
+                inventoryGui.InventoryFrame.Visible = true
+            end
+        end
+        
+        if debugGui then
+            local wasVisible = debugGui:FindFirstChild("DebugInventoryFrame") 
+                and debugGui.DebugInventoryFrame.Visible
+            InventoryGuiSetup.createDebugInventoryGui()
+            if wasVisible and debugGui:FindFirstChild("DebugInventoryFrame") then
+                debugGui.DebugInventoryFrame.Visible = true
+            end
+        end
+    end)
+end
+
+return InventoryGuiSetup

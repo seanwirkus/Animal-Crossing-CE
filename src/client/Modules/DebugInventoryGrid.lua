@@ -225,7 +225,7 @@ end
 function ItemBrowser:createItemButton(item)
     local button = Instance.new("TextButton")
     button.Name = item.id or "unknown"
-    button.Size = UDim2.new(0, 65, 0, 65)
+    button.Size = UDim2.new(0, 70, 0, 70)
     button.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     button.BorderColor3 = Color3.fromRGB(150, 130, 110)
     button.BorderSizePixel = 1
@@ -236,18 +236,15 @@ function ItemBrowser:createItemButton(item)
     if item.spriteIndex then
         local spriteImage = Instance.new("ImageLabel")
         spriteImage.Name = "Sprite"
-        spriteImage.Size = UDim2.new(0.8, 0, 0.65, 0)
-        spriteImage.Position = UDim2.new(0.1, 0, 0.05, 0)
+        spriteImage.Size = UDim2.new(0.85, 0, 0.7, 0)
+        spriteImage.Position = UDim2.new(0.075, 0, 0.05, 0)
         spriteImage.BackgroundTransparency = 1
-        spriteImage.ScaleType = Enum.ScaleType.Stretch
+        spriteImage.ScaleType = Enum.ScaleType.Fit
         spriteImage.ZIndex = 6
 
-        if not self.spriteConfig.applySprite(spriteImage, item.spriteIndex) then
-            spriteImage.Image = ""
-            spriteImage.ImageRectOffset = Vector2.new(0, 0)
-            spriteImage.ImageRectSize = self.spriteConfig.DEFAULT_IMAGE_RECT_SIZE
-        end
-
+        -- Use the SpriteConfig to apply the sprite properly
+        self.spriteConfig.applySprite(spriteImage, item.spriteIndex)
+        
         spriteImage.Parent = button
     end
     
