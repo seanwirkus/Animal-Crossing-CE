@@ -60,14 +60,30 @@ print("[Client] ✅ Debug systems initialized")
 
 -- Register INVENTORY keybind (E key)
 keybindManager:registerBind("INVENTORY", function(inputState)
-	if inputState == "began" then
-		inventoryClient:setInventoryVisible(not inventoryClient.visible)
-		if inventoryClient.visible then
-			inventoryClient:requestInventory()
-		end
-		print("[Keybind] Inventory toggled: " .. tostring(inventoryClient.visible))
-                        end
-                end)
+    if inputState == "began" then
+        -- Ensure GUI attachment before toggling
+        if not inventoryClient.inventoryFrame or not inventoryClient.inventoryGui then
+            print("[Keybind] Re-attaching inventory GUI before toggle...")
+            inventoryClient:attachGui()
+        end
+
+        local targetVisibility = not inventoryClient.visible
+        inventoryClient:setInventoryVisible(targetVisibility)
+        if targetVisibility then
+            inventoryClient:requestInventory()
+        end
+        print("[Keybind] Inventory toggled: " .. tostring(targetVisibility))
+
+        -- Fallback: directly toggle frame if controller could not
+        if (not inventoryClient.inventoryFrame) and inventoryClient.gui then
+            local sg = inventoryClient.gui:FindFirstChild("InventoryGUI")
+            if sg and sg:FindFirstChild("InventoryFrame") then
+                sg.InventoryFrame.Visible = targetVisibility
+                print("[Keybind] Fallback toggled InventoryFrame.Visible=", targetVisibility)
+            end
+        end
+    end
+end)
 
 -- Register REACTION keybind (R key)
 keybindManager:registerBind("REACTION", function(inputState)

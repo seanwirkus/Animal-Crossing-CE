@@ -159,32 +159,41 @@
       "id": "acorn",
       "name": "acorn",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "acorn-pochette",
       "name": "acorn pochette",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "acorn-rug",
       "name": "acorn rug",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "acoustic-guitar",
@@ -476,8 +485,13 @@
       "id": "anchovy",
       "name": "anchovy",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "anchovy-model",
@@ -836,8 +850,13 @@
       "id": "apple",
       "name": "apple",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "apple-chair",
@@ -859,25 +878,29 @@
       "id": "apple-dress",
       "name": "apple dress",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "apple-hat",
       "name": "apple hat",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "apple-jam",
@@ -934,13 +957,15 @@
       "id": "apple-rug",
       "name": "apple rug",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "apple-smoothie",
@@ -980,32 +1005,41 @@
       "id": "apple-umbrella",
       "name": "apple umbrella",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "apple-wall",
       "name": "apple wall",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "aquarius-fragment",
       "name": "Aquarius fragment",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "aquarius-urn",
@@ -1128,8 +1162,13 @@
       "id": "aries-fragment",
       "name": "Aries fragment",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "aries-rocking-chair",
@@ -1152,13 +1191,15 @@
       "id": "armor-shoes",
       "name": "armor shoes",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "cranky villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "aroma-pot",
@@ -1331,26 +1372,30 @@
       "id": "autumn-wall",
       "name": "autumn wall",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons",
         "message bottle"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "axe",
       "name": "axe",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Pretty Good Tools Recipes"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "azumaya-gazebo",
@@ -1455,13 +1500,15 @@
       "id": "backyard-lawn",
       "name": "backyard lawn",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "peppy villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bagworm-model",
@@ -1630,13 +1677,15 @@
       "id": "bamboo-flooring",
       "name": "bamboo flooring",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "cranky villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bamboo-grass",
@@ -1659,25 +1708,29 @@
       "id": "bamboo-hat",
       "name": "bamboo hat",
       "category": "crafted",
-
       "sell": 50,
       "buy": null,
       "source": [
         "cranky villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bamboo-lattice-fence",
       "name": "bamboo lattice fence",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Nook Stop"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bamboo-lunch-box",
@@ -1732,8 +1785,13 @@
       "id": "bamboo-piece",
       "name": "bamboo piece",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "bamboo-shelf",
@@ -1755,8 +1813,13 @@
       "id": "bamboo-shoot",
       "name": "bamboo shoot",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "bamboo-speaker",
@@ -1826,13 +1889,15 @@
       "id": "bamboo-wall",
       "name": "bamboo wall",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "cranky villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bamboo-wall-decoration",
@@ -1854,27 +1919,31 @@
       "id": "bamboo-wand",
       "name": "bamboo wand",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons",
         "message bottle"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bamboo-grove-wall",
       "name": "bamboo-grove wall",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons",
         "message bottle"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bamboo-shoot-lamp",
@@ -1913,13 +1982,15 @@
       "id": "bamboo-slats-fence",
       "name": "bamboo-slats fence",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Nook Stop"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "banker-s-lamp",
@@ -1979,13 +2050,15 @@
       "id": "barbed-wire-fence",
       "name": "barbed-wire fence",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Nook Stop"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "barbell",
@@ -2007,8 +2080,13 @@
       "id": "barred-knifejaw",
       "name": "barred knifejaw",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "barred-knifejaw-model",
@@ -2094,13 +2172,15 @@
       "id": "basement-flooring",
       "name": "basement flooring",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "smug villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "basic-painting",
@@ -2176,14 +2256,16 @@
       "id": "basket-pack",
       "name": "basket pack",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons",
         "message bottle"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "basketball-hoop",
@@ -2328,486 +2410,678 @@
       "id": "beekeeper-s-hive",
       "name": "beekeeper's hive",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "jock villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "big-festive-tree",
       "name": "big festive tree",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons",
         "any villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "birdbath",
       "name": "birdbath",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Tom Nook",
         "snooty villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "birdcage",
       "name": "birdcage",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "birdhouse",
       "name": "birdhouse",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Tom Nook",
         "peppy villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "block-fence",
       "name": "block fence",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Nook Stop"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "blossom-viewing-lantern",
       "name": "blossom-viewing lantern",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "balloons",
         "message bottle"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "blue-ornament",
       "name": "blue ornament",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "blue-rose-crown",
       "name": "blue rose crown",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "any villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "blue-rose-wreath",
       "name": "blue rose wreath",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "any villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "blue-roses",
       "name": "blue roses",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "bone-doorplate",
       "name": "bone doorplate",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "lazy villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bonfire",
       "name": "bonfire",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Tom Nook",
         "cranky villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bonsai-shelf",
       "name": "bonsai shelf",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "cranky villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "boomerang",
       "name": "boomerang",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "lazy villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "box-shaped-seat",
       "name": "box-shaped seat",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "peppy villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bread",
       "name": "bread",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "any villager",
         "restaurant"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bread-gratin",
       "name": "bread gratin",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "any villager",
         "restaurant"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "brick-fence",
       "name": "brick fence",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Nook Stop"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "brick-oven",
       "name": "brick oven",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Wildest Dreams DIY"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "brick-pillar",
       "name": "brick pillar",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Niko"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "brick-well",
       "name": "brick well",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Nook Stop"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "bridge-construction-kit",
       "name": "bridge construction kit",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "Tom Nook"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "brown-herringbone-wall",
       "name": "brown herringbone wall",
       "category": "crafted",
-
       "sell": 200,
       "buy": null,
       "source": [
         "big sister villager"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "brown-sugar",
       "name": "brown sugar",
       "category": "crafted",
-
       "sell": 0,
       "buy": null,
       "source": [
         "Basic Cooking Recipes"
       ],
-      "themes": []
+      "themes": [],
+      "series": null,
+      "set": null,
+      "tag": null
     },
     {
       "id": "campfire",
       "name": "campfire",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "cherry-blossom-bonsai",
       "name": "cherry-blossom bonsai",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "cherry-blossom-petal",
       "name": "cherry-blossom petal",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "clay",
       "name": "clay",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "clump-of-weeds",
       "name": "clump of weeds",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "flimsy-axe",
       "name": "flimsy axe",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "flimsy-shovel",
       "name": "flimsy shovel",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "flour",
       "name": "flour",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "gold-nugget",
       "name": "gold nugget",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "gold-ornament",
       "name": "gold ornament",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "hardwood",
       "name": "hardwood",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "horse-mackerel",
       "name": "horse mackerel",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "iron-nugget",
       "name": "iron nugget",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "log-stakes",
       "name": "log stakes",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "maple-leaf",
       "name": "maple leaf",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "pine-bonsai-tree",
       "name": "pine bonsai tree",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "potato",
       "name": "potato",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "red-ornament",
       "name": "red ornament",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "softwood",
       "name": "softwood",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "star-fragment",
       "name": "star fragment",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "stone",
       "name": "stone",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "sugar",
       "name": "sugar",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "sugarcane",
       "name": "sugarcane",
       "category": "material",
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "wasp-nest",
       "name": "wasp nest",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "whole-wheat-flour",
       "name": "whole-wheat flour",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "wood",
       "name": "wood",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     },
     {
       "id": "young-spring-bamboo",
       "name": "young spring bamboo",
       "category": "material",
-
-
+      "series": null,
+      "set": null,
+      "tag": null,
+      "sell": null,
+      "buy": null,
+      "source": [],
+      "themes": []
     }
   ],
   "recipes": [
