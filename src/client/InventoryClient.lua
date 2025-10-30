@@ -495,46 +495,38 @@ function InventoryClient:bindInput()
 end
 
 function InventoryClient:attachGui()
-    -- The GUI should already be created by InventoryGuiSetup before this is called
-    print("[InventoryClient] Looking for InventoryGUI in PlayerGui...")
-    print("[InventoryClient] PlayerGui children count:", #self.gui:GetChildren())
-    
-    for _, child in ipairs(self.gui:GetChildren()) do
-        print("[InventoryClient] - Found in PlayerGui:", child.Name, "(Enabled=" .. tostring(child:FindFirstChildOfClass("ScreenGui") and child:FindFirstChildOfClass("ScreenGui").Enabled or "N/A") .. ")")
+    -- Prefer existing GUI authored in Studio: find any Frame named "InventoryFrame" under PlayerGui
+    local function findDescendantByName(root, name)
+        for _, d in ipairs(root:GetDescendants()) do
+            if d.Name == name then
+                return d
+            end
+        end
+        return nil
     end
-    
-    self.inventoryGui = self.gui:FindFirstChild("InventoryGUI")
-    if not self.inventoryGui then
-        -- Try waiting a bit in case of timing issues
-        warn("[InventoryClient] InventoryGUI not found immediately, waiting...")
-        self.inventoryGui = self.gui:WaitForChild("InventoryGUI", 10)
-    end
-    
-    if not self.inventoryGui then
-        warn("[InventoryClient] ❌ InventoryGUI not found in PlayerGui after waiting")
-        warn("[InventoryClient] PlayerGui children:", self.gui:GetChildren())
-        return false
-    end
-    
-    print("[InventoryClient] ✅ Found InventoryGUI in PlayerGui")
-    print("[InventoryClient] InventoryGUI.Enabled:", self.inventoryGui.Enabled)
 
-    self.inventoryFrame = self.inventoryGui:FindFirstChild("InventoryFrame")
-    if not self.inventoryFrame then
-        warn("[InventoryClient] InventoryFrame missing")
+    local frame = findDescendantByName(self.gui, "InventoryFrame")
+    if not frame or not frame:IsA("Frame") then
+        warn("[InventoryClient] ❌ Could not find InventoryFrame under PlayerGui")
         return false
     end
 
-    self.inventoryItems = self.inventoryFrame:FindFirstChild("InventoryItems")
+    self.inventoryFrame = frame
+    self.inventoryGui = frame:FindFirstAncestorWhichIsA("ScreenGui")
+    if not self.inventoryGui then
+        warn("[InventoryClient] ❌ InventoryFrame has no ScreenGui ancestor")
+        return false
+    end
+
+    -- Find required children inside the frame
+    self.inventoryItems = frame:FindFirstChild("InventoryItems")
     if not self.inventoryItems then
-        warn("[InventoryClient] InventoryItems missing")
-        return false
+        warn("[InventoryClient] ❌ InventoryItems missing inside InventoryFrame")
     end
 
-    self.slotTemplate = self.inventoryItems:FindFirstChild("ItemSlotTemplate")
+    self.slotTemplate = self.inventoryItems and self.inventoryItems:FindFirstChild("ItemSlotTemplate") or nil
     if not self.slotTemplate then
-        warn("[InventoryClient] ItemSlotTemplate missing")
-        return false
+        warn("[InventoryClient] ❌ ItemSlotTemplate missing inside InventoryItems")
     end
 
     self.slotTemplate.Visible = false
