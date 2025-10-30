@@ -74,12 +74,33 @@ keybindManager:registerBind("INVENTORY", function(inputState)
         end
         print("[Keybind] Inventory toggled: " .. tostring(targetVisibility))
 
-        -- Fallback: directly toggle frame if controller could not
-        if (not inventoryClient.inventoryFrame) and inventoryClient.gui then
+        -- Fallback A: directly toggle known path
+        if inventoryClient.gui then
             local sg = inventoryClient.gui:FindFirstChild("InventoryGUI")
             if sg and sg:FindFirstChild("InventoryFrame") then
+                sg.Enabled = true
                 sg.InventoryFrame.Visible = targetVisibility
-                print("[Keybind] Fallback toggled InventoryFrame.Visible=", targetVisibility)
+                print("[Keybind] FallbackA: InventoryGUI/InventoryFrame set Visible=", targetVisibility)
+            end
+
+            -- Fallback B: deep search by name anywhere under PlayerGui
+            local function findDescendantByName(root, name)
+                for _, child in ipairs(root:GetDescendants()) do
+                    if child.Name == name then
+                        return child
+                    end
+                end
+                return nil
+            end
+
+            local frame = findDescendantByName(inventoryClient.gui, "InventoryFrame")
+            if frame and frame:IsA("Frame") then
+                local parentGui = frame:FindFirstAncestorWhichIsA("ScreenGui")
+                if parentGui then parentGui.Enabled = true end
+                frame.Visible = targetVisibility
+                print("[Keybind] FallbackB: Found InventoryFrame (deep) and set Visible=", targetVisibility)
+            else
+                print("[Keybind] FallbackB: InventoryFrame not found in PlayerGui descendants")
             end
         end
     end
