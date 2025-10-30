@@ -66,8 +66,8 @@ keybindManager:registerBind("INVENTORY", function(inputState)
 			inventoryClient:requestInventory()
 		end
 		print("[Keybind] Inventory toggled: " .. tostring(inventoryClient.visible))
-	end
-end)
+                        end
+                end)
 
 -- Register REACTION keybind (R key)
 keybindManager:registerBind("REACTION", function(inputState)
@@ -80,15 +80,15 @@ end)
 keybindManager:registerBind("TOOL_WHEEL", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] Tool wheel triggered (Space key)")
-	end
-end)
+        end
+    end)
 
 -- Register DEBUG_GUI keybind (G key)
 keybindManager:registerBind("DEBUG_GUI", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] Debug GUI toggled (G key)")
 		DebugManager:Toggle()
-	end
+    end
 end)
 
 -- Connect all keybinds to input events
