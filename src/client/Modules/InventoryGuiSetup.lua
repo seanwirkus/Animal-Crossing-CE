@@ -28,30 +28,7 @@ function InventoryGuiSetup.createInventoryGui()
     print("[InventoryGuiSetup] 🔍 DEBUG - ScreenGui parent:", screenGui.Parent.Name)
     print("[InventoryGuiSetup] 🔍 DEBUG - ScreenGui in PlayerGui:", playerGui:FindFirstChild("InventoryGUI") ~= nil)
     
-    -- Create TEST rectangle to verify ScreenGui renders
-    local testRect = Instance.new("Frame")
-    testRect.Name = "TEST_RECT"
-    testRect.Size = UDim2.new(0, 400, 0, 300)
-    testRect.Position = UDim2.new(0.5, -200, 0.5, -150)
-    testRect.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    testRect.BorderSizePixel = 5
-    testRect.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    testRect.Parent = screenGui
-    testRect.ZIndex = 999
-    
-    local testLabel = Instance.new("TextLabel")
-    testLabel.Name = "TestLabel"
-    testLabel.Size = UDim2.new(1, 0, 0, 60)
-    testLabel.Position = UDim2.new(0, 0, 0, 10)
-    testLabel.BackgroundTransparency = 1
-    testLabel.Text = "🎒 RED TEST GUI"
-    testLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    testLabel.TextSize = 28
-    testLabel.Font = Enum.Font.GothamBold
-    testLabel.TextXAlignment = Enum.TextXAlignment.Center
-    testLabel.Parent = testRect
-    
-    print("[InventoryGuiSetup] 🔍 TEST RECT CREATED - This red rectangle should be visible if ScreenGui works!")
+    -- Removed temporary red test rectangle
     
     -- Create main inventory frame
     local inventoryFrame = Instance.new("Frame")
