@@ -520,13 +520,29 @@ function InventoryClient:attachGui()
 
     -- Find required children inside the frame
     self.inventoryItems = frame:FindFirstChild("InventoryItems")
-    if not self.inventoryItems then
-        warn("[InventoryClient] ❌ InventoryItems missing inside InventoryFrame")
+    self.slotTemplate = self.inventoryItems and self.inventoryItems:FindFirstChild("ItemSlotTemplate") or nil
+
+    -- Deep fallback: locate ItemSlotTemplate anywhere under PlayerGui
+    if not self.slotTemplate then
+        for _, d in ipairs(self.gui:GetDescendants()) do
+            if d:IsA("GuiObject") and d.Name == "ItemSlotTemplate" then
+                self.slotTemplate = d
+                self.inventoryItems = d.Parent
+                -- If we don't have the frame yet, infer from ancestors
+                if not self.inventoryFrame then
+                    local ancestorFrame = d:FindFirstAncestorWhichIsA("Frame")
+                    if ancestorFrame then
+                        self.inventoryFrame = ancestorFrame
+                    end
+                end
+                break
+            end
+        end
     end
 
-    self.slotTemplate = self.inventoryItems and self.inventoryItems:FindFirstChild("ItemSlotTemplate") or nil
-    if not self.slotTemplate then
-        warn("[InventoryClient] ❌ ItemSlotTemplate missing inside InventoryItems")
+    if not self.inventoryItems or not self.slotTemplate then
+        warn("[InventoryClient] ❌ Could not locate InventoryItems and ItemSlotTemplate")
+        return false
     end
 
     self.slotTemplate.Visible = false
