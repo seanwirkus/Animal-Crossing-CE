@@ -30,6 +30,7 @@ function InventoryGuiSetup.createInventoryGui()
     
     -- Find or create InventoryItems ScrollingFrame
     local inventoryItems = inventoryFrame:FindFirstChild("InventoryItems")
+    
     if not inventoryItems then
         warn("[InventoryGuiSetup] ⚠ InventoryItems not found, creating it...")
         inventoryItems = Instance.new("ScrollingFrame")
@@ -42,15 +43,31 @@ function InventoryGuiSetup.createInventoryGui()
         inventoryItems.CanvasSize = UDim2.new(0, 0, 0, 0)
         inventoryItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
         inventoryItems.Parent = inventoryFrame
-        
-        local listLayout = Instance.new("UIListLayout")
-        listLayout.FillDirection = Enum.FillDirection.Horizontal
-        listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        listLayout.Padding = UDim.new(0, 5)
-        listLayout.Wraps = true
-        listLayout.Parent = inventoryItems
+    end
+    
+    -- Check for existing layout - if user added UIListLayout, use it; otherwise create UIGridLayout
+    local existingListLayout = inventoryItems:FindFirstChildOfClass("UIListLayout")
+    local existingGridLayout = inventoryItems:FindFirstChildOfClass("UIGridLayout")
+    
+    if existingListLayout then
+        print("[InventoryGuiSetup] ✅ Found existing UIListLayout - using it")
+        -- Ensure it's configured correctly
+        if existingListLayout.SortOrder ~= Enum.SortOrder.LayoutOrder then
+            existingListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        end
+    elseif not existingGridLayout then
+        -- Create UIGridLayout only if no layout exists
+        local gridLayout = Instance.new("UIGridLayout")
+        gridLayout.FillDirection = Enum.FillDirection.Horizontal
+        gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+        gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        gridLayout.CellSize = UDim2.new(0, 50, 0, 50)
+        gridLayout.CellPadding = UDim2.new(0, 5, 0, 5)
+        gridLayout.Parent = inventoryItems
+        print("[InventoryGuiSetup] ✅ Created UIGridLayout for inventory slots")
+    else
+        print("[InventoryGuiSetup] ✅ Found existing UIGridLayout - using it")
     end
     
     print("[InventoryGuiSetup] ✅ InventoryItems ready")
@@ -75,10 +92,16 @@ function InventoryGuiSetup.createSlotTemplate()
     local viewportSize = workspace.CurrentCamera.ViewportSize
     local isDesktop = viewportSize.X > 1000
     
-    -- Desktop: 10 items per row, Mobile: 5 items per row
+    -- Desktop: 10 items per row (matches inventory level system), Mobile: 5 items per row
     local slotsPerRow = isDesktop and 10 or 5
     local slotSize = math.floor((viewportSize.X * 0.8 - 100) / slotsPerRow)
     slotSize = math.clamp(slotSize, 50, 80)
+    
+    -- Ensure slots are sized consistently for the 10-per-row layout
+    if isDesktop then
+        slotSize = math.floor(viewportSize.X * 0.08)  -- ~8% of screen width per slot
+        slotSize = math.clamp(slotSize, 60, 80)
+    end
     
     local slot = Instance.new("Frame")
     slot.Name = "ItemSlot"
@@ -194,15 +217,15 @@ function InventoryGuiSetup.createDebugInventoryGui()
     debugItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
     debugItems.Parent = debugFrame
     
-    -- Add UIListLayout for responsive grid
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.FillDirection = Enum.FillDirection.Horizontal
-    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 8)
-    listLayout.Wraps = true
-    listLayout.Parent = debugItems
+    -- Add UIGridLayout for responsive grid
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.FillDirection = Enum.FillDirection.Horizontal
+    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    gridLayout.CellSize = UDim2.new(0, 65, 0, 65)
+    gridLayout.CellPadding = UDim2.new(0, 3, 0, 3)
+    gridLayout.Parent = debugItems
     
     -- Create debug item slot template
     local debugSlotTemplate = InventoryGuiSetup.createSlotTemplate()

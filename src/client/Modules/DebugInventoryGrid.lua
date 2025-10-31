@@ -1,5 +1,5 @@
 -- Item Browser Modal
--- Shows all items with pagination
+-- Shows all items in a scrollable grid without pagination
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,22 +16,33 @@ function ItemBrowser.new()
     self.itemDataFetcher = require(self.sharedFolder:WaitForChild("ItemDataFetcher"))
     self.spriteConfig = require(self.sharedFolder:WaitForChild("SpriteConfig"))
     
+    -- Try to load InventoryConstants (may be in different locations)
+    local inventoryConstantsPath = self.sharedFolder:FindFirstChild("inventory")
+    if inventoryConstantsPath then
+        self.inventoryConstants = require(inventoryConstantsPath:WaitForChild("InventoryConstants"))
+    else
+        -- Fallback: try direct path or create a simple local function
+        self.inventoryConstants = nil
+    end
+    
     self.inventoryRemote = ReplicatedStorage:WaitForChild("InventoryEvent")
     
     self.mainFrame = nil
-    self.currentPage = 1
-    self.itemsPerPage = 20  -- 5 columns x 4 rows
-    self.itemsPerRow = 5
+    self.itemsPerRow = 10  -- 10 items per row (matches inventory level slots)
+    
+    -- Get reference to InventoryClient to check current level
+    self.inventoryClient = nil
     
     self:loadAllItems()
     
-    print("[ItemBrowser] ✅ Loaded with", #self.allItems, "items")
+    print("[ItemBrowser] ✅ Loaded with", #self.allItems, "total items")
     
     return self
 end
 
 function ItemBrowser:Init(parent)
     self.parent = parent
+    
     self:createGui()
     print("[ItemBrowser] ✅ Initialized for DebugManager")
 end
@@ -39,36 +50,48 @@ end
 function ItemBrowser:loadAllItems()
     local allItems = self.itemDataFetcher.getAllItems()
     
-    local itemsWithSprites = {}
+    -- Create a map of items by spriteIndex and also by id for quick lookup
+    local itemsBySpriteIndex = {}
+    local itemsById = {}
     for _, item in ipairs(allItems) do
         if item.spriteIndex then
-            table.insert(itemsWithSprites, item)
+            itemsBySpriteIndex[item.spriteIndex] = item
+        end
+        if item.id then
+            itemsById[item.id] = item
         end
     end
     
-    table.sort(itemsWithSprites, function(a, b)
-        local indexA = a.spriteIndex or 999
-        local indexB = b.spriteIndex or 999
-        return indexA < indexB
-    end)
+    -- Store itemsById for validation
+    self.itemsById = itemsById
     
-    self.allItems = itemsWithSprites
-end
-
-function ItemBrowser:getTotalPages()
-    return math.ceil(#self.allItems / self.itemsPerPage)
-end
-
-function ItemBrowser:getCurrentPageItems()
-    local startIdx = (self.currentPage - 1) * self.itemsPerPage + 1
-    local endIdx = math.min(startIdx + self.itemsPerPage - 1, #self.allItems)
+    -- Generate items for sprite positions (1-494, excluding 495-504 which are null)
+    local itemsWithSprites = {}
+    local maxSprites = 494  -- Exclude sprites 495-504 (they're null on spritesheet)
     
-    local pageItems = {}
-    for i = startIdx, endIdx do
-        table.insert(pageItems, self.allItems[i])
+    for spriteIndex = 1, maxSprites do
+        local item = itemsBySpriteIndex[spriteIndex]
+        if item then
+            -- Use mapped item
+            table.insert(itemsWithSprites, item)
+        else
+            -- Create placeholder for unmapped sprite (for display only)
+            table.insert(itemsWithSprites, {
+                id = "sprite_" .. spriteIndex,
+                name = "Sprite " .. spriteIndex,
+                spriteIndex = spriteIndex,
+                category = "unmapped",
+                isPlaceholder = true  -- Mark as placeholder so we can prevent adding it
+            })
+        end
     end
-    return pageItems
+    
+    -- Already sorted by spriteIndex (1-494)
+    self.allItems = itemsWithSprites
+    
+    print("[ItemBrowser] Loaded", #itemsWithSprites, "total sprite positions (", #itemsBySpriteIndex, "mapped,", #itemsWithSprites - #itemsBySpriteIndex, "unmapped)")
 end
+
 
 function ItemBrowser:createGui()
     if self.mainFrame then
@@ -106,29 +129,30 @@ function ItemBrowser:createGui()
     titleText.ZIndex = 4
     titleText.Parent = titleBar
     
-    local pageInfo = Instance.new("TextLabel")
-    pageInfo.Name = "PageInfo"
-    pageInfo.Text = "Page " .. self.currentPage .. " of " .. self:getTotalPages()
-    pageInfo.Size = UDim2.new(1, 0, 0, 25)
-    pageInfo.Position = UDim2.new(0, 0, 0, 40)
-    pageInfo.BackgroundColor3 = Color3.fromRGB(200, 180, 160)
-    pageInfo.BorderSizePixel = 0
-    pageInfo.TextColor3 = Color3.fromRGB(60, 50, 40)
-    pageInfo.TextSize = 12
-    pageInfo.Font = Enum.Font.Gotham
-    pageInfo.ZIndex = 3
-    pageInfo.Parent = mainFrame
-    self.pageInfo = pageInfo
+    local itemCount = Instance.new("TextLabel")
+    itemCount.Name = "ItemCount"
+    itemCount.Text = "Showing " .. #self.allItems .. " items"
+    itemCount.Size = UDim2.new(1, 0, 0, 25)
+    itemCount.Position = UDim2.new(0, 0, 0, 40)
+    itemCount.BackgroundColor3 = Color3.fromRGB(200, 180, 160)
+    itemCount.BorderSizePixel = 0
+    itemCount.TextColor3 = Color3.fromRGB(60, 50, 40)
+    itemCount.TextSize = 12
+    itemCount.Font = Enum.Font.Gotham
+    itemCount.ZIndex = 3
+    itemCount.Parent = mainFrame
+    self.itemCount = itemCount
     
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "ItemsScroll"
-    scrollFrame.Size = UDim2.new(1, -4, 1, -105)
+    scrollFrame.Size = UDim2.new(1, -4, 1, -65)
     scrollFrame.Position = UDim2.new(0, 2, 0, 65)
     scrollFrame.BackgroundColor3 = Color3.fromRGB(220, 208, 190)
     scrollFrame.BorderColor3 = Color3.fromRGB(70, 70, 70)
     scrollFrame.BorderSizePixel = 1
     scrollFrame.ScrollBarThickness = 8
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 300)
+    scrollFrame.ScrollingEnabled = true
     scrollFrame.ZIndex = 3
     scrollFrame.Parent = mainFrame
     self.scrollFrame = scrollFrame
@@ -139,86 +163,38 @@ function ItemBrowser:createGui()
     gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
     gridLayout.CellSize = UDim2.new(0, 65, 0, 65)
     gridLayout.CellPadding = UDim2.new(0, 3, 0, 3)
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     gridLayout.Parent = scrollFrame
+    self.gridLayout = gridLayout
     
-    local controlsFrame = Instance.new("Frame")
-    controlsFrame.Name = "Controls"
-    controlsFrame.Size = UDim2.new(1, 0, 0, 45)
-    controlsFrame.Position = UDim2.new(0, 0, 1, -45)
-    controlsFrame.BackgroundColor3 = Color3.fromRGB(120, 100, 80)
-    controlsFrame.BorderSizePixel = 0
-    controlsFrame.ZIndex = 3
-    controlsFrame.Parent = mainFrame
-    
-    local prevBtn = Instance.new("TextButton")
-    prevBtn.Name = "PrevButton"
-    prevBtn.Text = "◀ Previous"
-    prevBtn.Size = UDim2.new(0, 100, 0, 35)
-    prevBtn.Position = UDim2.new(0, 10, 0.5, -17)
-    prevBtn.BackgroundColor3 = Color3.fromRGB(200, 180, 160)
-    prevBtn.TextColor3 = Color3.fromRGB(60, 50, 40)
-    prevBtn.TextSize = 12
-    prevBtn.Font = Enum.Font.GothamBold
-    prevBtn.BorderSizePixel = 0
-    prevBtn.ZIndex = 4
-    prevBtn.Parent = controlsFrame
-    
-    prevBtn.MouseButton1Click:Connect(function()
-        self:previousPage()
+    -- Auto-update canvas size when grid layout changes
+    gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y)
     end)
-    
-    local nextBtn = Instance.new("TextButton")
-    nextBtn.Name = "NextButton"
-    nextBtn.Text = "Next ▶"
-    nextBtn.Size = UDim2.new(0, 100, 0, 35)
-    nextBtn.Position = UDim2.new(1, -110, 0.5, -17)
-    nextBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 150)
-    nextBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nextBtn.TextSize = 12
-    nextBtn.Font = Enum.Font.GothamBold
-    nextBtn.BorderSizePixel = 0
-    nextBtn.ZIndex = 4
-    nextBtn.Parent = controlsFrame
-    
-    nextBtn.MouseButton1Click:Connect(function()
-        self:nextPage()
-    end)
-    
-    local instructions = Instance.new("TextLabel")
-    instructions.Name = "Instructions"
-    instructions.Text = "Click item to add to inventory"
-    instructions.Size = UDim2.new(1, -220, 0, 35)
-    instructions.Position = UDim2.new(0, 120, 0.5, -17)
-    instructions.BackgroundTransparency = 1
-    instructions.TextColor3 = Color3.fromRGB(220, 220, 220)
-    instructions.TextSize = 11
-    instructions.Font = Enum.Font.Gotham
-    instructions.TextWrapped = true
-    instructions.ZIndex = 4
-    instructions.Parent = controlsFrame
 
-    self:renderPage()
+    self:renderAllItems()
 end
 
-function ItemBrowser:renderPage()
+function ItemBrowser:renderAllItems()
     if not self.scrollFrame then return end
     
+    -- Clear existing items
     for _, child in pairs(self.scrollFrame:GetChildren()) do
         if child.Name ~= "UIGridLayout" then
             child:Destroy()
         end
     end
     
-    local pageItems = self:getCurrentPageItems()
-    
-    for i, item in ipairs(pageItems) do
+    -- Render all items
+    for i, item in ipairs(self.allItems) do
         local button = self:createItemButton(item)
+        button.LayoutOrder = i
         button.Parent = self.scrollFrame
     end
     
-    if self.pageInfo then
-        self.pageInfo.Text = "Page " .. self.currentPage .. " of " .. self:getTotalPages() .. 
-                             " (" .. #self.allItems .. " total items)"
+    -- Update item count display
+    if self.itemCount then
+        self.itemCount.Text = "Showing all " .. #self.allItems .. " items"
     end
 end
 
@@ -286,6 +262,14 @@ function ItemBrowser:createItemButton(item)
     end)
     
     button.MouseButton1Click:Connect(function()
+        -- Prevent adding unmapped/placeholder sprites only
+        if item.isPlaceholder then
+            print("[ItemBrowser] ❌ Cannot add unmapped sprite:", item.id)
+            return
+        end
+        
+        -- If item is not a placeholder, it came from getAllItems() and should be valid
+        -- All mapped items should be addable
         print("[ItemBrowser] Adding:", item.id, "-", item.name)
         local itemData = {
             itemId = item.id,
@@ -298,19 +282,9 @@ function ItemBrowser:createItemButton(item)
     return button
 end
 
-function ItemBrowser:nextPage()
-    local maxPage = self:getTotalPages()
-    if self.currentPage < maxPage then
-        self.currentPage = self.currentPage + 1
-        self:renderPage()
-    end
-end
-
-function ItemBrowser:previousPage()
-    if self.currentPage > 1 then
-        self.currentPage = self.currentPage - 1
-        self:renderPage()
-    end
+-- Method to refresh when inventory level changes
+function ItemBrowser:refresh()
+    self:renderAllItems()
 end
 
 return ItemBrowser

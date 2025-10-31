@@ -39,7 +39,8 @@ function InventoryClient.new()
 
     self.visible = false
     self.slotsByIndex = {}
-    self.maxSlots = 20  -- Match server's MAX_SLOTS
+    self.maxSlots = 10  -- Start with level 1 (10 slots)
+    self.inventoryLevel = 1  -- Track inventory level
     self.slotState = {}
     self.drag = nil
     self.pendingData = nil
@@ -70,11 +71,22 @@ end
 
 function InventoryClient:updateItemIcon(icon, itemDefinition)
     if not icon then
+        warn("[InventoryClient] updateItemIcon called with nil icon")
         return
     end
 
-    if not itemDefinition or not itemDefinition.spriteIndex then
+    if not itemDefinition then
         icon.Image = ""
+        icon.ImageRectOffset = Vector2.new(0, 0)
+        icon.ImageRectSize = Vector2.new(0, 0)
+        return
+    end
+
+    if not itemDefinition.spriteIndex then
+        icon.Image = ""
+        icon.ImageRectOffset = Vector2.new(0, 0)
+        icon.ImageRectSize = Vector2.new(0, 0)
+        warn("[InventoryClient] Item", itemDefinition.name or itemDefinition.id, "has no spriteIndex")
         return
     end
 
@@ -83,8 +95,17 @@ function InventoryClient:updateItemIcon(icon, itemDefinition)
         icon.ScaleType = Enum.ScaleType.Fit
     end
 
-    if not self.spriteConfig.applySprite(icon, itemDefinition.spriteIndex) then
+    -- Apply sprite
+    local success = self.spriteConfig.applySprite(icon, itemDefinition.spriteIndex)
+    if not success then
+        -- If sprite application failed, clear the icon
         icon.Image = ""
+        icon.ImageRectOffset = Vector2.new(0, 0)
+        icon.ImageRectSize = Vector2.new(0, 0)
+        warn("[InventoryClient] Failed to apply sprite for item:", itemDefinition.name or itemDefinition.id, "spriteIndex:", itemDefinition.spriteIndex)
+    else
+        -- Successfully applied sprite
+        print("[InventoryClient] ✅ Applied sprite", itemDefinition.spriteIndex, "for item:", itemDefinition.name or itemDefinition.id)
     end
 end
 
@@ -92,9 +113,30 @@ function InventoryClient:updateSlotAppearance(slot, state)
     local icon = slot:FindFirstChild("ItemIcon")
     local countLabel = slot:FindFirstChild("ItemCount")
     local nameLabel = slot:FindFirstChild("ItemName")
+    
+    -- Ensure ItemIcon exists
+    if not icon then
+        icon = Instance.new("ImageLabel")
+        icon.Name = "ItemIcon"
+        icon.Size = UDim2.new(0.8, 0, 0.7, 0)
+        icon.Position = UDim2.new(0.1, 0, 0.05, 0)
+        icon.AnchorPoint = Vector2.new(0, 0)
+        icon.BackgroundTransparency = 1
+        icon.Image = ""
+        icon.ScaleType = Enum.ScaleType.Fit
+        icon.ZIndex = slot.ZIndex + 1
+        icon.Visible = true
+        icon.Parent = slot
+    end
+    
+    -- Ensure icon is visible
+    icon.Visible = true
 
     if state and state.itemId then
         local definition = self:getItemDefinition(state.itemId)
+        if not definition then
+            warn("[InventoryClient] No definition found for itemId:", state.itemId)
+        end
         self:updateItemIcon(icon, definition)
 
         if countLabel then
@@ -114,6 +156,8 @@ function InventoryClient:updateSlotAppearance(slot, state)
     else
         if icon then
             icon.Image = ""
+            icon.ImageRectOffset = Vector2.new(0, 0)
+            icon.ImageRectSize = Vector2.new(0, 0)
         end
         if countLabel then
             countLabel.Text = ""
@@ -134,6 +178,7 @@ function InventoryClient:ensureSlot(slotIndex)
     local clone = self.slotTemplate:Clone()
     clone.Name = "Slot_" .. slotIndex
     clone.Visible = true
+    clone.LayoutOrder = slotIndex  -- Set LayoutOrder so UIGridLayout positions it correctly
     clone.Parent = self.inventoryItems
     self.slotsByIndex[slotIndex] = clone
 
@@ -174,12 +219,21 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         clickRegion.Parent = slot
     end
 
-    clickRegion.MouseButton1Down:Connect(function()
-        if self.drag then
-            self:finishDrag(UserInputService:GetMouseLocation(), false, slotIndex)
-        else
+    -- Click-to-pick, click-to-drop system
+    clickRegion.MouseButton1Click:Connect(function()
+        if not self.drag then
+            -- Not dragging: pick up item from this slot
             if self.slotState[slotIndex] then
                 self:beginDrag(slotIndex)
+            end
+        else
+            -- Already dragging: drop item in this slot
+            if self.drag.originSlot == slotIndex then
+                -- Clicked same slot - cancel drag (put item back)
+                self:finishDrag(nil, true, nil)
+            else
+                -- Clicked different slot - move item there
+                self:finishDrag(nil, false, slotIndex)
             end
         end
     end)
@@ -209,6 +263,8 @@ function InventoryClient:refreshSlot(slotIndex)
         return
     end
 
+    -- Always ensure LayoutOrder matches slotIndex to maintain position
+    slot.LayoutOrder = slotIndex
     slot.Visible = slotIndex <= self.maxSlots
     self:updateSlotAppearance(slot, self.slotState[slotIndex])
 end
@@ -240,6 +296,9 @@ function InventoryClient:createGhost(state)
     ghost.Selectable = false
     ghost.ZIndex = 200
     ghost.AnchorPoint = Vector2.new(0.5, 0.5)
+    
+    -- Make ghost slightly transparent and larger for better visibility
+    ghost.BackgroundTransparency = 0.3
 
     local templateSize = self.slotTemplate.AbsoluteSize
     local width = templateSize.X
@@ -259,17 +318,22 @@ function InventoryClient:createGhost(state)
         height = 72
     end
 
-    local scaleFactor = 0.85
+    -- Slightly larger ghost for better visibility when dragging
+    local scaleFactor = 1.1
     ghost.Size = UDim2.fromOffset(math.floor(width * scaleFactor), math.floor(height * scaleFactor))
 
+    -- Remove all interactive elements from ghost
     for _, child in ipairs(ghost:GetChildren()) do
-        if child:IsA("GuiButton") then
+        if child:IsA("GuiButton") or child:IsA("TextButton") or child:IsA("ImageButton") then
             child:Destroy()
         end
     end
 
     ghost.Parent = self.inventoryGui
     self:updateSlotAppearance(ghost, state)
+    
+    -- Position immediately at cursor
+    self:updateGhostPosition()
 
     return ghost
 end
@@ -281,7 +345,8 @@ function InventoryClient:updateGhostPosition()
 
     local position = UserInputService:GetMouseLocation()
     local ghostSize = self.drag.ghost.AbsoluteSize
-    local yOffset = ghostSize.Y > 0 and ghostSize.Y * 0.4 or 20
+    -- Offset ghost upward so it's under the cursor (not centered)
+    local yOffset = ghostSize.Y > 0 and (ghostSize.Y * 0.5 + 10) or 30
     self.drag.ghost.Position = UDim2.fromOffset(position.X, position.Y - yOffset)
 end
 
@@ -297,6 +362,12 @@ function InventoryClient:beginDrag(slotIndex)
     self:refreshSlot(slotIndex)
 
     local ghost = self:createGhost(state)
+    
+    -- Activate screen clicker for world drops
+    if self.screenClicker then
+        self.screenClicker.Active = true
+        self.screenClicker.ZIndex = 50  -- Behind slots but can catch clicks outside
+    end
 
     self.drag = {
         originSlot = slotIndex,
@@ -311,19 +382,27 @@ function InventoryClient:beginDrag(slotIndex)
 end
 
 function InventoryClient:getSlotIndexFromPoint(point)
-    print("[SLOT DEBUG] Checking point:", point.X, point.Y)
+    -- Check if point is within inventory frame first
+    if self.inventoryFrame and self.inventoryFrame.Visible then
+        local framePos = self.inventoryFrame.AbsolutePosition
+        local frameSize = self.inventoryFrame.AbsoluteSize
+        if point.X < framePos.X or point.X > framePos.X + frameSize.X or
+           point.Y < framePos.Y or point.Y > framePos.Y + frameSize.Y then
+            -- Point is outside inventory frame
+            return nil
+        end
+    end
+    
+    -- Check if point is within any slot
     for index, slot in pairs(self.slotsByIndex) do
         if slot and slot.Visible then
             local pos = slot.AbsolutePosition
             local size = slot.AbsoluteSize
-            print("[SLOT DEBUG] Slot", index, "bounds: pos(", pos.X, pos.Y, ") size(", size.X, size.Y, ")")
             if point.X >= pos.X and point.X <= pos.X + size.X and point.Y >= pos.Y and point.Y <= pos.Y + size.Y then
-                print("[SLOT DEBUG] ✅ Point is in slot", index)
                 return index
             end
         end
     end
-    print("[SLOT DEBUG] ❌ Point not in any slot")
     return nil
 end
 
@@ -373,6 +452,13 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
     if dragState.ghost then
         dragState.ghost:Destroy()
     end
+    
+    -- Deactivate screen clicker
+    if self.screenClicker then
+        self.screenClicker.Active = false
+        self.screenClicker.ZIndex = 1
+    end
+    
     self.drag = nil
 
     if cancelled then
@@ -428,15 +514,17 @@ function InventoryClient:populateFromServer(payload)
         return
     end
 
-    if self.drag then
-        print("[POPULATE DEBUG] Cancelling current drag operation due to server sync")
-        self:finishDrag(nil, true)
-    end
+    -- Don't cancel drag during sync - just update the state
+    -- The drag will complete naturally when user releases mouse
+    local wasDragging = self.drag ~= nil
+    local dragOriginSlot = wasDragging and self.drag.originSlot or nil
 
-    local maxSlots = (payload and payload.maxSlots) or self.maxSlots or 20
+    local maxSlots = (payload and payload.maxSlots) or self.maxSlots or 10
+    local inventoryLevel = (payload and payload.inventoryLevel) or 1
     local incomingSlots = (payload and payload.slots) or {}
 
     self.maxSlots = maxSlots
+    self.inventoryLevel = inventoryLevel
 
     -- Create a fresh state table
     local newState = {}
@@ -447,12 +535,14 @@ function InventoryClient:populateFromServer(payload)
                 itemId = slotData.itemId,
                 count = slotData.count,
             }
+            print(string.format("[POPULATE DEBUG] Slot %d: %s x%d", i, slotData.itemId, slotData.count))
         end
     end
     
     self.slotState = newState
 
-    -- Refresh all visible slots
+    -- Refresh all visible slots (refreshSlot handles LayoutOrder)
+    -- Refresh all slots even during drag - the drag ghost handles visual feedback
     for i = 1, self.maxSlots do
         self:refreshSlot(i)
     end
@@ -464,7 +554,7 @@ function InventoryClient:populateFromServer(payload)
         end
     end
     
-    print("[POPULATE DEBUG] ✅ Population complete. Slots refreshed.")
+    print("[POPULATE DEBUG] ✅ Population complete. Level", inventoryLevel, "with", maxSlots, "slots refreshed.", wasDragging and "(drag in progress)" or "")
 end
 
 function InventoryClient:requestInventory()
@@ -480,14 +570,47 @@ function InventoryClient:setupRemoteHandling()
         end
     end))
 
-    self:trackConnection(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and self.drag then
-            local mousePos = UserInputService:GetMouseLocation()
-            if not self:getSlotIndexFromPoint(mousePos) then
-                self:finishDrag(mousePos, false, nil)
+    -- Handle clicks outside inventory (world drop)
+    -- Create a screen-wide click detector that's only active when dragging
+    -- This catches clicks that don't hit slots (slots are children so they handle clicks first)
+    if self.inventoryGui then
+        local screenClicker = Instance.new("TextButton")
+        screenClicker.Name = "ScreenClicker"
+        screenClicker.Size = UDim2.new(1, 0, 1, 0)
+        screenClicker.Position = UDim2.new(0, 0, 0, 0)
+        screenClicker.BackgroundTransparency = 1
+        screenClicker.Text = ""
+        screenClicker.ZIndex = 50  -- Behind inventory slots (which are typically ZIndex 100+)
+        screenClicker.Active = false  -- Only active when dragging
+        screenClicker.Visible = true  -- Always visible but inactive when not dragging
+        screenClicker.Parent = self.inventoryGui
+        self.screenClicker = screenClicker
+        
+        screenClicker.MouseButton1Click:Connect(function()
+            if self.drag then
+                -- Check if click is outside inventory frame
+                local mousePos = UserInputService:GetMouseLocation()
+                local targetSlot = self:getSlotIndexFromPoint(mousePos)
+                
+                -- Only drop if not clicking on a slot and not clicking on inventory frame
+                if not targetSlot then
+                    -- Double-check: if inventory frame exists and is visible, make sure we're outside it
+                    if self.inventoryFrame and self.inventoryFrame.Visible then
+                        local framePos = self.inventoryFrame.AbsolutePosition
+                        local frameSize = self.inventoryFrame.AbsoluteSize
+                        if mousePos.X < framePos.X or mousePos.X > framePos.X + frameSize.X or
+                           mousePos.Y < framePos.Y or mousePos.Y > framePos.Y + frameSize.Y then
+                            -- Clicked outside inventory frame - drop to world
+                            self:finishDrag(mousePos, false, nil)
+                        end
+                    else
+                        -- No inventory frame or not visible - drop to world
+                        self:finishDrag(mousePos, false, nil)
+                    end
+                end
             end
-        end
-    end))
+        end)
+    end
 end
 
 function InventoryClient:bindInput()
@@ -507,7 +630,8 @@ function InventoryClient:attachGui()
 
     local frame = findDescendantByName(self.gui, "InventoryFrame")
     if not frame or not frame:IsA("Frame") then
-        warn("[InventoryClient] ❌ Could not find InventoryFrame under PlayerGui")
+        -- GUI might not be loaded yet, try again later
+        warn("[InventoryClient] ⚠️ Could not find InventoryFrame under PlayerGui (GUI may load later)")
         return false
     end
 
@@ -541,7 +665,7 @@ function InventoryClient:attachGui()
     end
 
     if not self.inventoryItems or not self.slotTemplate then
-        warn("[InventoryClient] ❌ Could not locate InventoryItems and ItemSlotTemplate")
+        warn("[InventoryClient] ⚠️ Could not locate InventoryItems and ItemSlotTemplate (GUI may load later)")
         return false
     end
 
@@ -562,8 +686,10 @@ function InventoryClient:attachGui()
 end
 
 function InventoryClient:start()
-    if not self:attachGui() then
-        return
+    -- Try to attach GUI, but don't fail if it's not ready yet
+    local attached = self:attachGui()
+    if not attached then
+        print("[InventoryClient] ⚠️ GUI not ready yet, will retry when E key is pressed")
     end
 
     self:bindInput()
@@ -574,7 +700,30 @@ function InventoryClient:start()
         self.pendingData = nil
     end
 
+    -- Request inventory even if GUI isn't attached yet
     self:requestInventory()
+    
+    -- Set up a retry mechanism to attach GUI when it becomes available
+    task.spawn(function()
+        local maxRetries = 10
+        local retryCount = 0
+        while not self.inventoryFrame and retryCount < maxRetries do
+            task.wait(1)
+            retryCount = retryCount + 1
+            if self:attachGui() then
+                print("[InventoryClient] ✅ GUI attached after retry", retryCount)
+                -- Process any pending data
+                if self.pendingData then
+                    self:populateFromServer(self.pendingData)
+                    self.pendingData = nil
+                end
+                break
+            end
+        end
+        if not self.inventoryFrame then
+            warn("[InventoryClient] ⚠️ GUI still not found after", maxRetries, "retries")
+        end
+    end)
 end
 
 function InventoryClient.init()

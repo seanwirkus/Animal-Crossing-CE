@@ -52,7 +52,9 @@ inventoryAdapterRegistry:registerLegacyAdapter(
 -- Player inventory storage
 local playerInventories = {}
 
-local MAX_SLOTS = InventoryConstants.DEFAULT_MAX_SLOTS
+-- Start with level 1 inventory (10 slots)
+local STARTING_INVENTORY_LEVEL = InventoryConstants.STARTING_INVENTORY_LEVEL
+local MAX_SLOTS = InventoryConstants.getMaxSlotsFromLevel(STARTING_INVENTORY_LEVEL)
 
 -- World item storage - tracks all dropped items
 local worldItems = {}
@@ -90,21 +92,26 @@ end
 local function initializePlayerInventory(player)
         -- Start with empty inventory (use debug GUI to add items)
         local _starterItems = {}
+        
+        -- Start with level 1 inventory (10 slots)
+        local inventoryLevel = STARTING_INVENTORY_LEVEL
+        local maxSlots = InventoryConstants.getMaxSlotsFromLevel(inventoryLevel)
 
         local slots = {}
-        for i = 1, MAX_SLOTS do
+        for i = 1, maxSlots do
                 slots[i] = nil
         end
 
-        local snapshot = buildSnapshotFromState(slots, MAX_SLOTS)
+        local snapshot = buildSnapshotFromState(slots, maxSlots)
         playerInventories[player.UserId] = {
                 slots = slots,
-                maxSlots = MAX_SLOTS,
+                maxSlots = maxSlots,
+                inventoryLevel = inventoryLevel,
                 snapshot = snapshot,
                 legacyPayload = inventoryAdapterRegistry:serializeForLegacy(InventoryConstants.LEGACY_DATASET_ID, snapshot),
         }
 
-        print("[Server] ✅ Initialized empty inventory for", player.Name, "with", MAX_SLOTS, "slots")
+        print("[Server] ✅ Initialized empty inventory for", player.Name, "with level", inventoryLevel, "(", maxSlots, "slots)")
 end
 
 local function decodeLegacyPayload(payload)
@@ -270,9 +277,13 @@ local function syncInventoryToClient(player)
         local serializedSlots, snapshot = cloneSlots(inventory.slots, inventory.maxSlots)
         inventory.snapshot = snapshot
         inventory.legacyPayload = inventoryAdapterRegistry:serializeForLegacy(InventoryConstants.LEGACY_DATASET_ID, snapshot)
+        
+        -- Calculate inventory level from maxSlots if not stored
+        local inventoryLevel = inventory.inventoryLevel or InventoryConstants.getLevelFromMaxSlots(inventory.maxSlots)
 
         inventoryRemote:FireClient(player, "SyncInventory", {
                 maxSlots = inventory.maxSlots or MAX_SLOTS,
+                inventoryLevel = inventoryLevel,
                 slots = serializedSlots,
         })
 end

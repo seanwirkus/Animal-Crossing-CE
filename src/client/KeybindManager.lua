@@ -68,16 +68,22 @@ function KeybindManager:connect(userInputService)
 			return
 		end
 		
+		-- Debug: log all key presses to verify input is working
+		if input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.G then
+			print("[KeybindManager] 🔑 Key pressed:", input.KeyCode, "gameProcessed:", gameProcessed)
+		end
+		
 		-- Check each registered bind
 		for bindName, keyCode in pairs(self.KEYBINDS) do
 			if input.KeyCode == keyCode and self.HANDLERS[bindName] then
+				print("[KeybindManager] ✅ Matched keybind:", bindName, "→", keyCode)
 				local handler = self.HANDLERS[bindName]
 				local success, err = pcall(function()
 					handler("began")
 				end)
 				
 				if not success then
-					warn("[KeybindManager] Error in handler for " .. bindName .. ": " .. err)
+					warn("[KeybindManager] ❌ Error in handler for " .. bindName .. ": " .. err)
 				end
 			end
 		end
