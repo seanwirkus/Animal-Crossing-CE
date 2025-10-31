@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
+local DataStoreService = game:GetService("DataStoreService")
 
 -- Roblox types and enums
 local Instance = Instance
@@ -51,6 +52,9 @@ inventoryAdapterRegistry:registerLegacyAdapter(
 
 -- Player inventory storage
 local playerInventories = {}
+
+-- DataStore for inventory persistence
+local InventoryDataStore = DataStoreService:GetDataStore("PlayerInventories")
 
 -- Start with level 1 inventory (10 slots)
 local STARTING_INVENTORY_LEVEL = InventoryConstants.STARTING_INVENTORY_LEVEL
@@ -270,6 +274,57 @@ local function hasCraftingMaterials(player, materials, quantity)
         return true
 end
 
+-- Save player inventory to DataStore
+local function savePlayerInventory(player)
+	local userId = player.UserId
+	local inventory = playerInventories[userId]
+	if not inventory then
+		return
+	end
+	
+	-- Build serializable inventory data
+	local serialized, snapshot = cloneSlots(inventory.slots, inventory.maxSlots)
+	local inventoryData = {
+		slots = serialized,
+		maxSlots = inventory.maxSlots,
+		inventoryLevel = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL,
+		legacyPayload = inventory.legacyPayload,
+	}
+	
+	-- Save to DataStore
+	local success, err = pcall(function()
+		InventoryDataStore:SetAsync(tostring(userId), inventoryData)
+	end)
+	
+	if success then
+		print("[Server] ✅ Saved inventory for", player.Name)
+	else
+		warn("[Server] ❌ Failed to save inventory for", player.Name, ":", err)
+	end
+end
+
+-- Load player inventory from DataStore
+local function loadPlayerInventory(player)
+	local userId = player.UserId
+	
+	local success, data = pcall(function()
+		return InventoryDataStore:GetAsync(tostring(userId))
+	end)
+	
+	if not success then
+		warn("[Server] ❌ Failed to load inventory for", player.Name, ":", data)
+		return nil
+	end
+	
+	if not data then
+		print("[Server] No saved inventory found for", player.Name, "- starting fresh")
+		return nil
+	end
+	
+	print("[Server] ✅ Loaded saved inventory for", player.Name)
+	return data
+end
+
 local function syncInventoryToClient(player)
         local inventory = playerInventories[player.UserId]
         if not inventory then return end
@@ -324,6 +379,8 @@ local function consumeCraftingMaterials(player, materials, quantity)
         end
 
         syncInventoryToClient(player)
+        -- Auto-save after inventory changes
+        savePlayerInventory(player)
         return true
 end
 
@@ -859,6 +916,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 if removed then
                         createDroppedItem(player, itemId, count, worldPosition)
                         syncInventoryToClient(player)
+                        savePlayerInventory(player)
                         return
                 end
 
@@ -901,6 +959,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                         slots[toIndex] = fromSlot
                         slots[fromIndex] = nil
                         syncInventoryToClient(player)
+                        savePlayerInventory(player)
                         return
                 end
 
@@ -923,6 +982,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                                 end
                                 toSlot.maxStack = maxStack
                                 syncInventoryToClient(player)
+                                savePlayerInventory(player)
                                 return
                         end
                         -- If no space and swap=true, fall through to swap
@@ -932,6 +992,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 if swap then
                         slots[fromIndex], slots[toIndex] = toSlot, fromSlot
                         syncInventoryToClient(player)
+                        savePlayerInventory(player)
                         return
                 end
 
@@ -1005,6 +1066,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 if added then
                         print("[Server] Debug: Added", itemId, "to", player.Name, "'s inventory")
                         syncInventoryToClient(player)
+                        savePlayerInventory(player)
                 else
                         warn("[Server] Debug: Inventory full, cannot add", itemId)
                 end
@@ -1106,6 +1168,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                         if added then
                                 print("[Server] Crafted", itemId, "for", player.Name)
                                 syncInventoryToClient(player)
+                                savePlayerInventory(player)
                         else
                                 warn("[Server] Craft failed: Inventory full for", itemId)
                         end
@@ -1126,9 +1189,42 @@ end)
 Players.PlayerAdded:Connect(function(player)
 	print("[Server] Player added:", player.Name)
 	
-	-- Initialize inventory immediately when player joins
-        print("[Server] Initializing inventory for:", player.Name)
-        initializePlayerInventory(player)
+	-- Try to load saved inventory first
+	local savedData = loadPlayerInventory(player)
+	
+	if savedData then
+		-- Initialize with saved data
+		local inventoryLevel = savedData.inventoryLevel or STARTING_INVENTORY_LEVEL
+		local maxSlots = savedData.maxSlots or InventoryConstants.getMaxSlotsFromLevel(inventoryLevel)
+		
+		local slots = {}
+		for index = 1, maxSlots do
+			local slotData = savedData.slots[index]
+			if slotData and slotData.itemId and slotData.itemId ~= "" and slotData.count and slotData.count > 0 then
+				slots[index] = {
+					itemId = slotData.itemId,
+					count = slotData.count,
+				}
+			else
+				slots[index] = nil
+			end
+		end
+		
+		local snapshot = buildSnapshotFromState(slots, maxSlots)
+		playerInventories[player.UserId] = {
+			slots = slots,
+			maxSlots = maxSlots,
+			inventoryLevel = inventoryLevel,
+			snapshot = snapshot,
+			legacyPayload = savedData.legacyPayload or inventoryAdapterRegistry:serializeForLegacy(InventoryConstants.LEGACY_DATASET_ID, snapshot),
+		}
+		
+		print("[Server] ✅ Restored inventory for", player.Name, "with", countFilledSlots(slots), "items")
+	else
+		-- Initialize empty inventory
+		print("[Server] Initializing new inventory for:", player.Name)
+		initializePlayerInventory(player)
+	end
 
         local inventory = playerInventories[player.UserId]
         local legacyAttribute = player:GetAttribute("LegacyInventoryPayload")
@@ -1156,8 +1252,28 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
+	-- Save inventory before player leaves
+	savePlayerInventory(player)
 	playerInventories[player.UserId] = nil
 	print("[Server] Cleaned up inventory for", player.Name)
+end)
+
+-- Auto-save inventory periodically (every 30 seconds)
+RunService.Heartbeat:Connect(function()
+	-- Throttle saves to avoid rate limits (save every 30 seconds)
+	local currentTime = tick()
+	if not _G.lastInventorySave then
+		_G.lastInventorySave = currentTime
+	end
+	
+	if currentTime - _G.lastInventorySave >= 30 then
+		_G.lastInventorySave = currentTime
+		for _, player in pairs(Players:GetPlayers()) do
+			if playerInventories[player.UserId] then
+				savePlayerInventory(player)
+			end
+		end
+	end
 end)
 
 print("[Server] ✅ Inventory system loaded and ready!")

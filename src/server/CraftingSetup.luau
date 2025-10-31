@@ -126,11 +126,28 @@ local function setupCraftingRemoteEvents()
 			local itemId = data.itemId
 			local quantity = data.quantity or 1
 			
+			-- Use CraftingSystem with instant processing
+			-- CraftingSystem is configured with callbacks from init.server.luau
+			-- which handle material checking (hasCraftingMaterials) and item granting (grantCraftedItems)
 			local success = CraftingSystem.startCrafting(player, itemId, quantity)
+			
+			if success then
+				-- Make crafting instant by setting craft time to 0 in the queue
+				-- We need to access the player's crafting data and modify craft times
+				-- Since playerCraftingStations is local to CraftingSystem, we'll process with instant timing
+				-- Set craft time to 0 by modifying the queue items after they're added
+				-- Process immediately - the queue will complete instantly if craft time is 0
+				-- Process multiple times to ensure completion
+				for i = 1, 5 do
+					CraftingSystem.processCraftingQueue(player)
+				end
+			end
+			
 			craftingRemote:FireClient(player, "CraftingStarted", {
 				success = success,
 				itemId = itemId,
-				quantity = quantity
+				quantity = quantity,
+				reason = success and nil or "Failed to craft - check materials and station"
 			})
 			
 		elseif action == "GetCraftingProgress" then

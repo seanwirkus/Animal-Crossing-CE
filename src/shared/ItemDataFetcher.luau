@@ -43,10 +43,51 @@ local function cloneArray(array)
     return result
 end
 
+-- Helper function to find sprite entry with multiple ID variations
+local function findSpriteEntry(itemId)
+    if not itemId then
+        return nil
+    end
+    
+    -- Try exact match first
+    local spriteEntry = SpriteManifest[itemId]
+    if spriteEntry then
+        return spriteEntry
+    end
+    
+    -- Try with _gui suffix
+    spriteEntry = SpriteManifest[itemId .. "_gui"]
+    if spriteEntry then
+        return spriteEntry
+    end
+    
+    -- Try converting hyphens to underscores
+    local idWithUnderscores = string.gsub(itemId, "-", "_")
+    spriteEntry = SpriteManifest[idWithUnderscores]
+    if spriteEntry then
+        return spriteEntry
+    end
+    
+    -- Try converting hyphens to underscores with _gui suffix
+    spriteEntry = SpriteManifest[idWithUnderscores .. "_gui"]
+    if spriteEntry then
+        return spriteEntry
+    end
+    
+    -- Try converting underscores to hyphens (for reverse mapping)
+    local idWithHyphens = string.gsub(itemId, "_", "-")
+    spriteEntry = SpriteManifest[idWithHyphens]
+    if spriteEntry then
+        return spriteEntry
+    end
+    
+    return nil
+end
+
 for _, item in ipairs(rawItems) do
     if item.id and not itemsById[item.id] then
         local record = cloneShallow(item)
-        local spriteEntry = SpriteManifest[item.id]
+        local spriteEntry = findSpriteEntry(item.id)
         if spriteEntry then
             record.spriteIndex = spriteEntry.spriteIndex
             record.displayName = spriteEntry.name
@@ -57,8 +98,39 @@ for _, item in ipairs(rawItems) do
     end
 end
 
+-- Also add entries from SpriteManifest that might not be in ItemsData
+-- But try to match them to existing items first using ID variations
 for id, spriteEntry in pairs(SpriteManifest) do
-    if not itemsById[id] then
+    -- Try to find matching item by various ID formats
+    local matchedItemId = nil
+    
+    -- Try exact match
+    if itemsById[id] then
+        matchedItemId = id
+    else
+        -- Try removing _gui suffix
+        local idWithoutGui = string.gsub(id, "_gui$", "")
+        if itemsById[idWithoutGui] then
+            matchedItemId = idWithoutGui
+        else
+            -- Try converting underscores to hyphens
+            local idWithHyphens = string.gsub(id, "_", "-")
+            if itemsById[idWithHyphens] then
+                matchedItemId = idWithHyphens
+            end
+        end
+    end
+    
+    if matchedItemId then
+        -- Update existing item with sprite data
+        local record = itemsById[matchedItemId]
+        record.spriteIndex = record.spriteIndex or spriteEntry.spriteIndex
+        record.displayName = record.displayName or spriteEntry.name
+        if not record.name then
+            record.name = spriteEntry.name
+        end
+    elseif not itemsById[id] then
+        -- Create new entry for sprite-only items
         itemsById[id] = {
             id = id,
             name = spriteEntry.name,
@@ -70,13 +142,6 @@ for id, spriteEntry in pairs(SpriteManifest) do
             source = {},
             themes = {},
         }
-    else
-        local record = itemsById[id]
-        record.spriteIndex = record.spriteIndex or spriteEntry.spriteIndex
-        record.displayName = record.displayName or spriteEntry.name
-        if not record.name then
-            record.name = spriteEntry.name
-        end
     end
 end
 
@@ -100,7 +165,7 @@ for id, entry in pairs(displayItemMap) do
     end
 end
 
-for _, recipe in ipairs(rawRecipes) do
+for recipeIdx, recipe in ipairs(rawRecipes) do
     if recipe.itemId then
         local resultItem = itemsById[recipe.itemId] or {
             id = recipe.itemId,
@@ -108,10 +173,29 @@ for _, recipe in ipairs(rawRecipes) do
             displayName = recipe.name or recipe.itemId,
             category = "crafted",
         }
+        
+        -- If result item doesn't have spriteIndex, try to find it
+        if not resultItem.spriteIndex then
+            local spriteEntry = findSpriteEntry(recipe.itemId)
+            if spriteEntry then
+                resultItem.spriteIndex = spriteEntry.spriteIndex
+                resultItem.displayName = spriteEntry.name
+            end
+        end
 
         local resolvedMaterials = {}
         for _, material in ipairs(recipe.materials or {}) do
             local materialItem = itemsById[material.itemId]
+            
+            -- If material item doesn't have spriteIndex, try to find it
+            if materialItem and not materialItem.spriteIndex then
+                local spriteEntry = findSpriteEntry(material.itemId)
+                if spriteEntry then
+                    materialItem.spriteIndex = spriteEntry.spriteIndex
+                    materialItem.displayName = spriteEntry.name
+                end
+            end
+            
             table.insert(resolvedMaterials, {
                 itemId = material.itemId,
                 name = materialItem and (materialItem.displayName or materialItem.name) or material.name or material.itemId,
@@ -129,6 +213,7 @@ for _, recipe in ipairs(rawRecipes) do
             sell = recipe.sell,
             source = cloneArray(recipe.source),
             materials = resolvedMaterials,
+            diyIconIndex = recipeIdx,  -- Assign DIY icon index based on recipe position (1-80)
             result = {
                 itemId = resultItem.id,
                 name = resultItem.displayName or resultItem.name,

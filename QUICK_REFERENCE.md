@@ -1,322 +1,258 @@
-# Quick Reference – Item Browser & Inventory# Quick Reference - Animal Crossing CE Inventory System
+# Quick Reference - Animal Crossing CE
 
+## 🎮 Keybinds
 
+| Key | Action | Description |
+|-----|--------|-------------|
+| **E** | Inventory | Toggle inventory GUI |
+| **R** | Recipes | Open recipe browser GUI |
+| **C** | Crafting | Open crafting menu (debug) |
+| **B** | Item Browser | Open item browser (debug) |
+| **G** | Debug GUI | Open debug manager |
+| **ESC** | Close GUI | Close currently open GUI |
 
-## Keybinds## 🎯 What the Client Does
+## 📁 File Structure
 
-
-
-| Key | Action |**Polls inventory GUI → Gets data from server → Displays items → Handles drag/drop → Sends updates to server**
-
-|-----|--------|
-
-| **E** | Toggle inventory (shows slots) |## 📁 File Structure
-
-| **G** | Toggle item browser modal |```
-
-| **← / →** | Change page when browser is open |src/
-
-| **ESC** | Close the browser |├── client/
-
-│   ├── init.client.luau         ← Main inventory logic (998 lines)
-
-## Item Browser Overview│   └── InventoryClient.lua      ← (legacy, not used)
-
+```
+src/
+├── client/
+│   ├── init.client.luau          # Client entry point & initialization
+│   ├── InventoryClient.lua       # Main inventory logic & drag-and-drop
+│   ├── KeybindManager.lua        # Centralized keybind system
+│   └── Modules/
+│       ├── GUIManager.luau       # Exclusive GUI visibility manager
+│       ├── DebugInventoryGrid.lua # Item browser GUI (B key)
+│       ├── DebugCraftingMenu.lua  # Crafting menu GUI (C key)
+│       ├── RecipesInventoryGUI.luau # Recipe browser GUI (R key)
+│       └── InventoryGuiSetup.lua  # GUI creation helpers
 ├── server/
-
-- Opens as an 800×600 centered modal with a dimmed backdrop│   ├── init.server.luau
-
-- Reuses a single instance for quick toggling (no more laggy rebuilds)│   └── CraftingSetup.luau
-
-- 290 items displayed via pagination (20 items per page, 5×4 grid)└── shared/
-
-- Each button shows sprite, sprite index, and item name/id    └── CraftingSystem.luau
-
-- Hover highlights item; click sends `add_item` request to server```
-
-
-
-```## 🎮 Controls
-
-┌──────────────────────────────────────┐| Action | Key |
-
-│ 🎮 Item Browser                [✕]  │|--------|-----|
-
-├──────────────────────────────────────┤| Toggle Inventory | E |
-
-│ Page X of 15 (290 total items)       │| Drag Item | Click + Drag |
-
-│ ┌─────┬─────┬─────┬─────┬─────┐      │| Drop Item | Release Mouse |
-
-│ │ I₁ │ I₂ │ I₃ │ I₄ │ I₅ │      │  ← 5 columns × 4 rows
-
-│ ├─────┼─────┼─────┼─────┼─────┤      │## 🔌 Remote Events
-
-│ │ …                                   │
-
-│ └─────┴─────┴─────┴─────┴─────┘      │### Client → Server
-
-├──────────────────────────────────────┤```lua
-
-│ ◀ Previous    ← → keys    Next ▶     │inventoryRemote:FireServer("RequestInventory")
-
-└──────────────────────────────────────┘inventoryRemote:FireServer("MoveItem", {
-
-```    fromIndex = 1,
-
-    toIndex = 2,
-
-## Fast Workflow    swap = true
-
-})
-
-1. **Press G** → Browser opens instantly (same instance reused)inventoryRemote:FireServer("DropItem", {
-
-2. **Navigate** → Use buttons or arrow keys to switch pages    itemId = "shovel",
-
-3. **Click an item** → `InventoryEvent:FireServer("add_item", itemId)`    count = 1,
-
-4. **Press E** → Inventory reflects new item    slotIndex = 1,
-
-5. **Press ESC or G** → Browser hides (ScreenGui disabled, not destroyed)    worldPosition = Vector3.new(0, 1, 0)
-
-})
-
-## Server Interaction```
-
-
-
-- Remote: `ReplicatedStorage.InventoryEvent`### Server → Client
-
-- Client sends: `("add_item", itemId)````lua
-
-- Server validates, inserts into slot list, and calls `SyncInventory`inventoryRemote:FireClient(player, "SyncInventory", {
-
-- InventoryClient consumes `SyncInventory` payload and refreshes slots    maxSlots = 20,
-
-    slots = {
-
-## Important Files        [1] = { itemId = "shovel", count = 1 },
-
-        [2] = { itemId = "net", count = 1 }
-
-| File | Purpose |    }
-
-|------|---------|})
-
-| `src/client/init.client.luau` | Bootstraps client, registers keybinds |```
-
-| `src/client/DebugInventoryGrid.lua` | Item browser singleton (modal logic) |
-
-| `src/client/InventoryClient.lua` | Inventory UI/drag-drop system |## 🛠️ Key Functions
-
-| `src/shared/ItemDataFetcher.lua` | Provides sorted item list (290 entries) |
-
-| `src/shared/SpriteConfig.lua` | Sprite sheet math for offsets |### Find/Initialize
-
-```lua
-
-## Item Browser InternalsinitializeInventorySystem()  -- Finds GUI, validates structure
-
+│   ├── init.server.luau          # Server entry point & inventory persistence
+│   └── CraftingSetup.luau        # Crafting system setup
+└── shared/
+    ├── SpriteConfig.luau          # Sprite sheet configuration (fixed dimensions)
+    ├── SpriteManifest.luau        # Item-to-sprite index mapping
+    ├── ItemDataFetcher.luau       # Item & recipe data fetcher
+    └── CraftingSystem.luau         # Core crafting logic
 ```
 
-- Singleton stored on module table (`ItemBrowser._instance`)
+## 🎯 GUI System
 
-- `ItemBrowser.toggleGlobal()` handles G key request and caches instance### Display
+### GUIManager
+- **Purpose**: Ensures only one GUI is visible at a time
+- **Behavior**: Opening a new GUI automatically hides the current one
+- **Methods**:
+  - `registerGUI(name, guiObject)` - Register a GUI
+  - `toggleGUI(name)` - Toggle a GUI (show/hide)
+  - `showGUI(name)` - Show a GUI (hides current)
+  - `hideGUI(name)` - Hide a GUI
+  - `getCurrentVisible()` - Get currently visible GUI name
 
-- `createGui()` runs only once; subsequent opens reuse the ScreenGui```lua
+### Available GUIs
+- **inventory** - Main inventory (E key)
+- **recipes** - Recipe browser (R key)
+- **crafting** - Crafting menu (C key)
+- **itemBrowser** - Item browser (B key)
+- **debug** - Debug manager (G key)
 
-- `close()` simply disables the ScreenGui and detaches input listenerspopulateInventoryFromServer(data)  -- Updates all slots
+## 📦 Inventory System
 
-- Keyboard handler reconnects on open and disconnects on closerefreshSlot(slotIndex)             -- Updates single slot
+### Features
+- **Click-to-Pick**: Click an item to attach it to cursor
+- **Click-to-Drop**: Click again to drop in slot or world
+- **Drag-and-Drop**: Visual ghost item follows cursor
+- **Persistence**: Auto-saves every 30 seconds + on leave
+- **Level System**: Slots unlock with inventory level (starts at 10 slots)
 
-updateSlotAppearance(slot, state)  -- Renders item to UI
+### Data Flow
+1. Client requests inventory from server
+2. Server loads from DataStore (`PlayerInventories`)
+3. Server sends inventory data to client
+4. Client displays items in slots
+5. Client handles drag/drop locally
+6. Client sends updates to server
+7. Server validates and saves to DataStore
 
-## Pagination Details```
+### Inventory Actions
+- **MoveItem**: Move item between slots
+- **SwapItem**: Swap two items
+- **DropItem**: Drop item to world
+- **add_item**: Add item to inventory (from browser/crafting)
 
+## 🎨 Sprite System
 
-
-- `itemsPerPage = 20`### Visibility
-
-- `itemsPerRow = 5````lua
-
-- Total pages = `math.ceil(290 / 20) = 15`setInventoryVisible(true)   -- Show inventory
-
-- `renderPage()` rebuilds only current page buttons (UIGridLayout handles layout)setInventoryVisible(false)  -- Hide inventory
-
-- Canvas height auto-calculated based on rows on that page```
-
-
-
-## Sprite Rendering### Drag & Drop
-
+### Configuration (SpriteConfig.luau)
 ```lua
+-- Main item spritesheet
+SPRITE_SIZE = 250          -- Each sprite is 250px × 250px
+PADDING = 10              -- Padding between sprites
+OUTER_PADDING = 10        -- Padding around edges
+COLUMNS = 21              -- Grid columns
+ROWS = 24                 -- Grid rows
 
-```luabeginDrag(slotIndex)        -- Start drag
-
-local zeroBased = item.spriteIndex - 1finishDrag(mousePos)        -- Complete drag
-
-local col = zeroBased % SpriteConfig.COLUMNS```
-
-local row = math.floor(zeroBased / SpriteConfig.COLUMNS)
-
-local offsetX = SpriteConfig.OUTER.X + col * (SpriteConfig.TILE + SpriteConfig.INNER.X)## 📊 Item Data Structure
-
-local offsetY = SpriteConfig.OUTER.Y + row * (SpriteConfig.TILE + SpriteConfig.INNER.Y)
-
-imageLabel.Image = SpriteConfig.SHEET_ASSET```lua
-
-imageLabel.ImageRectOffset = Vector2.new(offsetX, offsetY)ItemData = {
-
-imageLabel.ImageRectSize = Vector2.new(36, 36)    shovel = { index = 2, name = "Shovel" },
-
-```    net = { index = 3, name = "Net" },
-
-    -- ... 114 more items
-
-## Troubleshooting}
-
+-- DIY recipe icons
+DIY_SPRITE_SIZE = 300     -- Each icon is 300px × 300px
+DIY_PADDING = 10         -- Padding between icons
+DIY_COLUMNS = 26          -- Grid columns
+DIY_ROWS = 23             -- Grid rows
 ```
 
-| Symptom | Fix |
-
-|---------|-----|## 🎨 GUI Requirements
-
-| G key does nothing | Ensure `InventoryEvent` is replicated and `SpriteConfig` loads | 
-
-| Browser rebuilt each press | Call `ItemBrowser.toggleGlobal()` (already wired in `init.client.luau`) |```
-
-| Names show IDs | Integrate `nookipedia_items.json` to map `spriteIndex → name` |PlayerGui
-
-| Items not adding | Check server logs for `[Server] Debug: Added` confirmation |└── InventoryGUI (ScreenGui)
-
-| Inventory empty after add | Verify `SyncInventory` fires and InventoryClient refreshes slots |    └── InventoryFrame (Frame)
-
-        └── InventoryItems (ScrollingFrame)
-
-## Next Enhancements            └── ItemSlotTemplate (Frame)
-
-                ├── ItemIcon (ImageLabel)
-
-1. Load real item names from `nookipedia_items.json`                ├── ItemCount (TextLabel)
-
-2. Add search / filtering UI into the title bar                └── ItemName (TextLabel)
-
-3. Provide category tabs (furniture, tools, clothing, etc.)```
-
-4. Implement quick-fill and favorites for rapid testing
-
-## ⚙️ Configuration
-
-Stay focused on the three core files above; everything else is support code.
-
-### Sprite Sheet
+### Sprite Calculation
 ```lua
-SpriteConfig = {
-    SHEET_ASSET = "rbxassetid://74324628581851",
-    COLUMNS = 21,
-    ROWS = 24,
-    TILE = 36.6,
-    INNER = Vector2.new(6, 6),
-    OUTER = Vector2.new(4, 4),
-    BLEED_FIX = 0.25
-}
+-- Calculate sprite position
+cellWidth = SPRITE_SIZE + PADDING
+offsetX = OUTER_PADDING + col * cellWidth
+offsetY = OUTER_PADDING + row * cellWidth
+
+-- Sprite size
+rectSize = Vector2.new(SPRITE_SIZE, SPRITE_SIZE)
 ```
 
-### Inventory Capacity
+## 🔨 Crafting System
+
+### Recipe Browser (R key)
+- Shows all available recipes in a scrollable grid
+- Displays recipe result sprite and name
+- Shows required materials with owned/required counts
+- Color-coded: Green if craftable, red if missing materials
+- Click "Craft" button to craft item
+
+### Crafting Menu (C key - Debug)
+- Shows all recipes in a larger grid
+- Shows station label, result icon, recipe name
+- Displays materials with icons and counts
+- Click "Craft" button for instant crafting
+- Click materials to navigate to recipe (if available)
+
+### Crafting Flow
+1. Player opens recipe browser/crafting menu
+2. System checks player inventory for materials
+3. Recipe is highlighted if craftable
+4. Player clicks "Craft" button
+5. Server validates materials
+6. Server consumes materials
+7. Server adds result item to inventory
+8. Client refreshes inventory display
+
+## 🗂️ Item Browser (B key - Debug)
+
+### Features
+- Browse all 494 items from sprite sheet
+- Shows sprite, index number, and item name
+- Click any item to add it directly to inventory
+- Scrollable grid layout
+- Shows both mapped and unmapped items
+
+### Item Display
+- **Mapped Items**: Shows sprite, index, and name
+- **Unmapped Items**: Shows placeholder (can't be added)
+- **Layout**: 10 items per row in scrollable frame
+
+## 💾 Data Persistence
+
+### DataStore
+- **Name**: `PlayerInventories`
+- **Structure**: 
+  ```lua
+  {
+      level = 1,
+      slots = {
+          {itemId = "leaf", count = 5},
+          -- ...
+      }
+  }
+  ```
+
+### Save Triggers
+- Every 30 seconds (auto-save)
+- On player leave
+- After inventory modifications:
+  - MoveItem
+  - SwapItem
+  - DropItem
+  - add_item
+  - Crafting (material consumption)
+
+## 🐛 Debug Commands
+
+### Console Variables
+Access these in Roblox Studio console:
+- `_G.KeybindManager` - Keybind system
+- `_G.InventoryClient` - Inventory client
+- `_G.GUIManager` - GUI manager
+- `_G.DebugInventoryGrid` - Item browser
+- `_G.RecipesInventoryGUI` - Recipe browser
+
+### Useful Commands
 ```lua
-maxSlots = 20  -- Set by server in SyncInventory
+-- Toggle inventory
+_G.GUIManager:toggleGUI("inventory")
+
+-- Show item browser
+_G.GUIManager:showGUI("itemBrowser")
+
+-- Check current visible GUI
+_G.GUIManager:getCurrentVisible()
+
+-- Force refresh inventory
+_G.InventoryClient:requestInventory()
 ```
 
-## 🐛 Debug Tips
+## 🎨 Styling Guide
 
-### Check if GUI exists
+### Color Palette
 ```lua
-if not gui:FindFirstChild("InventoryGUI") then
-    print("InventoryGUI not found!")
-end
+CREAM = Color3.fromRGB(255, 251, 231)      -- Main background
+BROWN = Color3.fromRGB(120, 100, 80)       -- Title bars
+BEIGE = Color3.fromRGB(231, 221, 185)     -- Details panels
+TEAL = Color3.fromRGB(4, 175, 166)         -- Accent/buttons
+WHITE = Color3.fromRGB(255, 255, 255)      -- Text/backgrounds
+DARK = Color3.fromRGB(60, 50, 40)          -- Dark text
 ```
 
-### See inventory state
-```lua
-print("Slots:", maxSlots)
-print("Filled:", table.getn(slotState))
-for i, slot in pairs(slotState) do
-    print(i, slot.itemId, slot.count)
-end
-```
+### Typography
+- **Title Font**: `Enum.Font.GothamBold`
+- **Body Font**: `Enum.Font.Gotham`
+- **Title Size**: 18-24px
+- **Body Size**: 12-16px
 
-### Check server communication
-```lua
--- Look for: "[Debug] Received remote event: SyncInventory"
--- in Output window
-```
+### Layout
+- **Corner Radius**: 8px
+- **Padding**: 10px
+- **Spacing**: 6-10px between elements
 
-## 📝 Common Issues
+## 📝 Common Issues & Solutions
 
-| Error | Fix |
-|-------|-----|
-| "Could not find InventoryGUI" | Build GUI in Roblox Studio |
-| Items don't show | Check ItemData has correct item IDs |
-| Drag doesn't work | Verify slot structure and ItemSlotTemplate |
-| No animation | Check TweenService works in game |
+### Issue: Keybinds not working
+**Solution**: Check console for connection errors. Ensure UserInputService is available.
 
-## 🔗 Related Files
+### Issue: GUI not showing
+**Solution**: 
+- Check if ScreenGui is enabled: `gui.Enabled = true`
+- Check if mainFrame is visible: `frame.Visible = true`
+- Verify GUI is registered with GUIManager
 
-- `AI_INSTRUCTIONS.md` - For AI assistants
-- `GUI_STRUCTURE.md` - GUI setup guide
-- `CLEANUP_LOG.md` - What was changed
-- `CODE_STATUS.md` - Current status
+### Issue: Sprites not displaying correctly
+**Solution**: 
+- Verify SpriteConfig dimensions match actual spritesheet
+- Check ImageRectOffset and ImageRectSize are set correctly
+- Ensure ImageTransparency = 0
+
+### Issue: Inventory not saving
+**Solution**:
+- Enable Studio API access in Studio settings
+- Check DataStore is accessible
+- Verify save triggers are firing
+
+## 🚀 Quick Setup Checklist
+
+- [ ] Enable Studio API access (Settings → Security)
+- [ ] Load all required modules (check console for errors)
+- [ ] Verify GUIManager loads successfully
+- [ ] Test keybinds (E, R, C, B, G)
+- [ ] Test inventory drag-and-drop
+- [ ] Test crafting system
+- [ ] Verify DataStore persistence
 
 ---
 
-**Last Updated**: October 26, 2025
-
-
-
-Update october 30, 2025:
-Colors to be used across game:
-
-<!-- Roblox Color Scheme File -->
-<!-- Generated by Figma to Roblox -->
-<!-- Report bugs or issues to notwistedhere on Discord/GitHub -->
-
-<roblox version="4">
-  <Item class="Frame" name="Auto-Layout">
-    <Item class="TextButton" name="Text & Buttons">
-      <Item class="Frame" name="Off-White" color="RGB(255,255,247)" />
-      <Item class="Frame" name="Navy" color="RGB(248,244,232)" />
-      <Item class="Frame" name="Light Yellow" color="RGB(238,233,202)" />
-      <Item class="Frame" name="Light Gold" color="RGB(255,238,160)" />
-      <Item class="Frame" name="Brown Gold" color="RGB(113,104,29)" />
-      <Item class="Frame" name="Warm Brown" color="RGB(114,92,78)" />
-      <Item class="Frame" name="Desert" color="RGB(138,123,102)" />
-      <Item class="Frame" name="Teal Accent" color="RGB(4,175,166)" />
-    </Item>
-
-    <Item class="Frame" name="Dialog Boxes & Name Tags">
-      <Item class="Frame" name="Eggshell" color="RGB(255,251,231)" />
-      <Item class="Frame" name="Warm Yellow" color="RGB(255,180,0)" />
-      <Item class="Frame" name="Orange" color="RGB(255,119,23)" />
-      <Item class="Frame" name="Warm Pink" color="RGB(226,130,106)" />
-      <Item class="Frame" name="Navy" color="RGB(37,59,82)" />
-      <Item class="Frame" name="Deep Blue" color="RGB(15,22,32)" />
-    </Item>
-
-    <Item class="Frame" name="Apps">
-      <Item class="Frame" name="Violet" color="RGB(183,125,238)" />
-      <Item class="Frame" name="Periwinkle" color="RGB(136,157,240)" />
-      <Item class="Frame" name="Goldenrod" color="RGB(247,205,103)" />
-      <Item class="Frame" name="Clay" color="RGB(229,146,102)" />
-      <Item class="Frame" name="Pink" color="RGB(248,166,178)" />
-      <Item class="Frame" name="Mint" color="RGB(130,213,187)" />
-      <Item class="Frame" name="Lime" color="RGB(138,198,138)" />
-      <Item class="Frame" name="Coral" color="RGB(252,115,109)" />
-      <Item class="Frame" name="Crimson" color="RGB(255,84,74)" />
-      <Item class="Frame" name="Olive" color="RGB(209,218,73)" />
-      <Item class="Frame" name="Sandstone" color="RGB(154,131,90)" />
-      <Item class="Frame" name="Mustard" color="RGB(236,223,82)" />
-      <Item class="Frame" name="Terracotta" color="RGB(225,140,111)" />
-    </Item>
-  </Item>
-</roblox>
+**Last Updated**: December 2024

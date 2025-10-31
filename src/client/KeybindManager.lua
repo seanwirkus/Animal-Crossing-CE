@@ -15,14 +15,16 @@ KeybindManager.KEYBINDS = {
 	REACTION = Enum.KeyCode.R,
 	
 	-- Tools & Crafting
-	CRAFTING = Enum.KeyCode.Tab,
+	CRAFTING = Enum.KeyCode.C,  -- Changed from Tab to C for DebugCraftingMenu
 	TOOL_WHEEL = Enum.KeyCode.T,
 	
 	-- Navigation
 	MAP = Enum.KeyCode.M,
 	
 	-- Debug
-	DEBUG_GUI = Enum.KeyCode.G,
+	DEBUG_GUI = Enum.KeyCode.G,         -- G for Debug Manager  
+	ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
+	QUEST_BOARD = Enum.KeyCode.Q,       -- Q for Quest Board (if needed later)
 	
 	-- Future binds (placeholder)
 	EMOTE = Enum.KeyCode.V,
@@ -62,28 +64,50 @@ end
 
 -- Connect all keybind handlers to input events
 function KeybindManager:connect(userInputService)
+	if not userInputService then
+		warn("[KeybindManager] ❌ UserInputService is nil!")
+		return false
+	end
+	
+	print("[KeybindManager] 🔗 Connecting to UserInputService...")
+	print("[KeybindManager] 📊 Total registered handlers:", #self:getActiveBinds())
+	
 	-- InputBegan - key down
 	local inputBeganConnection = userInputService.InputBegan:Connect(function(input, gameProcessed)
+		-- Only handle keyboard input
+		if not input.KeyCode then
+			return
+		end
+		
 		if gameProcessed then
 			return
 		end
 		
-		-- Debug: log all key presses to verify input is working
-		if input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.G then
-			print("[KeybindManager] 🔑 Key pressed:", input.KeyCode, "gameProcessed:", gameProcessed)
+		-- Debug: log key presses for common keys
+		local debugKeys = {Enum.KeyCode.E, Enum.KeyCode.G, Enum.KeyCode.C, Enum.KeyCode.R, Enum.KeyCode.B}
+		for _, key in ipairs(debugKeys) do
+			if input.KeyCode == key then
+				print("[KeybindManager] 🔑 Key pressed:", input.KeyCode, "gameProcessed:", gameProcessed)
+				break
+			end
 		end
 		
 		-- Check each registered bind
 		for bindName, keyCode in pairs(self.KEYBINDS) do
-			if input.KeyCode == keyCode and self.HANDLERS[bindName] then
-				print("[KeybindManager] ✅ Matched keybind:", bindName, "→", keyCode)
-				local handler = self.HANDLERS[bindName]
-				local success, err = pcall(function()
-					handler("began")
-				end)
-				
-				if not success then
-					warn("[KeybindManager] ❌ Error in handler for " .. bindName .. ": " .. err)
+			if input.KeyCode == keyCode then
+				if self.HANDLERS[bindName] then
+					print("[KeybindManager] ✅ Matched keybind:", bindName, "→", keyCode)
+					local handler = self.HANDLERS[bindName]
+					local success, err = pcall(function()
+						handler("began")
+					end)
+					
+					if not success then
+						warn("[KeybindManager] ❌ Error in handler for " .. bindName .. ": " .. tostring(err))
+						warn(debug.traceback())
+					end
+				else
+					print("[KeybindManager] ⚠️ Handler missing for:", bindName, "→", keyCode)
 				end
 			end
 		end
@@ -91,6 +115,15 @@ function KeybindManager:connect(userInputService)
 	
 	-- InputEnded - key released
 	local inputEndedConnection = userInputService.InputEnded:Connect(function(input, gameProcessed)
+		-- Only handle keyboard input
+		if not input.KeyCode then
+			return
+		end
+		
+		if gameProcessed then
+			return
+		end
+		
 		-- Check each registered bind
 		for bindName, keyCode in pairs(self.KEYBINDS) do
 			if input.KeyCode == keyCode and self.HANDLERS[bindName] then
@@ -102,7 +135,7 @@ function KeybindManager:connect(userInputService)
 					end)
 					
 					if not success then
-						warn("[KeybindManager] Error in handler for " .. bindName .. ": " .. err)
+						warn("[KeybindManager] ❌ Error in handler for " .. bindName .. ": " .. tostring(err))
 					end
 				end
 			end
@@ -113,6 +146,22 @@ function KeybindManager:connect(userInputService)
 	table.insert(self.connections, inputEndedConnection)
 	
 	print("[KeybindManager] ✅ Input connections established")
+	print("[KeybindManager] 📝 Connected to InputBegan and InputEnded events")
+	
+	-- Verify connections are active
+	if inputBeganConnection and inputBeganConnection.Connected then
+		print("[KeybindManager] ✅ InputBegan connection is active")
+	else
+		warn("[KeybindManager] ❌ InputBegan connection failed!")
+	end
+	
+	if inputEndedConnection and inputEndedConnection.Connected then
+		print("[KeybindManager] ✅ InputEnded connection is active")
+	else
+		warn("[KeybindManager] ❌ InputEnded connection failed!")
+	end
+	
+	return true
 end
 
 -- Disconnect all keybind handlers

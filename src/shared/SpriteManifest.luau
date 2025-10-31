@@ -22,11 +22,18 @@ return {
     golden_slingshot = { name = "Golden Slingshot", spriteIndex = 17 },
     golden_fishing_rod = { name = "Golden Fishing Rod", spriteIndex = 15 },
 
+    -- Clothing (GUI Icons)
+    construction_hat = { name = "Construction Hat", spriteIndex = 23 },
+    red_motorcycle_helmet = { name = "Red Motorcycle Helmet", spriteIndex = 24 },
+    red_hat = { name = "Red Hat", spriteIndex = 25 },
+
     -- Clothing
     glasses_red = { name = "Red Glasses", spriteIndex = 26 },
     shirt_striped = { name = "Striped Shirt", spriteIndex = 27 },
-    shirt_blue = { name = "Blue Shirt", spriteIndex = 28 },
+    shirt_blue = { name = "Striped Blue Shirt", spriteIndex = 28 },
     bag_blue = { name = "Bag (Blue)", spriteIndex = 29 },
+    blue_striped_gloves = { name = "Blue Striped Gloves", spriteIndex = 30 },
+    jeans = { name = "Jeans", spriteIndex = 31 },
     socks = { name = "Socks", spriteIndex = 32 },
     shoes_yellow = { name = "Shoes (Yellow)", spriteIndex = 33 },
     shoes_black = { name = "Shoes (Black)", spriteIndex = 34 },
@@ -35,8 +42,10 @@ return {
     -- Eggs
     egg_purple = { name = "Purple Egg", spriteIndex = 37 },
     egg_orange = { name = "Orange Egg", spriteIndex = 38 },
-    egg_yellow = { name = "Yellow Egg", spriteIndex = 41 },
+    egg_pink = { name = "Pink Egg", spriteIndex = 39 },
     egg_green = { name = "Green Egg", spriteIndex = 40 },
+    egg_yellow = { name = "Yellow Egg", spriteIndex = 41 },
+    egg_blue = { name = "Blue Egg", spriteIndex = 42 },
 
     -- Currency & UI
     bell_bag_small = { name = "Small Bell Bag", spriteIndex = 20 },
@@ -45,13 +54,24 @@ return {
     lost_item = { name = "Lost Item", spriteIndex = 36 },
     bottle_message = { name = "Message Bottle", spriteIndex = 37 },
     recipe_card = { name = "DIY Recipe Card", spriteIndex = 38 },
-    paper_gift = { name = "Gift Bag", spriteIndex = 39 },
+    paper_gift = { name = "Gift Bag", spriteIndex = 290 },
     leaf_fossil = { name = "Fossil Leaf", spriteIndex = 40 },
+
+    -- Materials (GUI Icons)
+    hardwood_gui = { name = "Hardwood", spriteIndex = 44 },
+    wood_gui = { name = "Wood", spriteIndex = 45 },
+    softwood_gui = { name = "Softwood", spriteIndex = 46 },
+    bamboo_piece_gui = { name = "Bamboo Piece", spriteIndex = 47 },
+    tree_branch = { name = "Tree Branch", spriteIndex = 49 },
+    clay_gui = { name = "Clay", spriteIndex = 50 },
+    charcoal = { name = "Charcoal", spriteIndex = 51 },
+    rainbow_striped_jar = { name = "Rainbow-Striped Jar", spriteIndex = 43 },
+    young_spring_bamboo_gui = { name = "Young Spring Bamboo", spriteIndex = 68 },
 
     -- Roses
     rose_red = { name = "Red Rose", spriteIndex = 41 },
-    rose_white = { name = "White Rose", spriteIndex = 42 },
-    rose_pink = { name = "Pink Rose", spriteIndex = 43 },
+    rose_white = { name = "White Rose", spriteIndex = 291 },
+    rose_pink = { name = "Pink Rose", spriteIndex = 292 },
     rose_yellow = { name = "Yellow Rose", spriteIndex = 261 },
 
     -- Tulips
@@ -61,11 +81,11 @@ return {
 
     -- Lilies
     lily_pink = { name = "Pink Lily", spriteIndex = 48 },
-    lily_yellow = { name = "Yellow Lily", spriteIndex = 49 },
+    lily_yellow = { name = "Yellow Lily", spriteIndex = 293 },
     lily_white = { name = "White Lily", spriteIndex = 50 },
 
     -- Mums
-    mum_purple = { name = "Purple Mum", spriteIndex = 51 },
+    mum_purple = { name = "Purple Mum", spriteIndex = 296 },
     mum_red = { name = "Red Mum", spriteIndex = 52 },
     mum_white = { name = "White Mum", spriteIndex = 53 },
 
@@ -88,7 +108,7 @@ return {
     fish_bass = { name = "Black Bass", spriteIndex = 65 },
     fish_snapper = { name = "Red Snapper", spriteIndex = 66 },
     fish_goldfish = { name = "Goldfish", spriteIndex = 67 },
-    fish_koi = { name = "Koi", spriteIndex = 68 },
+    fish_koi = { name = "Koi", spriteIndex = 295 },
     fish_loach = { name = "Loach", spriteIndex = 69 },
     fish_seahorse = { name = "Seahorse", spriteIndex = 70 },
 
