@@ -25,6 +25,7 @@ KeybindManager.KEYBINDS = {
 	DEBUG_GUI = Enum.KeyCode.G,         -- G for Debug Manager  
 	ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
 	QUEST_BOARD = Enum.KeyCode.Q,       -- Q for Quest Board (if needed later)
+	START_ONBOARDING = Enum.KeyCode.N,  -- N for Onboarding/New island debug
 	
 	-- Future binds (placeholder)
 	EMOTE = Enum.KeyCode.V,

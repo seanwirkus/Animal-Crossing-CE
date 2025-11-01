@@ -6,9 +6,17 @@ local UserInputService = game:GetService("UserInputService")
 
 local InventoryGuiSetup = {}
 
+-- Track if inventory GUI has been initialized to prevent repeated calls
+local _inventoryGuiInitialized = false
+
 function InventoryGuiSetup.createInventoryGui()
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Only initialize once
+    if _inventoryGuiInitialized then
+        return playerGui:FindFirstChild("InventoryGUI")
+    end
     
     -- Look for existing InventoryGUI in Roblox (don't create it)
     local screenGui = playerGui:FindFirstChild("InventoryGUI")
@@ -18,6 +26,7 @@ function InventoryGuiSetup.createInventoryGui()
     end
     
     print("[InventoryGuiSetup] ✅ Found existing InventoryGUI in PlayerGui")
+    _inventoryGuiInitialized = true
     
     -- Find InventoryFrame
     local inventoryFrame = screenGui:FindFirstChild("InventoryFrame")
@@ -238,11 +247,27 @@ function InventoryGuiSetup.createDebugInventoryGui()
 end
 
 -- Auto-detect screen size changes and update layouts
+local _responsiveSetupDone = false
 function InventoryGuiSetup.setupResponsiveLayout()
+    if _responsiveSetupDone then
+        return -- Only setup once
+    end
+    _responsiveSetupDone = true
+    
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
     
+    -- Debounce to prevent rapid-fire calls
+    local lastUpdate = 0
+    local debounceTime = 0.5 -- 500ms debounce
+    
     workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        local now = tick()
+        if now - lastUpdate < debounceTime then
+            return -- Debounce
+        end
+        lastUpdate = now
+        
         -- Recreate GUIs with new responsive sizing
         local inventoryGui = playerGui:FindFirstChild("InventoryGUI")
         local debugGui = playerGui:FindFirstChild("DebugInventoryGUI")

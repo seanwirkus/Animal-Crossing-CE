@@ -32,6 +32,32 @@ print("[Client] ✅ RecipesInventoryGUI module loaded")
 local DebugManager = require(script.Modules.DebugManager)
 print("[Client] ✅ DebugManager module loaded")
 
+-- ACNH-fx Sky setup (replaces old lighting system)
+local ACNHFXSuccess, ACNHFXErr = pcall(function()
+	local ACNHFX = require(script.Modules.ACNHFX)
+	ACNHFX.setup()
+end)
+if not ACNHFXSuccess then
+	warn("[Client] ❌ Failed to apply ACNH-fx:", tostring(ACNHFXErr))
+	warn(debug.traceback())
+end
+
+-- Dialogue GUI for onboarding/debug dialogues
+print("[Client] 🔍 Attempting to load DialogueGUI...")
+local DialogueGUI
+local dialogueGUISuccess, dialogueGUIErr = pcall(function()
+	print("[Client] 🔍 Calling require for DialogueGUI...")
+	DialogueGUI = require(script.Modules.DialogueGUI)
+	print("[Client] 🔍 Require completed, DialogueGUI type:", type(DialogueGUI))
+end)
+print("[Client] 🔍 DialogueGUI load result:", dialogueGUISuccess, type(DialogueGUI))
+if dialogueGUISuccess then
+	print("[Client] ✅ DialogueGUI module loaded successfully")
+else
+	warn("[Client] ❌ Failed to load DialogueGUI:", tostring(dialogueGUIErr))
+	warn(debug.traceback())
+end
+
 -- Create GUI structures first
 InventoryGuiSetup.createInventoryGui()
 print("[Client] ✅ Main inventory GUI created")
@@ -244,6 +270,76 @@ keybindManager:registerBind("CRAFTING", function(inputState)
 		print("[Keybind] ✅ Crafting Menu toggled")
 	end
 end)
+
+-- Register START_ONBOARDING debug keybind (N key) - only if DialogueGUI loaded
+print("[Client] 🔍 Checking DialogueGUI registration - success:", dialogueGUISuccess, "type:", type(DialogueGUI))
+if dialogueGUISuccess and DialogueGUI then
+	print("[Client] 🔍 Registering START_ONBOARDING keybind...")
+	keybindManager:registerBind("START_ONBOARDING", function(inputState)
+		if inputState == "began" then
+			print("[Keybind] N key pressed - starting onboarding debug sequence...")
+			
+			-- Show toast notification
+			if DialogueGUI and DialogueGUI.showToast then
+				DialogueGUI.showToast("🏝️ Starting Onboarding Sequence...", 2)
+			end
+			
+			local dialogue = DialogueGUI.new()
+			local ok = dialogue:Init()
+			if not ok then
+				warn("[OnboardingDebug] ❌ DialogueGUI not found in PlayerGui. Please place your styled DialogueGUI in PlayerGui.")
+				return
+			end
+			
+			-- Ordered onboarding intro sequence (adjust text as needed)
+			local playerName = _Players.LocalPlayer.Name
+			local seq = {
+				{ villagerName = "Tom Nook", text = "Ah, " .. playerName .. "! Welcome, welcome! Yes, yes!" },
+				{ villagerName = "Tom Nook", text = "First, we'll choose an island layout. Take your time—there's no wrong choice." },
+				{ villagerName = "Tom Nook", text = "Next, we'll give your island a perfect name. Something charming!" },
+				{ villagerName = "Tom Nook", text = "Once that's settled, we'll prepare your flight and get everything ready." },
+				{ villagerName = "Isabelle", text = "Hello! I’m Isabelle. I’ll be here to help with announcements and island life once you arrive." },
+			}
+			
+			-- Callback when sequence completes (after last dialogue)
+			local function onComplete()
+				print("[OnboardingDebug] ✅ Dialogue sequence complete. Opening island selection...")
+				if DialogueGUI and DialogueGUI.showToast then
+					DialogueGUI.showToast("🎯 Opening Island Selection...", 2)
+				end
+				
+				-- Try to open island selection GUI (if available)
+				-- TODO: Replace with actual OnboardingGUI or UnifiedOnboardingFlow integration
+				local success, err = pcall(function()
+					-- Check if OnboardingGUI exists
+					local onboardingPath = script:FindFirstChild("OnboardingGUI") 
+						or _ReplicatedStorage:FindFirstChild("OnboardingGUI")
+					
+					if onboardingPath then
+						local OnboardingGUI = require(onboardingPath)
+						-- Open island selection (you'll need to provide templates)
+						warn("[OnboardingDebug] ⚠️ OnboardingGUI found but integration not yet complete")
+					else
+						print("[OnboardingDebug] ℹ️ Island selection will be integrated here")
+					end
+				end)
+				
+				if not success then
+					warn("[OnboardingDebug] ⚠️ Could not open island selection:", tostring(err))
+				end
+			end
+			
+			dialogue:ShowSequence(seq, { 
+				autoAdvance = false,
+				onComplete = onComplete
+			})
+			print("[OnboardingDebug] ✅ Dialogue sequence shown. Click Continue to proceed through steps.")
+		end
+	end)
+	print("[Client] ✅ START_ONBOARDING keybind registered (N key)")
+else
+	warn("[Client] ⚠️ START_ONBOARDING keybind not registered - DialogueGUI failed to load")
+end
 
 -- Register ESC key to close current GUI
 keybindManager:registerBind("SETTINGS", function(inputState)

@@ -33,6 +33,18 @@ function ItemBrowser.new()
     -- Get reference to InventoryClient to check current level
     self.inventoryClient = nil
     
+    -- Context menu system - optional feature (try to load but don't fail if missing)
+    self.contextMenu = nil
+    local modulesFolder = ReplicatedStorage.Parent:FindFirstChild("client") and ReplicatedStorage.Parent.client:FindFirstChild("Modules")
+    if modulesFolder and modulesFolder:FindFirstChild("ContextMenu") then
+        local contextMenuModule = modulesFolder:FindFirstChild("ContextMenu")
+        if contextMenuModule then
+            local ContextMenu = require(contextMenuModule)
+            self.contextMenu = ContextMenu.new(nil, self.inventoryRemote, self.itemDataFetcher)
+            -- Set screenGui AFTER creation, once DebugInventoryGrid sets up its own screenGui
+        end
+    end
+    
     self:loadAllItems()
     
     print("[ItemBrowser] ✅ Loaded with", #self.allItems, "total items")
@@ -149,6 +161,11 @@ function ItemBrowser:createGui()
             self.screenGui.Enabled = true
             self.screenGui.Parent = playerGui
         end
+    end
+    
+    -- Attach context menu to screenGui if available
+    if self.contextMenu and not self.contextMenu.screenGui then
+        self.contextMenu.screenGui = self.screenGui
     end
 
     -- Main frame with cream background - matching your AC theme
@@ -374,6 +391,34 @@ function ItemBrowser:createItemButton(item)
         button.BackgroundTransparency = 0.2
         indexLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
         nameLabel.TextColor3 = Color3.fromRGB(60, 50, 40)  -- DARK
+    end)
+    
+    -- Track mouse over button for right-click detection
+    local isMouseOver = false
+    button.MouseEnter:Connect(function()
+        isMouseOver = true
+    end)
+    button.MouseLeave:Connect(function()
+        isMouseOver = false
+    end)
+    
+    -- Right-click detection using InputBegan
+    local UserInputService = game:GetService("UserInputService")
+    local _rightClickConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed or not isMouseOver then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            print("[ItemBrowser] Right-click detected for item:", item.id)
+            if self.contextMenu then
+                pcall(function()
+                    local mouse = Players.LocalPlayer:GetMouse()
+                    self.contextMenu:show(item, mouse.Position)
+                    print("[ItemBrowser] Context menu shown for item:", item.id)
+                end)
+            else
+                print("[ItemBrowser] No context menu available")
+            end
+        end
     end)
     
     button.MouseButton1Click:Connect(function()

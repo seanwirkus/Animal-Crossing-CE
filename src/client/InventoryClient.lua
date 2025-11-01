@@ -2,10 +2,33 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
 
 local InventoryClient = {}
 InventoryClient.__index = InventoryClient
 InventoryClient.MAX_SLOTS = 20  -- Constant for maximum inventory slots
+
+-- Create reusable sound for inventory operations
+local function createInventorySound()
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://115624513042963"
+	sound.Volume = 0.5
+	sound.PlayOnRemove = false
+	sound.Parent = SoundService
+	return sound
+end
+
+local _inventorySound = nil
+local function playInventorySound()
+	if not _inventorySound then
+		_inventorySound = createInventorySound()
+	end
+	-- Clone sound to allow overlapping
+	local soundClone = _inventorySound:Clone()
+	soundClone.Parent = SoundService
+	soundClone:Play()
+	game:GetService("Debris"):AddItem(soundClone, soundClone.TimeLength + 0.1)
+end
 
 local function cloneState(state)
     if not state then
@@ -31,6 +54,25 @@ function InventoryClient.new()
     self.inventoryRemote = ReplicatedStorage:WaitForChild("InventoryEvent")
 
     self.displayItems = self.itemDataFetcher.getDisplayItemMap()
+    
+    -- Load context menu - optional feature
+    self.contextMenu = nil
+    local success, contextMenuModule = pcall(function()
+        local clientFolder = script.Parent
+        local modulesFolder = clientFolder:FindFirstChild("Modules")
+        if modulesFolder then
+            local contextMenuModule = modulesFolder:FindFirstChild("ContextMenu")
+            if contextMenuModule then
+                return require(contextMenuModule)
+            end
+        end
+        return nil
+    end)
+    
+    if success and contextMenuModule then
+        self.contextMenu = contextMenuModule.new(nil, self.inventoryRemote, self.itemDataFetcher)
+        print("[InventoryClient] ✅ Context menu loaded")
+    end
 
     self.inventoryGui = nil
     self.inventoryFrame = nil
@@ -44,6 +86,7 @@ function InventoryClient.new()
     self.slotState = {}
     self.drag = nil
     self.pendingData = nil
+    self._isInitialLoad = false  -- Track if this is the first inventory load
 
     self.connections = {}
 
@@ -135,7 +178,8 @@ function InventoryClient:updateSlotAppearance(slot, state)
     if state and state.itemId then
         local definition = self:getItemDefinition(state.itemId)
         if not definition then
-            warn("[InventoryClient] No definition found for itemId:", state.itemId)
+            -- Silently handle missing items (they'll just show empty icon)
+            -- Don't spam warnings for items like hyacinth_blue that might not be in manifest yet
         end
         self:updateItemIcon(icon, definition)
 
@@ -237,8 +281,11 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
             end
         end
     end)
-
+    
+    -- Track mouse over slot for right-click detection
+    local isMouseOver = false
     clickRegion.MouseEnter:Connect(function()
+        isMouseOver = true
         local state = self.slotState[slotIndex]
         local nameLabel = slot:FindFirstChild("ItemName")
         if nameLabel and state and self.displayItems[state.itemId] then
@@ -249,12 +296,59 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
     end)
 
     clickRegion.MouseLeave:Connect(function()
+        isMouseOver = false
         local nameLabel = slot:FindFirstChild("ItemName")
         if nameLabel then
             nameLabel.Visible = false
         end
         slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     end)
+    
+    -- Right-click detection using InputBegan
+    local UserInputService = game:GetService("UserInputService")
+    local rightClickConnection
+    rightClickConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed or not isMouseOver then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            print("[InventoryClient] Right-click detected on slot", slotIndex)
+            local state = self.slotState[slotIndex]
+            -- Defensive check: slot must have a valid itemId (and not false or empty string)
+            if not state or not state.itemId or state.itemId == "" or state.itemId == false then
+                print("[InventoryClient] No valid item in this slot; skipping context menu.")
+                return
+            end
+            -- Confirm not a dummy or empty template slot
+            if tostring(state.itemId):lower():match("empty") or tostring(state.itemId):lower():match("template") then
+                print("[InventoryClient] Slot is a template or empty placeholder; skipping context menu.")
+                return
+            end
+            -- Show context menu if available
+            if self.contextMenu then
+                pcall(function()
+                    local mouse = Players.LocalPlayer:GetMouse()
+                    -- Create item data object for context menu
+                    local itemData = {
+                        id = state.itemId,
+                        itemId = state.itemId,
+                        count = state.count or 1,
+                        name = nil
+                    }
+                    -- Try to get item name from definition
+                    local definition = self:getItemDefinition(state.itemId)
+                    if definition then
+                        itemData.name = definition.name
+                        itemData.category = definition.category
+                    end
+                    print("[InventoryClient] Showing context menu with itemData:", itemData.id, itemData.name)
+                    self.contextMenu:show(itemData, Vector2.new(mouse.X, mouse.Y))
+                end)
+            else
+                print("[InventoryClient] No context menu available")
+            end
+        end
+    end)
+    
+    self:trackConnection(rightClickConnection)
 end
 
 function InventoryClient:refreshSlot(slotIndex)
@@ -266,6 +360,15 @@ function InventoryClient:refreshSlot(slotIndex)
     -- Always ensure LayoutOrder matches slotIndex to maintain position
     slot.LayoutOrder = slotIndex
     slot.Visible = slotIndex <= self.maxSlots
+    
+    -- Disable interactions for empty slots
+    local hasItem = self.slotState[slotIndex] ~= nil
+    local clickRegion = slot:FindFirstChild("ClickRegion")
+    if clickRegion then
+        clickRegion.Active = hasItem  -- Only allow clicks on slots with items
+        clickRegion.Selectable = hasItem
+    end
+    
     self:updateSlotAppearance(slot, self.slotState[slotIndex])
 end
 
@@ -497,6 +600,9 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
     self:refreshSlot(dragState.originSlot)
     self:refreshSlot(destinationIndex)
 
+    -- Play inventory sound on successful move
+    playInventorySound()
+
     -- Inform server of the move
     self.inventoryRemote:FireServer("MoveItem", {
         fromIndex = dragState.originSlot,
@@ -528,6 +634,7 @@ function InventoryClient:populateFromServer(payload)
 
     -- Create a fresh state table
     local newState = {}
+    local itemCountChanged = false
     for i = 1, self.maxSlots do
         local slotData = incomingSlots[tostring(i)] or incomingSlots[i]
         if slotData and slotData.itemId and slotData.count and slotData.count > 0 then
@@ -536,6 +643,17 @@ function InventoryClient:populateFromServer(payload)
                 count = slotData.count,
             }
             print(string.format("[POPULATE DEBUG] Slot %d: %s x%d", i, slotData.itemId, slotData.count))
+            
+            -- Check if item count changed in this slot
+            local oldSlot = self.slotState[i]
+            if not oldSlot or oldSlot.itemId ~= slotData.itemId or oldSlot.count ~= slotData.count then
+                itemCountChanged = true
+            end
+        else
+            -- Slot became empty - check if it had an item before
+            if self.slotState[i] then
+                itemCountChanged = true
+            end
         end
     end
     
@@ -552,6 +670,20 @@ function InventoryClient:populateFromServer(payload)
         if index > self.maxSlots then
             slot.Visible = false
         end
+    end
+    
+    -- Mark that initial load is done after first population (before sound check)
+    if not self._isInitialLoad then
+        self._isInitialLoad = true
+    end
+    
+    -- Play sound when items change (not during initial load or drag)
+    print("[SOUND DEBUG] itemCountChanged:", itemCountChanged, "wasDragging:", wasDragging, "_isInitialLoad:", self._isInitialLoad)
+    if itemCountChanged and not wasDragging and self._isInitialLoad then
+        print("[SOUND DEBUG] ✅ Playing inventory sound!")
+        playInventorySound()
+    else
+        print("[SOUND DEBUG] ❌ Not playing sound - itemCountChanged:", itemCountChanged, "wasDragging:", wasDragging, "_isInitialLoad:", self._isInitialLoad)
     end
     
     print("[POPULATE DEBUG] ✅ Population complete. Level", inventoryLevel, "with", maxSlots, "slots refreshed.", wasDragging and "(drag in progress)" or "")
@@ -672,6 +804,11 @@ function InventoryClient:attachGui()
     self.slotTemplate.Visible = false
     self.inventoryGui.Enabled = true
     self.inventoryFrame.Visible = false
+    
+    -- Attach context menu to inventory GUI
+    if self.contextMenu and not self.contextMenu.screenGui then
+        self.contextMenu.screenGui = self.inventoryGui
+    end
     
     print("[InventoryClient] ✅ After attachGui: inventoryGui.Enabled=" .. tostring(self.inventoryGui.Enabled) .. ", inventoryFrame.Visible=" .. tostring(self.inventoryFrame.Visible))
 

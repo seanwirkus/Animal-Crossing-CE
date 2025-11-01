@@ -62,13 +62,21 @@ return {
     wood_gui = { name = "Wood", spriteIndex = 45 },
     softwood_gui = { name = "Softwood", spriteIndex = 46 },
     bamboo_piece_gui = { name = "Bamboo Piece", spriteIndex = 47 },
+    bamboo_greener_gui = { name = "Greener Bamboo with Leaf", spriteIndex = 48 },
     tree_branch = { name = "Tree Branch", spriteIndex = 49 },
     clay_gui = { name = "Clay", spriteIndex = 50 },
     charcoal = { name = "Charcoal", spriteIndex = 51 },
-    rainbow_striped_jar = { name = "Rainbow-Striped Jar", spriteIndex = 43 },
-    young_spring_bamboo_gui = { name = "Young Spring Bamboo", spriteIndex = 68 },
+    gold_ore_gui = { name = "Gold Ore", spriteIndex = 52 },
+    stone_gui = { name = "Stone", spriteIndex = 53 },
+    acorn_gui = { name = "Acorn", spriteIndex = 54 },
+    weird_root_gui = { name = "Weird Root", spriteIndex = 55 },
+    cupcake_gui = { name = "Cupcake", spriteIndex = 56 },
+    golden_ticket_gui = { name = "Golden Ticket", spriteIndex = 57 },
+    trash_book_gui = { name = "Trash Book", spriteIndex = 58 },
+    bridge_gui = { name = "Bridge", spriteIndex = 59 },
+    trash_can_gui = { name = "Trash Can", spriteIndex = 60 },
 
-    -- Roses
+    -- Flowers
     rose_red = { name = "Red Rose", spriteIndex = 41 },
     rose_white = { name = "White Rose", spriteIndex = 291 },
     rose_pink = { name = "Pink Rose", spriteIndex = 292 },
@@ -78,26 +86,6 @@ return {
     tulip_red = { name = "Red Tulip", spriteIndex = 267 },
     tulip_white = { name = "White Tulip", spriteIndex = 268 },
     tulip_orange = { name = "Orange Tulip", spriteIndex = 273 },
-
-    -- Lilies
-    lily_pink = { name = "Pink Lily", spriteIndex = 48 },
-    lily_yellow = { name = "Yellow Lily", spriteIndex = 293 },
-    lily_white = { name = "White Lily", spriteIndex = 50 },
-
-    -- Mums
-    mum_purple = { name = "Purple Mum", spriteIndex = 296 },
-    mum_red = { name = "Red Mum", spriteIndex = 52 },
-    mum_white = { name = "White Mum", spriteIndex = 53 },
-
-    -- Hyacinths
-    hyacinth_blue = { name = "Blue Hyacinth", spriteIndex = 54 },
-    hyacinth_pink = { name = "Pink Hyacinth", spriteIndex = 55 },
-    hyacinth_orange = { name = "Orange Hyacinth", spriteIndex = 56 },
-    hyacinth_white = { name = "White Hyacinth", spriteIndex = 57 },
-
-    -- Cosmos
-    cosmos_red = { name = "Red Cosmos", spriteIndex = 58 },
-    cosmos_yellow = { name = "Yellow Cosmos", spriteIndex = 59 },
     cosmos_white = { name = "White Cosmos", spriteIndex = 60 },
 
     -- Fish

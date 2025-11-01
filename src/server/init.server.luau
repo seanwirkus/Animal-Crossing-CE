@@ -455,7 +455,7 @@ local function destroyWorldItem(worldItemId)
 	worldItems[worldItemId] = nil
 end
 
--- Create dropped item in the world with 3D sprite and proper tracking
+-- Create dropped item as simple banner in front of player
 local function createDroppedItem(player, itemId, count, worldPosition)
 	if not ItemData[itemId] then
 		warn("[Server] Unknown item:", itemId)
@@ -478,167 +478,68 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 	model.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
 	model.Parent = workspace
 
+        -- Simple physics part for gravity
         local pivot = Instance.new("Part")
         pivot.Name = "Pivot"
+        pivot.Size = Vector3.new(2, 2, 2) -- Small collision box
         pivot.Transparency = 1
-        pivot.Anchored = true
-        pivot.CanCollide = false
-        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.5, 0))
-        pivot.Parent = model
-
-        -- Make pivot the main part with physics
         pivot.Anchored = false
         pivot.CanCollide = true
         pivot.Massless = false
-        pivot.AssemblyLinearVelocity = Vector3.new(0, -5, 0) -- Initial downward velocity
+        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 3, 0)) -- Start higher
+        pivot.AssemblyLinearVelocity = Vector3.new(0, -8, 0) -- Drop down
+        pivot.Parent = model
 
-        -- Make pivot invisible but solid, positioned to plop on ground
-        pivot.Size = Vector3.new(1, 1, 1) -- Full height collision box
-        pivot.Transparency = 1
-        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 1, 0)) -- Start higher for plop effect
+        -- Simple flat banner sprite (make it anchored initially so it shows)
+        local banner = Instance.new("Part")
+        banner.Name = "Banner"
+        banner.Size = Vector3.new(4, 6, 0.1) -- Banner proportions (4 studs wide, 6 studs tall)
+        banner.Material = Enum.Material.Neon
+        banner.Transparency = 1
+        banner.CanCollide = false
+        banner.Anchored = true  -- Start anchored so it's visible
+        banner.CFrame = CFrame.new(worldPosition + Vector3.new(0, 4.5, 0)) * CFrame.Angles(0, 0, 0) -- Start higher and upright
+        banner.CastShadow = true
+        banner.Parent = model
+        
+        -- Don't weld banner to pivot - we'll control it manually for billboard effect
+        -- local weld = Instance.new("WeldConstraint")
+        -- weld.Part0 = pivot
+        -- weld.Part1 = banner
+        -- weld.Parent = pivot
 
-        -- Create flat sprite that lays on ground like Animal Crossing
-        local spritePart = Instance.new("Part")
-        spritePart.Name = "SpritePart"
-        spritePart.Size = Vector3.new(4, 0.1, 4) -- A little bigger, flat part
-        spritePart.Material = Enum.Material.Neon
-        spritePart.Color = Color3.new(0, 0, 0)
-        spritePart.Transparency = 1
-        spritePart.CanCollide = false
-        spritePart.Anchored = true
-        spritePart.CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.05, 0)) -- Just above ground
-        spritePart.CastShadow = false
-        spritePart.Parent = model
+        -- Banner sprite
+        local bannerGui = Instance.new("SurfaceGui")
+        bannerGui.Face = Enum.NormalId.Front
+        bannerGui.Parent = banner
 
-        -- Create simple 3D depth effect with fewer, more subtle layers
-        -- Ground shadow (darkest, largest)
-        local groundShadow = Instance.new("Part")
-        groundShadow.Name = "GroundShadow"
-        groundShadow.Size = Vector3.new(4.5, 0.05, 4.5) -- Slightly larger shadow
-        groundShadow.Material = Enum.Material.Neon
-        groundShadow.Color = Color3.new(0, 0, 0)
-        groundShadow.Transparency = 1
-        groundShadow.CanCollide = false
-        groundShadow.Anchored = true
-        groundShadow.CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.01, 0))
-        groundShadow.CastShadow = false
-        groundShadow.Parent = model
+        local bannerImage = Instance.new("ImageLabel")
+        bannerImage.Size = UDim2.new(1, 0, 1, 0)
+        bannerImage.BackgroundTransparency = 1
+        bannerImage.Image = SpriteConfig.SHEET_ASSET
+        bannerImage.ImageTransparency = 0
+        bannerImage.ScaleType = Enum.ScaleType.Fit -- Keep aspect ratio
+        bannerImage.Parent = bannerGui
 
-        local groundShadowGui = Instance.new("SurfaceGui")
-        groundShadowGui.Face = Enum.NormalId.Top
-        groundShadowGui.Parent = groundShadow
-
-        local groundShadowSprite = Instance.new("ImageLabel")
-        groundShadowSprite.Size = UDim2.new(1, 0, 1, 0)
-        groundShadowSprite.BackgroundTransparency = 1
-        groundShadowSprite.Image = SpriteConfig.SHEET_ASSET
-        groundShadowSprite.ImageTransparency = 0.7 -- More transparent shadow
-        groundShadowSprite.ImageColor3 = Color3.new(0.2, 0.2, 0.2) -- Lighter shadow
-        groundShadowSprite.ScaleType = Enum.ScaleType.Stretch
-        groundShadowSprite.Parent = groundShadowGui
-
-        -- Calculate sprite rect for this specific item
+        -- Calculate sprite rect for this item
         local spriteOffset, spriteSize = SpriteConfig.getSpriteRect(item.index)
         if not spriteOffset or not spriteSize then
                 spriteOffset = Vector2.new(0, 0)
                 spriteSize = SpriteConfig.DEFAULT_IMAGE_RECT_SIZE
         end
 
-        groundShadowSprite.ImageRectOffset = spriteOffset
-        groundShadowSprite.ImageRectSize = spriteSize
+        bannerImage.ImageRectOffset = spriteOffset
+        bannerImage.ImageRectSize = spriteSize
 
-        -- Create simple depth layers - just 2 subtle layers for 3D effect
-        local depthLayers = {}
-        local layerCount = 2 -- Reduced from 8
-        
-        for i = 1, layerCount do
-                local layerPart = Instance.new("Part")
-                layerPart.Name = "DepthLayer_" .. i
-                
-                -- Simple layer properties
-                local progress = i / layerCount -- 0 to 1
-                local sizeMultiplier = 1 + (progress * 0.15) -- 1.0 to 1.15 (subtle size increase)
-                local height = 0.05 -- Thin layers
-                local darkness = 0.3 + (progress * 0.3) -- 0.3 to 0.6 (medium darkness)
-                
-                -- Stack layers closely together
-                local heightOffset = 0.02 + (progress * 0.04) -- 0.02 to 0.06 (close stacking)
-                
-                layerPart.Size = Vector3.new(4 * sizeMultiplier, height, 4 * sizeMultiplier)
-                layerPart.Material = Enum.Material.Neon
-                layerPart.Color = Color3.new(0, 0, 0)
-                layerPart.Transparency = 1
-                layerPart.CanCollide = false
-                layerPart.Anchored = true
-                layerPart.CFrame = CFrame.new(worldPosition + Vector3.new(0, heightOffset, 0))
-                layerPart.CastShadow = false
-                layerPart.Parent = model
-
-                local layerGui = Instance.new("SurfaceGui")
-                layerGui.Face = Enum.NormalId.Top
-                layerGui.Parent = layerPart
-
-                local layerSprite = Instance.new("ImageLabel")
-                layerSprite.Size = UDim2.new(1, 0, 1, 0)
-                layerSprite.BackgroundTransparency = 1
-                layerSprite.Image = SpriteConfig.SHEET_ASSET
-                layerSprite.ImageTransparency = 0.8 - (progress * 0.3) -- 0.8 to 0.5 (less transparent as we go up)
-                layerSprite.ImageColor3 = Color3.new(darkness, darkness, darkness)
-                layerSprite.ScaleType = Enum.ScaleType.Stretch
-                layerSprite.Parent = layerGui
-                
-                -- Apply sprite rect for proper item display
-                layerSprite.ImageRectOffset = spriteOffset
-                layerSprite.ImageRectSize = spriteSize
-                
-                table.insert(depthLayers, {
-                        part = layerPart,
-                        sprite = layerSprite
-                })
-        end
-
-        -- Top layer (main sprite)
-        local topGui = Instance.new("SurfaceGui")
-        topGui.Face = Enum.NormalId.Top
-        topGui.Parent = spritePart
-
-        local imageLabel = Instance.new("ImageLabel")
-        imageLabel.Size = UDim2.new(1, 0, 1, 0)
-        imageLabel.BackgroundTransparency = 1
-	imageLabel.Image = SpriteConfig.SHEET_ASSET
-        imageLabel.ImageTransparency = 0
-        imageLabel.ScaleType = Enum.ScaleType.Stretch
-        imageLabel.Parent = topGui
-
-        -- Apply sprite rect to main sprite
-        imageLabel.ImageRectOffset = spriteOffset
-        imageLabel.ImageRectSize = spriteSize
-
-	-- Enhanced point light with better range and color
+	-- Subtle glow
 	local pointLight = Instance.new("PointLight")
-	pointLight.Name = "SpriteGlow"
-	pointLight.Range = 6 -- Reduced from 12
-	pointLight.Brightness = 1.5 -- Reduced from 2.2
-	pointLight.Color = Color3.fromRGB(255, 235, 200) -- Warmer color
+	pointLight.Name = "BannerGlow"
+	pointLight.Range = 5
+	pointLight.Brightness = 0.8
+	pointLight.Color = Color3.fromRGB(255, 250, 240)
 	pointLight.Shadows = false
-	pointLight.Parent = spritePart
+	pointLight.Parent = banner
 
-	-- Remove sparkles - too much visual noise
-	-- local sparkles = Instance.new("Sparkles")
-	-- sparkles.Name = "SpriteSparkles"
-	-- sparkles.SparkleColor = Color3.fromRGB(255, 245, 220) -- Warmer sparkle color
-	-- sparkles.Parent = spritePart
-
-	-- Remove ambient light - too much glow
-	-- local ambientLight = Instance.new("PointLight")
-	-- ambientLight.Name = "AmbientGlow"
-	-- ambientLight.Range = 8
-	-- ambientLight.Brightness = 1.2
-	-- ambientLight.Color = Color3.fromRGB(255, 250, 240)
-	-- ambientLight.Shadows = false
-	-- ambientLight.Parent = pivot
-
-	-- Simple ground-based items with enhanced lighting and sparkles
 	model.PrimaryPart = pivot
 
 	worldItems[worldItemId] = {
@@ -649,78 +550,83 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		droppedAt = tick(),
 		model = model,
 		connections = presentationConnections,
+		floatHeight = 1.5, -- Initial float height
 	}
 
-        -- Add plop animation with bounce effect for all depth layers
-        local plopTweens = {}
-        local scaleTweens = {}
+        -- Add cooldown to prevent immediate pickup after drop
+        local pickupCooldown = 1 -- 1 second cooldown
+        local lastPickupAttempt = tick()
         
-        -- Animate main sprite
-        local plopTween1 = TweenService:Create(spritePart, TweenInfo.new(0.3, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
-            CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.05, 0)) -- Final resting position on ground
-        })
-        plopTween1:Play()
-        
-        local scaleTween1 = TweenService:Create(spritePart, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = Vector3.new(4.5, 0.1, 4.5) -- Slightly larger on impact
-        })
-        scaleTween1:Play()
-        
-        -- Animate solid depth layers - no dramatic movement, just solid stacking
-        for i, layer in ipairs(depthLayers) do
-                local delay = (i - 1) * 0.02 -- Small stagger for solid effect
-                local progress = i / layerCount
-                
-                -- Simple plop animation for solid layers
-                local plopTween = TweenService:Create(layer.part, TweenInfo.new(0.2, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
-                        CFrame = CFrame.new(worldPosition + Vector3.new(0, 0.01 + (progress * 0.08), 0))
-                })
-                
-                -- Minimal scale animation for solid effect
-                local scaleTween = TweenService:Create(layer.part, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                        Size = Vector3.new((4 * (1 + (progress * 0.3))) * 1.05, 0.1, (4 * (1 + (progress * 0.3))) * 1.05)
-                })
-                
-                -- Delay the animation for staggered effect
-                if delay > 0 then
-                        task.wait(delay)
+        -- Make banner always face camera (billboard effect)
+        local billboardConnection
+        local hasLandedBillboard = false
+        billboardConnection = RunService.Heartbeat:Connect(function()
+                if not model.Parent or not pivot.Parent then
+                        if billboardConnection then
+                                billboardConnection:Disconnect()
+                                billboardConnection = nil
+                        end
+                        return
                 end
                 
-                plopTween:Play()
-                scaleTween:Play()
+                -- Check if banner has landed
+                if not hasLandedBillboard and pivot.AssemblyLinearVelocity.Magnitude < 0.1 then
+                        hasLandedBillboard = true
+                end
                 
-                table.insert(plopTweens, plopTween)
-                table.insert(scaleTweens, scaleTween)
-        end
-        
-        -- Scale back to normal size for all layers
-        scaleTween1.Completed:Connect(function()
-            local scaleBackTween1 = TweenService:Create(spritePart, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                Size = Vector3.new(4, 0.1, 4) -- Back to normal size
-            })
-            scaleBackTween1:Play()
+                -- Only apply billboard after landing
+                if not hasLandedBillboard then
+                        return
+                end
+                
+                -- Find nearest player's camera
+                local nearestPlayer = nil
+                local nearestDistance = math.huge
+                for _, otherPlayer in ipairs(Players:GetPlayers()) do
+                        local character = otherPlayer.Character
+                        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                        if humanoidRootPart then
+                                local distance = (humanoidRootPart.Position - pivot.Position).Magnitude
+                                if distance < nearestDistance then
+                                        nearestDistance = distance
+                                        nearestPlayer = otherPlayer
+                                end
+                        end
+                end
+                
+                if nearestPlayer then
+                        local character = nearestPlayer.Character
+                        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                        if humanoidRootPart then
+                                -- Get float height from worldItems
+                                local floatHeight = worldItems[worldItemId].floatHeight or 1.5
+                                
+                                -- Position banner above pivot with billboard rotation (facing player upright)
+                                local bannerPosition = pivot.Position + Vector3.new(0, floatHeight, 0)
+                                local lookVector = (humanoidRootPart.Position - bannerPosition).Unit
+                                -- Rotate to face player, and angle up 90 degrees so it's upright
+                                banner.CFrame = CFrame.lookAt(bannerPosition, bannerPosition + lookVector) * CFrame.Angles(0, 0, math.rad(90))
+                                
+                                -- Ensure banner is anchored for stability
+                                if not banner.Anchored then
+                                        banner.Anchored = true
+                                end
+                        end
+                end
         end)
-        
-        -- Scale back solid depth layers
-        for i, layer in ipairs(depthLayers) do
-                local progress = i / layerCount
-                local originalSize = Vector3.new(4 * (1 + (progress * 0.3)), 0.1, 4 * (1 + (progress * 0.3)))
-                
-                -- Connect scale back animation for each layer
-                if scaleTweens[i] then
-                        scaleTweens[i].Completed:Connect(function()
-                                local scaleBackTween = TweenService:Create(layer.part, TweenInfo.new(0.1, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                                        Size = originalSize
-                                })
-                                scaleBackTween:Play()
-                        end)
-                end
-        end
+        trackConnection(billboardConnection)
 
         local function pickupItem(pickingPlayer)
                 if not worldItems[worldItemId] then
                         return
                 end
+                
+                -- Check cooldown
+                local now = tick()
+                if now - lastPickupAttempt < pickupCooldown then
+                        return
+                end
+                lastPickupAttempt = now
 
                 print("[Server]", pickingPlayer.Name, "picked up", count, "x", item.name)
 
@@ -729,39 +635,22 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
                 local targetPosition = humanoidRootPart and humanoidRootPart.Position or worldPosition
                 
-                print("[Server] 🎬 Starting pickup animation from", worldPosition, "to", targetPosition)
-
                 -- Anchor the pivot for smooth animation
                 pivot.Anchored = true
                 
-                -- Create satisfying pickup animation
-                local pickupTween = TweenService:Create(pivot, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                -- Create simple pickup animation
+                local pickupTween = TweenService:Create(pivot, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                         CFrame = CFrame.new(targetPosition + Vector3.new(0, 2, 0))
                 })
                 
-                -- Scale up then down for satisfying effect
-                local scaleUpTween = TweenService:Create(pivot, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                        Size = Vector3.new(1.5, 1.5, 1.5)
-                })
-                
-                local scaleDownTween = TweenService:Create(pivot, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                -- Scale down for pickup effect
+                local scaleDownTween = TweenService:Create(banner, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
                         Size = Vector3.new(0.1, 0.1, 0.1)
                 })
 
                 -- Start animations
                 pickupTween:Play()
-                scaleUpTween:Play()
-                
-                -- Chain the scale animations
-                scaleUpTween.Completed:Connect(function()
-                        scaleDownTween:Play()
-                end)
-
-                -- Add rotation for extra satisfaction
-                local rotationTween = TweenService:Create(pivot, TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-                        CFrame = pivot.CFrame * CFrame.Angles(0, math.rad(360), 0)
-                })
-                rotationTween:Play()
+                scaleDownTween:Play()
 
                 -- Wait for animation to complete before adding to inventory
                 pickupTween.Completed:Connect(function()
@@ -810,6 +699,33 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         clickDetector.Parent = pivot
         clickDetector.MouseClick:Connect(pickupItem)
 
+	-- Add floating effect to banner after landing
+	local floatConnection
+	local floatTime = 0
+	local hasLanded = false
+	floatConnection = RunService.Heartbeat:Connect(function(deltaTime)
+		if not model.Parent or not pivot.Parent or not banner.Parent then
+			if floatConnection then
+				floatConnection:Disconnect()
+				floatConnection = nil
+			end
+			return
+		end
+		
+		-- Check if banner has landed (use velocity to detect)
+		if not hasLanded and pivot.AssemblyLinearVelocity.Magnitude < 0.1 then
+			hasLanded = true
+		end
+		
+		if hasLanded then
+			-- Banner has landed, add floating effect
+			floatTime = floatTime + deltaTime
+			local floatAmount = math.sin(floatTime * 2) * 0.5 -- Gentle 0.5 stud float
+			worldItems[worldItemId].floatHeight = 1.5 + floatAmount
+		end
+	end)
+	trackConnection(floatConnection)
+	
 	local proximityConnection
 	proximityConnection = RunService.Heartbeat:Connect(function()
 		if not model.Parent then
@@ -820,12 +736,15 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 			return
 		end
 
+		-- Use current pivot position for proximity detection
+		local currentPos = pivot.Position
+		
 		for _, otherPlayer in ipairs(Players:GetPlayers()) do
                         local character = otherPlayer.Character
                         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
                         if rootPart then
-                                local distance = (rootPart.Position - worldPosition).Magnitude
-				if distance <= 8 then -- Increased from 3 to 8
+                                local distance = (rootPart.Position - currentPos).Magnitude
+				if distance <= 5 then -- Pickup distance
 					pickupItem(otherPlayer)
 					if proximityConnection then
 						proximityConnection:Disconnect()
@@ -838,7 +757,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 	end)
 	trackConnection(proximityConnection)
 
-        print("[Server] ✅ Created 3D dropped item:", item.name, "x", count, "at", worldPosition)
+        print("[Server] ✅ Created dropped banner:", item.name, "x", count, "at", worldPosition)
 end
 
 -- Get all world items (for debugging/admin)
@@ -921,6 +840,58 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 end
 
                 warn("[Server]", player.Name, "tried to drop item they don't have:", itemId)
+
+        elseif action == "DeleteItem" and data then
+                -- Delete item from inventory (no drop)
+                local itemId = data.itemId
+                local count = data.count or 1
+                
+                local display = DisplayItems[itemId]
+                print("[Server]", player.Name, "deleted", count, "x", display and display.name or itemId)
+                
+                local slots = inventory.slots
+                local function removeFromSlot(index)
+                        local slot = slots[index]
+                        if slot and slot.itemId == itemId and slot.count >= count then
+                                slot.count = slot.count - count
+                                if slot.count <= 0 then
+                                        slots[index] = nil
+                                end
+                                return true
+                        end
+                        return false
+                end
+                
+                local removed = false
+                for index = 1, inventory.maxSlots or MAX_SLOTS do
+                        if removeFromSlot(index) then
+                                removed = true
+                                break
+                        end
+                end
+                
+                if removed then
+                        print("[Server]", player.Name, "successfully deleted", display and display.name or itemId)
+                        syncInventoryToClient(player)
+                        savePlayerInventory(player)
+                        return
+                end
+                
+                warn("[Server]", player.Name, "tried to delete item they don't have:", itemId)
+
+        elseif action == "EquipItem" and data then
+                -- Equip wearable item (placeholder for character clothing system)
+                local itemId = data.itemId
+                local display = DisplayItems[itemId]
+                print("[Server]", player.Name, "equipped", display and display.name or itemId)
+                
+                -- TODO: Integrate with character clothing/equipping system
+                -- For now, just acknowledge the action
+                if display then
+                        print("[Server] Item equipped: " .. display.name)
+                else
+                        warn("[Server] Item not found in DisplayItems:", itemId)
+                end
 
         elseif action == "MoveItem" and data then
                 local fromIndex = data.fromIndex
