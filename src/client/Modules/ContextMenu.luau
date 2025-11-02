@@ -22,18 +22,46 @@ local PADDING = 8
 
 function ContextMenu.new(screenGui, inventoryRemote, itemDataFetcher)
     local self = setmetatable({}, ContextMenu)
-    
-    self.screenGui = screenGui  -- Can be nil, will be set later
+    -- If no screenGui provided, create one and parent to PlayerGui
+    if not screenGui then
+        local player = Players.LocalPlayer
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then
+            playerGui = player:WaitForChild("PlayerGui")
+        end
+        local existing = playerGui:FindFirstChild("ContextMenuScreen")
+        if existing then
+            self.screenGui = existing
+        else
+            local gui = Instance.new("ScreenGui")
+            gui.Name = "ContextMenuScreen"
+            gui.IgnoreGuiInset = true
+            gui.DisplayOrder = 9999
+            gui.ResetOnSpawn = false
+            gui.Parent = playerGui
+            self.screenGui = gui
+        end
+    else
+        self.screenGui = screenGui
+    end
     self.inventoryRemote = inventoryRemote
     self.itemDataFetcher = itemDataFetcher
-    
     self.menuFrame = nil
     self.isOpen = false
     self.currentItem = nil
     self.closeConnection = nil
-    
-    print("[ContextMenu] ✅ Initialized with screenGui:", screenGui)
+    print("[ContextMenu] ✅ Initialized with screenGui:", self.screenGui)
     return self
+end
+
+--- Allow moving menu to another ScreenGui (such as when inventory GUI loads)
+function ContextMenu:setScreenGui(newScreenGui)
+    if not newScreenGui then return end
+    self.screenGui = newScreenGui
+    -- If the menu is open, re-parent the menuFrame
+    if self.menuFrame and self.menuFrame.Parent ~= newScreenGui then
+        self.menuFrame.Parent = newScreenGui
+    end
 end
 
 --- Create menu items with their actions
@@ -141,20 +169,46 @@ end
 
 --- Show context menu at mouse position
 function ContextMenu:show(item, mousePos)
+    print("[ContextMenu] ===== SHOW CALLED =====")
+    print("[ContextMenu] Item:", item and item.id or "nil")
+    print("[ContextMenu] MousePos:", mousePos)
+    
     if not item or not item.id then
         warn("[ContextMenu] Invalid item provided to show()")
         return
     end
     
-    -- Don't log every context menu show (too verbose)
-    
+    -- Ensure screenGui exists
     if not self.screenGui then
-        warn("[ContextMenu] ERROR: screenGui is nil!")
-        return
+        warn("[ContextMenu] ERROR: screenGui is nil! Creating one...")
+        local player = Players.LocalPlayer
+        local playerGui = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
+        local gui = Instance.new("ScreenGui")
+        gui.Name = "ContextMenuScreen"
+        gui.IgnoreGuiInset = true
+        gui.DisplayOrder = 9999
+        gui.ResetOnSpawn = false
+        gui.Enabled = true
+        gui.Parent = playerGui
+        self.screenGui = gui
+        print("[ContextMenu] Created new screenGui")
+    end
+    
+    -- Ensure screenGui is enabled
+    if not self.screenGui.Enabled then
+        self.screenGui.Enabled = true
+    end
+    
+    -- Ensure screenGui has a parent
+    if not self.screenGui.Parent then
+        local player = Players.LocalPlayer
+        local playerGui = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui")
+        self.screenGui.Parent = playerGui
     end
     
     -- Create menu frame if it doesn't exist
     if not self.menuFrame then
+        print("[ContextMenu] Creating menu frame...")
         self:createMenu()
     end
     
@@ -163,11 +217,18 @@ function ContextMenu:show(item, mousePos)
         return
     end
     
+    -- Ensure menuFrame has a parent
+    if not self.menuFrame.Parent then
+        self.menuFrame.Parent = self.screenGui
+        print("[ContextMenu] Re-parented menuFrame to screenGui")
+    end
+    
     self.currentItem = item
     self.isOpen = true
     
     -- Get menu items
     local menuItems = self:createMenuItems()
+    print("[ContextMenu] Created", #menuItems, "menu items")
     
     if #menuItems == 0 then
         warn("[ContextMenu] No menu items to show!")
@@ -180,13 +241,14 @@ function ContextMenu:show(item, mousePos)
     -- Calculate menu height
     local menuHeight = (#menuItems * MENU_ITEM_HEIGHT) + (PADDING * 2)
     self.menuFrame.Size = UDim2.new(0, MENU_WIDTH, 0, menuHeight)
+    print("[ContextMenu] Menu size:", MENU_WIDTH, "x", menuHeight)
     
     -- Handle mouse position (can be Vector2 or have .X/.Y properties)
     local x, y
     if typeof(mousePos) == "Vector2" then
         x = mousePos.X
         y = mousePos.Y
-    elseif mousePos.X and mousePos.Y then
+    elseif mousePos and mousePos.X and mousePos.Y then
         x = mousePos.X
         y = mousePos.Y
     else
@@ -196,26 +258,70 @@ function ContextMenu:show(item, mousePos)
         y = mouse.Y
     end
     
+    print("[ContextMenu] Mouse position:", x, y)
+    
     -- Clamp position to screen bounds
     local screenSize = self.screenGui.AbsoluteSize
-    x = math.max(0, math.min(x, screenSize.X - MENU_WIDTH))
-    y = math.max(0, math.min(y, screenSize.Y - menuHeight))
+    print("[ContextMenu] Screen size:", screenSize.X, screenSize.Y)
+    x = math.max(10, math.min(x, screenSize.X - MENU_WIDTH - 10))
+    y = math.max(10, math.min(y, screenSize.Y - menuHeight - 10))
     
     -- Position at mouse
     self.menuFrame.Position = UDim2.new(0, x, 0, y)
+    print("[ContextMenu] Menu positioned at:", x, y)
     
-    -- Make visible
+    -- Make sure everything is visible
     self.menuFrame.Visible = true
+    self.menuFrame.BackgroundTransparency = 0
     
-    -- Close on escape or click elsewhere
+    -- Ensure high ZIndex
+    self.menuFrame.ZIndex = 10000
+    
+    -- Force screenGui to be on top
+    self.screenGui.DisplayOrder = 9999
+    self.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    print("[ContextMenu] Menu visible:", self.menuFrame.Visible)
+    print("[ContextMenu] Menu parent:", self.menuFrame.Parent)
+    print("[ContextMenu] Menu ZIndex:", self.menuFrame.ZIndex)
+    print("[ContextMenu] ScreenGui enabled:", self.screenGui.Enabled)
+    print("[ContextMenu] ScreenGui DisplayOrder:", self.screenGui.DisplayOrder)
+    print("[ContextMenu] ScreenGui parent:", self.screenGui.Parent)
+    
+    -- Print menu frame size for debugging
+    print("[ContextMenu] Menu size:", self.menuFrame.Size)
+    print("[ContextMenu] Menu position:", self.menuFrame.Position)
+    print("[ContextMenu] Menu AbsoluteSize:", self.menuFrame.AbsoluteSize)
+    print("[ContextMenu] Menu AbsolutePosition:", self.menuFrame.AbsolutePosition)
+    
+    -- Close on escape or click elsewhere  
     if self.closeConnection then
         self.closeConnection:Disconnect()
     end
     
-    self.closeConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.Escape then
-            self:close()
-        end
+    -- Use task.spawn to avoid blocking the show() function
+    task.spawn(function()
+        task.wait(0.1)  -- Small delay to prevent immediate closing
+        
+        self.closeConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.Escape then
+                -- Check if the click was on the menu itself
+                if input.UserInputType == Enum.UserInputType.MouseButton1 and self.menuFrame then
+                    local mouse = Players.LocalPlayer:GetMouse()
+                    local mousePos = Vector2.new(mouse.X, mouse.Y)
+                    local menuPos = self.menuFrame.AbsolutePosition
+                    local menuSize = self.menuFrame.AbsoluteSize
+                    
+                    -- Don't close if clicking on the menu
+                    if mousePos.X >= menuPos.X and mousePos.X <= menuPos.X + menuSize.X and
+                       mousePos.Y >= menuPos.Y and mousePos.Y <= menuPos.Y + menuSize.Y then
+                        return
+                    end
+                end
+                
+                self:close()
+            end
+        end)
     end)
     
     print("[ContextMenu] ===== SHOW COMPLETE =====")
@@ -224,11 +330,15 @@ end
 --- Create the menu frame UI
 function ContextMenu:createMenu()
     print("[ContextMenu] ===== CREATE MENU CALLED =====")
-    print("[ContextMenu] screenGui:", self.screenGui)
     
     if not self.screenGui then
         warn("[ContextMenu] ERROR: Cannot create menu - screenGui is nil")
         return
+    end
+    
+    -- Destroy old menu if it exists
+    if self.menuFrame then
+        self.menuFrame:Destroy()
     end
     
     print("[ContextMenu] Creating Frame...")
@@ -236,34 +346,32 @@ function ContextMenu:createMenu()
     self.menuFrame.Name = "ContextMenuFrame"
     self.menuFrame.BackgroundColor3 = CREAM
     self.menuFrame.BorderSizePixel = 0
-    self.menuFrame.ZIndex = 51
-    print("[ContextMenu] Frame created, setting parent to screenGui...")
+    self.menuFrame.ZIndex = 10000  -- Very high ZIndex to ensure it's on top
+    self.menuFrame.Visible = false  -- Start hidden, will be shown in show()
+    self.menuFrame.Size = UDim2.new(0, MENU_WIDTH, 0, 100)  -- Initial size
     
+    -- Set parent immediately
     self.menuFrame.Parent = self.screenGui
-    print("[ContextMenu] Frame parent set")
-    print("[ContextMenu] Frame.Parent is screenGui:", self.menuFrame.Parent == self.screenGui)
+    print("[ContextMenu] Frame parent set to:", self.screenGui.Name)
     
     -- Add rounded corners
     local corner = Instance.new("UICorner")
     corner.CornerRadius = CORNER_RADIUS
     corner.Parent = self.menuFrame
-    print("[ContextMenu] UICorner added")
     
     -- Add border
     local stroke = Instance.new("UIStroke")
     stroke.Color = BROWN
     stroke.Thickness = 2
     stroke.Parent = self.menuFrame
-    print("[ContextMenu] UIStroke added")
     
     -- Add padding
     local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, PADDING / 2)
-    padding.PaddingRight = UDim.new(0, PADDING / 2)
-    padding.PaddingTop = UDim.new(0, PADDING / 2)
-    padding.PaddingBottom = UDim.new(0, PADDING / 2)
+    padding.PaddingLeft = UDim.new(0, PADDING)
+    padding.PaddingRight = UDim.new(0, PADDING)
+    padding.PaddingTop = UDim.new(0, PADDING)
+    padding.PaddingBottom = UDim.new(0, PADDING)
     padding.Parent = self.menuFrame
-    print("[ContextMenu] UIPadding added")
     
     -- Add list layout
     local listLayout = Instance.new("UIListLayout")
@@ -273,7 +381,6 @@ function ContextMenu:createMenu()
     listLayout.Padding = UDim.new(0, 4)
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Parent = self.menuFrame
-    print("[ContextMenu] UIListLayout added")
     
     print("[ContextMenu] ===== CREATE MENU COMPLETE =====")
 end
@@ -298,7 +405,7 @@ function ContextMenu:createMenuItem(itemData, layoutOrder)
     local button = Instance.new("TextButton")
     button.Name = "MenuItem"
     button.Text = itemData.label
-    button.Size = UDim2.new(1, 0, 0, MENU_ITEM_HEIGHT)
+    button.Size = UDim2.new(1, -PADDING * 2, 0, MENU_ITEM_HEIGHT)
     button.BackgroundColor3 = itemData.color
     button.TextColor3 = DARK
     button.TextSize = 14
@@ -306,7 +413,9 @@ function ContextMenu:createMenuItem(itemData, layoutOrder)
     button.BorderSizePixel = 0
     button.AutoButtonColor = false
     button.LayoutOrder = layoutOrder
-    button.ZIndex = 52
+    button.ZIndex = 10001  -- Higher than menu frame
+    button.BackgroundTransparency = 0
+    button.TextTruncate = Enum.TextTruncate.AtEnd
     
     -- Add rounded corners to button
     local corner = Instance.new("UICorner")
@@ -326,8 +435,17 @@ function ContextMenu:createMenuItem(itemData, layoutOrder)
     
     -- Click action
     button.MouseButton1Click:Connect(function()
-        itemData.action(self.currentItem)
-        self:close()
+        print("[ContextMenu] 🖱️ BUTTON CLICKED:", itemData.label)
+        print("[ContextMenu] Current item:", self.currentItem and self.currentItem.id or "nil")
+        print("[ContextMenu] Action function:", type(itemData.action))
+        
+        if itemData.action and self.currentItem then
+            pcall(function()
+                itemData.action(self.currentItem)
+            end)
+        else
+            warn("[ContextMenu] ❌ No action or current item!")
+        end
     end)
     
     button.Parent = self.menuFrame
@@ -335,7 +453,12 @@ end
 
 --- Drop item to world
 function ContextMenu:dropItem(item)
-    print("[ContextMenu] Dropping item:", item.id)
+    print("[ContextMenu] 🔥 DROP ITEM CALLED:", item.id)
+    
+    if not self.inventoryRemote then
+        warn("[ContextMenu] ❌ No inventoryRemote available!")
+        return
+    end
     
     local player = Players.LocalPlayer
     local character = player.Character
@@ -351,15 +474,14 @@ function ContextMenu:dropItem(item)
         return
     end
     
-    local camera = workspace.CurrentCamera
-    if not camera then
-        warn("[ContextMenu] No camera found")
-        return
-    end
-    
     -- Drop 3 studs in front of player
     local forwardDirection = humanoidRootPart.CFrame.LookVector
     local worldPosition = humanoidRootPart.Position + forwardDirection * 3
+    
+    print("[ContextMenu] Calling inventoryRemote:FireServer with DropItem...")
+    print("[ContextMenu] ItemId:", item.id)
+    print("[ContextMenu] Count:", item.count or 1)
+    print("[ContextMenu] Position:", worldPosition)
     
     -- Fire drop event to server
     self.inventoryRemote:FireServer("DropItem", {
@@ -369,11 +491,21 @@ function ContextMenu:dropItem(item)
     })
     
     print("[ContextMenu] ✅ Fired DropItem to server")
+    self:close()  -- Close menu after action
 end
 
 --- Delete item from inventory
 function ContextMenu:deleteItem(item)
-    print("[ContextMenu] Deleting item:", item.id)
+    print("[ContextMenu] 🗑️ DELETE ITEM CALLED:", item.id)
+    
+    if not self.inventoryRemote then
+        warn("[ContextMenu] ❌ No inventoryRemote available!")
+        return
+    end
+    
+    print("[ContextMenu] Calling inventoryRemote:FireServer with DeleteItem...")
+    print("[ContextMenu] ItemId:", item.id)
+    print("[ContextMenu] Count:", item.count or 1)
     
     -- Fire delete event to server
     self.inventoryRemote:FireServer("DeleteItem", {
@@ -382,19 +514,28 @@ function ContextMenu:deleteItem(item)
     })
     
     print("[ContextMenu] ✅ Fired DeleteItem to server")
+    self:close()  -- Close menu after action
 end
 
 --- Equip wearable item
 function ContextMenu:equipItem(item)
-    print("[ContextMenu] Equipping item:", item.id)
+    print("[ContextMenu] ⚒️ EQUIP ITEM CALLED:", item.id)
+    
+    if not self.inventoryRemote then
+        warn("[ContextMenu] ❌ No inventoryRemote available!")
+        return
+    end
+    
+    print("[ContextMenu] Calling inventoryRemote:FireServer with EquipItem...")
+    print("[ContextMenu] ItemId:", item.id)
     
     -- Fire equip event to server
-    -- This will be handled by the character clothing system
     self.inventoryRemote:FireServer("EquipItem", {
         itemId = item.id,
     })
     
     print("[ContextMenu] ✅ Fired EquipItem to server")
+    self:close()  -- Close menu after action
 end
 
 --- Close menu

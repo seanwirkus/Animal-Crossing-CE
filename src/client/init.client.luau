@@ -32,6 +32,19 @@ print("[Client] ✅ RecipesInventoryGUI module loaded")
 local DebugManager = require(script.Modules.DebugManager)
 print("[Client] ✅ DebugManager module loaded")
 
+-- Initialize HUD system
+local _HUD = nil
+local HUDSuccess, HUDErr = pcall(function()
+	local HUDModule = require(script.Modules.HUD)
+	_HUD = HUDModule.new()
+end)
+if not HUDSuccess then
+	warn("[Client] ❌ Failed to initialize HUD:", tostring(HUDErr))
+	warn(debug.traceback())
+else
+	print("[Client] ✅ HUD system initialized")
+end
+
 -- ACNH-fx Sky setup (replaces old lighting system)
 local ACNHFXSuccess, ACNHFXErr = pcall(function()
 	local ACNHFX = require(script.Modules.ACNHFX)
@@ -268,6 +281,29 @@ keybindManager:registerBind("CRAFTING", function(inputState)
 		print("[Keybind] C key pressed - toggling Crafting Menu...")
 		guiManager:toggleGUI("crafting")
 		print("[Keybind] ✅ Crafting Menu toggled")
+	end
+end)
+
+-- Register DEBUG DELETE keybind (X key) to test inventory deletion
+keybindManager:registerBind("DEBUG_DELETE", function(inputState)
+	if inputState == "began" then
+		print("[Debug] X key pressed - deleting first item...")
+		local inventoryClient = _G.InventoryClient
+		if inventoryClient and inventoryClient.inventoryRemote then
+			-- Delete the first item we find
+			for slotIndex, state in pairs(inventoryClient.slotState) do
+				if state and state.itemId then
+					print("[Debug] Deleting item:", state.itemId, "from slot", slotIndex)
+					inventoryClient.inventoryRemote:FireServer("DeleteItem", {
+						itemId = state.itemId,
+						count = 1,
+					})
+					break
+				end
+			end
+		else
+			warn("[Debug] No inventory client or remote available")
+		end
 	end
 end)
 

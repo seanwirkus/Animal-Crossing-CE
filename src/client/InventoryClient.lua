@@ -215,10 +215,14 @@ function InventoryClient:updateSlotAppearance(slot, state)
 end
 
 function InventoryClient:ensureSlot(slotIndex)
+    -- Check if slot exists and is valid
     if self.slotsByIndex[slotIndex] and self.slotsByIndex[slotIndex].Parent then
+        print("[InventoryClient] 🔄 Slot", slotIndex, "already exists, returning existing slot")
         return self.slotsByIndex[slotIndex]
     end
 
+    print("[InventoryClient] 🆕 Creating NEW slot", slotIndex)
+    
     local clone = self.slotTemplate:Clone()
     clone.Name = "Slot_" .. slotIndex
     clone.Visible = true
@@ -243,16 +247,21 @@ function InventoryClient:ensureSlot(slotIndex)
         nameLabel.Parent = clone
     end
 
+    -- Configure interactions for this NEW slot
     self:configureSlotInteractions(clone, slotIndex)
+    
+    print("[InventoryClient] ✅ Slot", slotIndex, "created with interactions configured")
 
     return clone
 end
 
 function InventoryClient:configureSlotInteractions(slot, slotIndex)
+    print("[InventoryClient] ⚙️ Configuring interactions for slot", slotIndex)
     slot:SetAttribute("SlotIndex", slotIndex)
 
     local clickRegion = slot:FindFirstChild("ClickRegion")
     if not clickRegion then
+        print("[InventoryClient] Creating NEW ClickRegion for slot", slotIndex)
         clickRegion = Instance.new("TextButton")
         clickRegion.Name = "ClickRegion"
         clickRegion.Text = ""
@@ -261,31 +270,66 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         clickRegion.Size = UDim2.new(1, 0, 1, 0)
         clickRegion.ZIndex = slot.ZIndex + 1
         clickRegion.Parent = slot
+    else
+        print("[InventoryClient] ClickRegion already exists for slot", slotIndex)
     end
-
+    
+    -- Always update Active/Selectable state based on current slot state
+    local hasItem = self.slotState[slotIndex] ~= nil
+    clickRegion.Active = true  -- Always active so empty slots can receive drops
+    clickRegion.Selectable = hasItem  -- Only selectable if it has an item (prevents cursor)
+    
+    print("[InventoryClient] 🔍 ClickRegion properties - Active:", clickRegion.Active, "Selectable:", clickRegion.Selectable, "ZIndex:", clickRegion.ZIndex)
+    
+    -- Disconnect old connections if they exist (stored in tags)
+    local oldConnections = clickRegion:GetAttribute("_connectionIds") or {}
+    if type(oldConnections) == "table" and #oldConnections > 0 then
+        print("[InventoryClient] ♻️ Found", #oldConnections, "old connections, disconnecting...")
+        -- Clear the old connections flag
+        clickRegion:SetAttribute("_connectionsSetup", nil)
+    end
+    
+    -- Only create connections once per slot (check for attribute to avoid duplicates)
+    if clickRegion:GetAttribute("_connectionsSetup") then
+        print("[InventoryClient] ⚠️ Connections already setup for slot", slotIndex, "- properties updated, SKIPPING reconnect")
+        return
+    end
+    
+    print("[InventoryClient] 🔗 Setting up NEW connections for slot", slotIndex)
+    clickRegion:SetAttribute("_connectionsSetup", true)
+    
     -- Click-to-pick, click-to-drop system
-    clickRegion.MouseButton1Click:Connect(function()
+    local clickConnection = clickRegion.MouseButton1Click:Connect(function()
+        print("[InventoryClient] 🖱️ SLOT CLICKED:", slotIndex)
+        print("[InventoryClient] Current drag state:", self.drag and "DRAGGING" or "NOT DRAGGING")
+        print("[InventoryClient] Slot has item:", self.slotState[slotIndex] and self.slotState[slotIndex].itemId or "NO ITEM")
+        
         if not self.drag then
             -- Not dragging: pick up item from this slot
             if self.slotState[slotIndex] then
+                print("[InventoryClient] ✅ Starting drag from slot", slotIndex)
                 self:beginDrag(slotIndex)
+            else
+                print("[InventoryClient] ❌ No item in slot", slotIndex, "to drag")
             end
         else
             -- Already dragging: drop item in this slot
+            print("[InventoryClient] Already dragging from slot", self.drag.originSlot, "to slot", slotIndex)
             if self.drag.originSlot == slotIndex then
                 -- Clicked same slot - cancel drag (put item back)
+                print("[InventoryClient] ✅ Canceling drag (same slot)")
                 self:finishDrag(nil, true, nil)
             else
                 -- Clicked different slot - move item there
+                print("[InventoryClient] ✅ Moving item to slot", slotIndex)
                 self:finishDrag(nil, false, slotIndex)
             end
         end
     end)
     
-    -- Track mouse over slot for right-click detection
-    local isMouseOver = false
-    clickRegion.MouseEnter:Connect(function()
-        isMouseOver = true
+    -- Track mouse over slot for hover effects
+    local enterConnection = clickRegion.MouseEnter:Connect(function()
+        print("[InventoryClient] 🖱️ Mouse ENTERED slot", slotIndex)
         local state = self.slotState[slotIndex]
         local nameLabel = slot:FindFirstChild("ItemName")
         if nameLabel and state and self.displayItems[state.itemId] then
@@ -295,8 +339,8 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         slot.BackgroundColor3 = Color3.fromHex("#04AFA6")
     end)
 
-    clickRegion.MouseLeave:Connect(function()
-        isMouseOver = false
+    local leaveConnection = clickRegion.MouseLeave:Connect(function()
+        print("[InventoryClient] 🖱️ Mouse LEFT slot", slotIndex)
         local nameLabel = slot:FindFirstChild("ItemName")
         if nameLabel then
             nameLabel.Visible = false
@@ -304,28 +348,76 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     end)
     
-    -- Right-click detection using InputBegan
+    -- Track all connections for cleanup
+    self:trackConnection(clickConnection)
+    self:trackConnection(enterConnection)
+    self:trackConnection(leaveConnection)
+    
+    print("[InventoryClient] ✅ Connections setup complete for slot", slotIndex, "- Total connections:", #self.connections)
+end
+
+-- Add global right-click handler instead of per-slot handlers
+function InventoryClient:setupGlobalRightClick()
     local UserInputService = game:GetService("UserInputService")
-    local rightClickConnection
-    rightClickConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed or not isMouseOver then return end
+    
+    local globalRightClickConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
         if input.UserInputType == Enum.UserInputType.MouseButton2 then
-            print("[InventoryClient] Right-click detected on slot", slotIndex)
-            local state = self.slotState[slotIndex]
-            -- Defensive check: slot must have a valid itemId (and not false or empty string)
+            -- Check if inventory is visible
+            if not self.visible or not self.inventoryFrame or not self.inventoryFrame.Visible then
+                return
+            end
+            
+            -- Get mouse position and find which slot it's over
+            local mouse = Players.LocalPlayer:GetMouse()
+            local mousePos = Vector2.new(mouse.X, mouse.Y)
+            
+            -- Find slot under mouse
+            local targetSlot = nil
+            local targetSlotIndex = nil
+            
+            for slotIndex, slot in pairs(self.slotsByIndex) do
+                if slot and slot.Visible and slot.AbsoluteSize.X > 0 and slot.AbsoluteSize.Y > 0 then
+                    local slotPos = slot.AbsolutePosition
+                    local slotSize = slot.AbsoluteSize
+                    
+                    if mousePos.X >= slotPos.X and mousePos.X <= slotPos.X + slotSize.X and
+                       mousePos.Y >= slotPos.Y and mousePos.Y <= slotPos.Y + slotSize.Y then
+                        targetSlot = slot
+                        targetSlotIndex = slotIndex
+                        break
+                    end
+                end
+            end
+            
+            if not targetSlot or not targetSlotIndex then
+                return
+            end
+            
+            print("[InventoryClient] 🔴 RIGHT-CLICK DETECTED on slot", targetSlotIndex)
+            local state = self.slotState[targetSlotIndex]
+            
+            -- Defensive check: slot must have a valid itemId
             if not state or not state.itemId or state.itemId == "" or state.itemId == false then
                 print("[InventoryClient] No valid item in this slot; skipping context menu.")
                 return
             end
+            
             -- Confirm not a dummy or empty template slot
             if tostring(state.itemId):lower():match("empty") or tostring(state.itemId):lower():match("template") then
                 print("[InventoryClient] Slot is a template or empty placeholder; skipping context menu.")
                 return
             end
+            
+            print("[InventoryClient] ✅ Valid item found:", state.itemId)
+            
             -- Show context menu if available
             if self.contextMenu then
+                print("[InventoryClient] ✅ Context menu exists, showing...")
                 pcall(function()
-                    local mouse = Players.LocalPlayer:GetMouse()
+                    print("[InventoryClient] Mouse position:", mouse.X, mouse.Y)
+                    
                     -- Create item data object for context menu
                     local itemData = {
                         id = state.itemId,
@@ -339,16 +431,17 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
                         itemData.name = definition.name
                         itemData.category = definition.category
                     end
-                    print("[InventoryClient] Showing context menu with itemData:", itemData.id, itemData.name)
-                    self.contextMenu:show(itemData, Vector2.new(mouse.X, mouse.Y))
+                    print("[InventoryClient] Calling contextMenu:show() with:", itemData.id, itemData.name)
+                    self.contextMenu:show(itemData, mousePos)
+                    print("[InventoryClient] ✅ Context menu show() call completed")
                 end)
             else
-                print("[InventoryClient] No context menu available")
+                warn("[InventoryClient] ❌ NO CONTEXT MENU AVAILABLE!")
             end
         end
     end)
     
-    self:trackConnection(rightClickConnection)
+    self:trackConnection(globalRightClickConnection)
 end
 
 function InventoryClient:refreshSlot(slotIndex)
@@ -361,12 +454,12 @@ function InventoryClient:refreshSlot(slotIndex)
     slot.LayoutOrder = slotIndex
     slot.Visible = slotIndex <= self.maxSlots
     
-    -- Disable interactions for empty slots
+    -- Update Selectable state for empty slots (prevents cursor but allows drops)
     local hasItem = self.slotState[slotIndex] ~= nil
     local clickRegion = slot:FindFirstChild("ClickRegion")
     if clickRegion then
-        clickRegion.Active = hasItem  -- Only allow clicks on slots with items
-        clickRegion.Selectable = hasItem
+        clickRegion.Active = true  -- Always active so empty slots can receive drops
+        clickRegion.Selectable = hasItem  -- Only selectable if it has an item (prevents cursor)
     end
     
     self:updateSlotAppearance(slot, self.slotState[slotIndex])
@@ -454,12 +547,20 @@ function InventoryClient:updateGhostPosition()
 end
 
 function InventoryClient:beginDrag(slotIndex)
+    print("[InventoryClient] 🚀 BEGIN DRAG called for slot", slotIndex)
+    
     if self.drag then
+        print("[InventoryClient] ⚠️ Already dragging, canceling previous drag")
         self:finishDrag(nil, true) -- Cancel previous drag
     end
 
     local state = self.slotState[slotIndex]
-    if not state then return end
+    if not state then 
+        warn("[InventoryClient] ❌ No state found for slot", slotIndex)
+        return 
+    end
+    
+    print("[InventoryClient] ✅ Dragging item:", state.itemId, "x" .. state.count)
 
     self.slotState[slotIndex] = nil
     self:refreshSlot(slotIndex)
@@ -468,8 +569,10 @@ function InventoryClient:beginDrag(slotIndex)
     
     -- Activate screen clicker for world drops
     if self.screenClicker then
+        print("[InventoryClient] 🎯 Enabling screenClicker for world drops")
         self.screenClicker.Active = true
-        self.screenClicker.ZIndex = 50  -- Behind slots but can catch clicks outside
+        self.screenClicker.Visible = true
+        self.screenClicker.ZIndex = -1  -- Still behind slots, just catches outside clicks
     end
 
     self.drag = {
@@ -482,6 +585,7 @@ function InventoryClient:beginDrag(slotIndex)
     }
 
     self:updateGhostPosition()
+    print("[InventoryClient] ✅ Drag initialized successfully")
 end
 
 function InventoryClient:getSlotIndexFromPoint(point)
@@ -558,8 +662,10 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
     
     -- Deactivate screen clicker
     if self.screenClicker then
+        print("[InventoryClient] 🔒 Disabling screenClicker after drag")
         self.screenClicker.Active = false
-        self.screenClicker.ZIndex = 1
+        self.screenClicker.Visible = false
+        self.screenClicker.ZIndex = -1
     end
     
     self.drag = nil
@@ -623,7 +729,6 @@ function InventoryClient:populateFromServer(payload)
     -- Don't cancel drag during sync - just update the state
     -- The drag will complete naturally when user releases mouse
     local wasDragging = self.drag ~= nil
-    local dragOriginSlot = wasDragging and self.drag.originSlot or nil
 
     local maxSlots = (payload and payload.maxSlots) or self.maxSlots or 10
     local inventoryLevel = (payload and payload.inventoryLevel) or 1
@@ -635,35 +740,52 @@ function InventoryClient:populateFromServer(payload)
     -- Create a fresh state table
     local newState = {}
     local itemCountChanged = false
+    
+    -- Track which slots actually changed to minimize refreshes
+    local slotsToRefresh = {}
+    
     for i = 1, self.maxSlots do
         local slotData = incomingSlots[tostring(i)] or incomingSlots[i]
-        if slotData and slotData.itemId and slotData.count and slotData.count > 0 then
+        -- Fix: Check for itemId being empty string (server sends "" for empty slots)
+        if slotData and slotData.itemId and slotData.itemId ~= "" and slotData.count and slotData.count > 0 then
             newState[i] = {
                 itemId = slotData.itemId,
                 count = slotData.count,
             }
             print(string.format("[POPULATE DEBUG] Slot %d: %s x%d", i, slotData.itemId, slotData.count))
             
-            -- Check if item count changed in this slot
+            -- Check if item changed in this slot
             local oldSlot = self.slotState[i]
             if not oldSlot or oldSlot.itemId ~= slotData.itemId or oldSlot.count ~= slotData.count then
                 itemCountChanged = true
+                slotsToRefresh[i] = true
             end
         else
-            -- Slot became empty - check if it had an item before
+            -- Slot is empty - check if it had an item before
             if self.slotState[i] then
                 itemCountChanged = true
+                slotsToRefresh[i] = true
             end
         end
     end
     
     self.slotState = newState
 
-    -- Refresh all visible slots (refreshSlot handles LayoutOrder)
-    -- Refresh all slots even during drag - the drag ghost handles visual feedback
+    -- Refresh ALL slots to ensure proper state (drag-and-drop needs this)
     for i = 1, self.maxSlots do
         self:refreshSlot(i)
     end
+    
+    -- If no slots changed but maxSlots changed, refresh visibility
+    if not next(slotsToRefresh) and (not self._lastMaxSlots or self._lastMaxSlots ~= maxSlots) then
+        for i = 1, math.max(maxSlots, self._lastMaxSlots or 0) do
+            local slot = self.slotsByIndex[i]
+            if slot then
+                slot.Visible = i <= maxSlots
+            end
+        end
+    end
+    self._lastMaxSlots = maxSlots
 
     -- Hide slots that are no longer in use
     for index, slot in pairs(self.slotsByIndex) do
@@ -673,17 +795,18 @@ function InventoryClient:populateFromServer(payload)
     end
     
     -- Mark that initial load is done after first population (before sound check)
-    if not self._isInitialLoad then
+    local wasInitialLoad = not self._isInitialLoad
+    if wasInitialLoad then
         self._isInitialLoad = true
     end
     
     -- Play sound when items change (not during initial load or drag)
     print("[SOUND DEBUG] itemCountChanged:", itemCountChanged, "wasDragging:", wasDragging, "_isInitialLoad:", self._isInitialLoad)
-    if itemCountChanged and not wasDragging and self._isInitialLoad then
+    if itemCountChanged and not wasDragging and not wasInitialLoad then
         print("[SOUND DEBUG] ✅ Playing inventory sound!")
         playInventorySound()
     else
-        print("[SOUND DEBUG] ❌ Not playing sound - itemCountChanged:", itemCountChanged, "wasDragging:", wasDragging, "_isInitialLoad:", self._isInitialLoad)
+        print("[SOUND DEBUG] ❌ Not playing sound - itemCountChanged:", itemCountChanged, "wasDragging:", wasDragging, "wasInitialLoad:", wasInitialLoad)
     end
     
     print("[POPULATE DEBUG] ✅ Population complete. Level", inventoryLevel, "with", maxSlots, "slots refreshed.", wasDragging and "(drag in progress)" or "")
@@ -712,11 +835,13 @@ function InventoryClient:setupRemoteHandling()
         screenClicker.Position = UDim2.new(0, 0, 0, 0)
         screenClicker.BackgroundTransparency = 1
         screenClicker.Text = ""
-        screenClicker.ZIndex = 50  -- Behind inventory slots (which are typically ZIndex 100+)
+        screenClicker.ZIndex = -1  -- BELOW everything so it doesn't block clicks
         screenClicker.Active = false  -- Only active when dragging
-        screenClicker.Visible = true  -- Always visible but inactive when not dragging
+        screenClicker.Visible = false  -- Hidden when not dragging
         screenClicker.Parent = self.inventoryGui
         self.screenClicker = screenClicker
+        
+        print("[InventoryClient] ✅ ScreenClicker created - ZIndex:", screenClicker.ZIndex, "Active:", screenClicker.Active, "Visible:", screenClicker.Visible)
         
         screenClicker.MouseButton1Click:Connect(function()
             if self.drag then
@@ -806,8 +931,8 @@ function InventoryClient:attachGui()
     self.inventoryFrame.Visible = false
     
     -- Attach context menu to inventory GUI
-    if self.contextMenu and not self.contextMenu.screenGui then
-        self.contextMenu.screenGui = self.inventoryGui
+    if self.contextMenu then
+        self.contextMenu:setScreenGui(self.inventoryGui)
     end
     
     print("[InventoryClient] ✅ After attachGui: inventoryGui.Enabled=" .. tostring(self.inventoryGui.Enabled) .. ", inventoryFrame.Visible=" .. tostring(self.inventoryFrame.Visible))
@@ -839,6 +964,9 @@ function InventoryClient:start()
 
     -- Request inventory even if GUI isn't attached yet
     self:requestInventory()
+    
+    -- Initialize global right-click handler
+    self:setupGlobalRightClick()
     
     -- Set up a retry mechanism to attach GUI when it becomes available
     task.spawn(function()
