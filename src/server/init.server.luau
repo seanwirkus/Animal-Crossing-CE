@@ -1249,6 +1249,41 @@ end)
 
 print("[Server] ✅ Inventory system loaded and ready!")
 
+-- Load NookPlane setup
+task.spawn(function()
+	task.wait(1) -- Wait a moment for workspace to load
+	print("[Server] 🔍 Attempting to load NookPlaneSetup...")
+	
+	-- Try to find NookPlaneSetup (it's in the same folder as init.server.luau)
+	local nookPlaneSetup = script.Parent:FindFirstChild("NookPlaneSetup")
+	if not nookPlaneSetup then
+		-- If not found, try requiring directly by name
+		local success, module = pcall(function()
+			return require(script.Parent:WaitForChild("NookPlaneSetup", 5))
+		end)
+		if success then
+			print("[Server] ✅ NookPlaneSetup loaded via WaitForChild")
+		else
+			warn("[Server] ❌ NookPlaneSetup not found:", module)
+			local children = {}
+			for _, child in pairs(script.Parent:GetChildren()) do
+				table.insert(children, child.Name)
+			end
+			warn("[Server] ℹ️ Available children:", table.concat(children, ", "))
+		end
+		return
+	end
+	
+	local success, err = pcall(function()
+		return require(nookPlaneSetup)
+	end)
+	if not success then
+		warn("[Server] ❌ Failed to load NookPlaneSetup:", err)
+	else
+		print("[Server] ✅ NookPlaneSetup loaded successfully")
+	end
+end)
+
 -- Debug item test event
 local testItemEvent = Instance.new("RemoteEvent")
 testItemEvent.Name = "TestItemEvent"

@@ -32,6 +32,12 @@ print("[Client] ✅ RecipesInventoryGUI module loaded")
 local DebugManager = require(script.Modules.DebugManager)
 print("[Client] ✅ DebugManager module loaded")
 
+local NookPlaneModule = require(script.Modules.NookPlane)
+print("[Client] ✅ NookPlane module loaded")
+
+local WaterEffectsModule = require(script.Modules.WaterEffects)
+print("[Client] ✅ WaterEffects module loaded")
+
 -- Initialize HUD system
 local _HUD = nil
 local HUDSuccess, HUDErr = pcall(function()
@@ -45,15 +51,16 @@ else
 	print("[Client] ✅ HUD system initialized")
 end
 
--- ACNH-fx Sky setup (replaces old lighting system)
-local ACNHFXSuccess, ACNHFXErr = pcall(function()
-	local ACNHFX = require(script.Modules.ACNHFX)
-	ACNHFX.setup()
-end)
-if not ACNHFXSuccess then
-	warn("[Client] ❌ Failed to apply ACNH-fx:", tostring(ACNHFXErr))
-	warn(debug.traceback())
-end
+-- ACNH-fx Sky setup DISABLED - user managing effects in Studio
+-- local ACNHFXSuccess, ACNHFXErr = pcall(function()
+-- 	local ACNHFX = require(script.Modules.ACNHFX)
+-- 	ACNHFX.setup()
+-- end)
+-- if not ACNHFXSuccess then
+-- 	warn("[Client] ❌ Failed to apply ACNH-fx:", tostring(ACNHFXErr))
+-- 	warn(debug.traceback())
+-- end
+print("[Client] ℹ️ ACNH-fx effects disabled - managing lighting/effects in Studio")
 
 -- Dialogue GUI for onboarding/debug dialogues
 print("[Client] 🔍 Attempting to load DialogueGUI...")
@@ -84,6 +91,28 @@ print("[Client] ✅ Responsive layout enabled")
 -- Initialize InventoryClient
 local inventoryClient = InventoryClient.init()
 print("[Client] ✅ InventoryClient initialized")
+
+-- Initialize NookPlane and spawn it
+local nookPlane = NookPlaneModule.new()
+print("[Client] ✅ NookPlane initialized")
+
+-- Wait for server to spawn the plane, then connect to it
+task.spawn(function()
+	-- Wait longer for server to create the plane
+	task.wait(5)
+	print("[Client] 🔍 Looking for NookPlane spawned by server...")
+	local success, result = pcall(function()
+		return nookPlane:_createOrFindPlane()
+	end)
+	if success and result then
+		print("[Client] ✅ Connected to NookPlane in world")
+	elseif success and not result then
+		warn("[Client] ⚠️ NookPlane not found - server may not have spawned it yet")
+		warn("[Client] ℹ️ Check if NookPlaneSetup.luau is running on the server")
+	else
+		warn("[Client] ❌ Failed to connect to plane:", result)
+	end
+end)
 
 -- Setup KeybindManager
 local keybindManager = KeybindManager.new()
@@ -307,6 +336,41 @@ keybindManager:registerBind("DEBUG_DELETE", function(inputState)
 	end
 end)
 
+-- Register PLANE_TOGGLE keybind (P key) to exit plane
+keybindManager:registerBind("PLANE_TOGGLE", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] P key pressed - exiting plane...")
+		if nookPlane:IsFlying() then
+			nookPlane:TurnOff()
+		end
+	end
+end)
+
+-- Register INVENTORY keybind to also handle plane entry/engine (E key)
+local originalInventoryHandler = KeybindManager.HANDLERS["INVENTORY"]
+keybindManager:registerBind("INVENTORY", function(inputState)
+	if inputState == "began" then
+		-- Priority 1: If in plane and flying, E toggles engine
+		if nookPlane and nookPlane:IsFlying() then
+			print("[Keybind] E key pressed in plane - turning off engine...")
+			nookPlane:TurnOff()
+			return
+		end
+		
+		-- Priority 2: If near plane and not flying, E enters plane and turns on engine
+		if nookPlane and not nookPlane:IsFlying() and nookPlane:_isPlayerNearPlane() then
+			print("[Keybind] E key pressed near plane - entering and starting engine...")
+			nookPlane:TryEnter()
+			return
+		end
+		
+		-- Priority 3: Normal inventory toggle (when not near plane)
+		if originalInventoryHandler then
+			originalInventoryHandler(inputState)
+		end
+	end
+end)
+
 -- Register START_ONBOARDING debug keybind (N key) - only if DialogueGUI loaded
 print("[Client] 🔍 Checking DialogueGUI registration - success:", dialogueGUISuccess, "type:", type(DialogueGUI))
 if dialogueGUISuccess and DialogueGUI then
@@ -327,14 +391,16 @@ if dialogueGUISuccess and DialogueGUI then
 				return
 			end
 			
-			-- Ordered onboarding intro sequence (adjust text as needed)
+			-- Simplified onboarding sequence: Tom Nook, Isabelle, Orville
 			local playerName = _Players.LocalPlayer.Name
 			local seq = {
 				{ villagerName = "Tom Nook", text = "Ah, " .. playerName .. "! Welcome, welcome! Yes, yes!" },
-				{ villagerName = "Tom Nook", text = "First, we'll choose an island layout. Take your time—there's no wrong choice." },
-				{ villagerName = "Tom Nook", text = "Next, we'll give your island a perfect name. Something charming!" },
-				{ villagerName = "Tom Nook", text = "Once that's settled, we'll prepare your flight and get everything ready." },
-				{ villagerName = "Isabelle", text = "Hello! I’m Isabelle. I’ll be here to help with announcements and island life once you arrive." },
+				{ villagerName = "Tom Nook", text = "Thanks for choosing the Deserted Island Getaway Package! We'll get you all set up." },
+				{ villagerName = "Tom Nook", text = "First, we'll choose an island layout. Take your time—there's no wrong choice, yes, yes!" },
+				{ villagerName = "Tom Nook", text = "Next, we'll give your island a perfect name. Something truly charming!" },
+				{ villagerName = "Orville", text = "Dodo Airlines! Orville here. We'll handle your flight arrangements. When you're ready, we fly!" },
+				{ villagerName = "Tom Nook", text = "Very good! We'll get everything ready. Please enjoy the short flight to your new home!" },
+				{ villagerName = "Isabelle", text = "Hello! I'm Isabelle. I'll be here to help with announcements and island life once you arrive." },
 			}
 			
 			-- Callback when sequence completes (after last dialogue)
@@ -412,6 +478,12 @@ _G.DebugManager = DebugManager
 _G.DebugInventoryGrid = debugInventoryGrid  -- Store for refresh hook
 _G.RecipesInventoryGUI = recipesInventoryGUI  -- Store for debugging
 _G.GUIManager = guiManager  -- Store for debugging
+
+-- Initialize Water Visual Effects (makes water look nice)
+local waterEffects = WaterEffectsModule.new()
+waterEffects:Start()
+print("[Client] ✅ Water visual effects started")
+
 print("[Client] ✅ All systems ready!")
 
 -- Hook into inventory sync to refresh debug inventory when level changes

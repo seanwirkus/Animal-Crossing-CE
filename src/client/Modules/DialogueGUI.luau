@@ -16,6 +16,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local InsertService = game:GetService("InsertService")
+local ContentProvider = game:GetService("ContentProvider")
 
 local DialogueGUI = {}
 DialogueGUI.__index = DialogueGUI
@@ -25,13 +26,87 @@ local DEFAULT_VILLAGER_IMAGE = "rbxassetid://6031075938"
 
 -- Villager image mappings (using 2D PNG images)
 local VILLAGER_IMAGES = {
-	["Tom Nook"] = "rbxassetid://133891691065737", -- Tom Nook headshot PNG
+	["Tom Nook"] = "rbxassetid://85815215355539", -- Default/fallback (will be replaced by animation)
 	["Isabelle"] = DEFAULT_VILLAGER_IMAGE, -- TODO: Add Isabelle PNG
 	["Timmy"] = DEFAULT_VILLAGER_IMAGE,
 	["Tommy"] = DEFAULT_VILLAGER_IMAGE,
 	["Blathers"] = DEFAULT_VILLAGER_IMAGE,
 	["Orville"] = DEFAULT_VILLAGER_IMAGE,
 }
+
+-- Tom Nook expression animation config - using individual images (384x384 each)
+-- Each expression is a separate image asset
+local TOM_NOOK_EXPRESSIONS = {
+	{image = "rbxassetid://84606882209641", name = "Eyes Wide Open"},      -- Expression 1: Tnook1.png
+	{image = "rbxassetid://86091070861563", name = "Eyes Half Way"},    -- Expression 2: Tnook2.png
+	{image = "rbxassetid://79375216005772", name = "Eyes Closed"},   -- Expression 3: Tnook3.png
+}
+local TOM_NOOK_ANIMATION_SPEED = 0.8 -- Seconds per expression (slower for smoother animation)
+local TOM_NOOK_BLINK_CHANCE = 0.15 -- 15% chance to blink (use eyes closed) instead of normal cycle
+local TOM_NOOK_IMAGE_LOAD_DELAY = 0.15 -- Wait time after setting image to ensure it loads
+
+--[[
+	DEBUG: Test Tom Nook sprite positions
+	Call this from console: _G.TestTomNookSprites()
+]]
+function DialogueGUI.TestTomNookSprites()
+	local player = Players.LocalPlayer
+	local playerGui = player:WaitForChild("PlayerGui")
+	local dialogueGui = playerGui:FindFirstChild("DialogueGUI")
+	if not dialogueGui then
+		warn("❌ DialogueGUI not found in PlayerGui")
+		return
+	end
+	
+	local dialogueFrame = dialogueGui:FindFirstChild("DialogueFrame")
+	if not dialogueFrame then
+		warn("❌ DialogueFrame not found")
+		return
+	end
+	
+	-- Find any VillagerCard
+	local card = dialogueFrame:FindFirstChild("VillagerCard") or dialogueFrame:FindFirstChildWhichIsA("Frame")
+	if not card then
+		warn("❌ No VillagerCard found")
+		return
+	end
+	
+	-- Find image
+	local villagerImage = card:FindFirstChild("VillagerImage")
+	if villagerImage and villagerImage:IsA("Frame") then
+		villagerImage = villagerImage:FindFirstChild("PortraitImage")
+	end
+	
+	if not villagerImage or not villagerImage:IsA("ImageLabel") then
+		warn("❌ VillagerImage not found")
+		return
+	end
+	
+	villagerImage.BackgroundTransparency = 1
+	villagerImage.ImageRectSize = Vector2.new(0, 0)
+	villagerImage.ImageRectOffset = Vector2.new(0, 0)
+	
+	print("\n🧪 TESTING TOM NOOK EXPRESSION IMAGES:")
+	print("Using individual images (384x384 each)")
+	print("---")
+	
+	-- Test each expression
+	for i, expr in ipairs(TOM_NOOK_EXPRESSIONS) do
+		print(string.format("Expression %d: %s", i, expr.name))
+		print(string.format("  Image: %s", expr.image))
+		
+		villagerImage.Image = expr.image
+		
+		print(string.format("  ✅ Set! Check visual - should show: %s", expr.name))
+		print("  Waiting 3 seconds before next expression...")
+		wait(3) -- Wait 3 seconds between each
+	end
+	
+	print("\n✅ Test complete! Expression 1 should be 'Eyes Wide Open' (Tnook1)")
+end
+
+-- Expose test function globally
+_G.TestTomNookSprites = DialogueGUI.TestTomNookSprites
 
 -- Character data cache (loaded from JSON)
 local CHARACTER_DATA = nil
@@ -128,6 +203,14 @@ function DialogueGUI.new()
 	-- Skip arrow button reference
 	self._skipButton = nil
 	
+	-- Tom Nook animation state
+	self._tomNookAnimationConnection = nil
+	self._tomNookCurrentExpression = 1
+
+	-- Current villager + image override guard
+	self._currentVillagerName = ""
+	self._villagerImageChangeConn = nil
+	
 	return self
 end
 
@@ -152,6 +235,67 @@ local function findDescendant(root: Instance, className: string, nameCandidates:
         end
     end
     return found
+end
+
+-- Find the image to use - works with existing Studio GUI structure
+-- Looks for: VillagerImage (Frame) -> PortraitImage (ImageLabel) OR VillagerImage (ImageLabel directly)
+function DialogueGUI:_findVillagerImage(card: Instance)
+	if not card then return nil end
+	
+	-- First try: VillagerImage Frame -> PortraitImage ImageLabel (your Studio setup)
+	local villagerImageFrame = card:FindFirstChild("VillagerImage")
+	if villagerImageFrame and villagerImageFrame:IsA("Frame") then
+		local portraitImage = villagerImageFrame:FindFirstChild("PortraitImage")
+		if portraitImage and portraitImage:IsA("ImageLabel") then
+			return portraitImage, villagerImageFrame
+		end
+	end
+	
+	-- Second try: VillagerImage is directly an ImageLabel
+	if villagerImageFrame and villagerImageFrame:IsA("ImageLabel") then
+		return villagerImageFrame, nil
+	end
+	
+	-- Third try: Search descendants for any ImageLabel named VillagerImage or PortraitImage
+	for _, descendant in ipairs(card:GetDescendants()) do
+		if descendant:IsA("ImageLabel") and (descendant.Name == "VillagerImage" or descendant.Name == "PortraitImage") then
+			return descendant, descendant.Parent:IsA("Frame") and descendant.Parent or nil
+		end
+	end
+	
+	return nil, nil
+end
+
+function DialogueGUI:_disconnectImageGuard()
+	if self._villagerImageChangeConn then
+		self._villagerImageChangeConn:Disconnect()
+		self._villagerImageChangeConn = nil
+	end
+end
+
+function DialogueGUI:_connectImageGuard(imageLabel: ImageLabel, targetAssetId: string)
+	self:_disconnectImageGuard()
+	if not imageLabel then return end
+	-- Store the current expression's image for guard
+	local currentExpr = TOM_NOOK_EXPRESSIONS[self._tomNookCurrentExpression or 1]
+	local expectedImage = currentExpr and currentExpr.image or targetAssetId
+	self._villagerImageChangeConn = imageLabel:GetPropertyChangedSignal("Image"):Connect(function()
+		-- Only guard while Tom Nook is the active villager
+		-- Allow any valid Tom Nook expression image, but prevent external changes
+		if self._currentVillagerName == "Tom Nook" then
+			local isValidTomNookImage = false
+			for _, expr in ipairs(TOM_NOOK_EXPRESSIONS) do
+				if imageLabel.Image == expr.image then
+					isValidTomNookImage = true
+					break
+				end
+			end
+			if not isValidTomNookImage then
+				print("[DialogueGUI] ⚠️ Image changed externally (", imageLabel.Image, ") → restoring:", expectedImage)
+				imageLabel.Image = expectedImage
+			end
+		end
+	end)
 end
 
 --[[
@@ -370,16 +514,57 @@ function DialogueGUI:CreateVillagerCard(villagerName, dialogueText, layoutOrder)
 		end
 		self._dialogueTextRef = dialogueTextLabel
 
-		-- Find and update villager image (direct child of VillagerCard)
-		local villagerImage = card:FindFirstChild("VillagerImage")
-		if villagerImage and villagerImage:IsA("ImageLabel") then
+		-- Track current villager name
+		self._currentVillagerName = villagerName
+
+		-- Find existing image in your Studio GUI (VillagerImage Frame -> PortraitImage OR VillagerImage ImageLabel)
+		local villagerImage, containerFrame = self:_findVillagerImage(card)
+		if villagerImage then
+			-- Make sure it's transparent and fits properly (don't break your layout)
+			villagerImage.BackgroundTransparency = 1
+			villagerImage.ImageTransparency = 0
+			pcall(function()
+				villagerImage.ScaleType = Enum.ScaleType.Fit
+			end)
+			
+			-- Make container frame transparent if it exists
+			if containerFrame then
+				containerFrame.BackgroundTransparency = 1
+			end
+			
 			local imageAssetId = VILLAGER_IMAGES[villagerName] or DEFAULT_VILLAGER_IMAGE
+			print("[DialogueGUI] 🔄 Setting image for", villagerName, "- Found:", villagerImage.Name, "Old asset:", villagerImage.Image, "→ New asset:", imageAssetId)
 			villagerImage.Image = imageAssetId
-			villagerImage.ImageTransparency = 0 -- Ensure visible
+
+			if villagerName == "Tom Nook" then
+				-- Use individual images - START with expression 1 (eyes wide open)
+				self._tomNookCurrentExpression = 1
+				local firstExpression = TOM_NOOK_EXPRESSIONS[1]
+				villagerImage.Image = firstExpression.image
+				-- Reset any sprite sheet cropping
+				villagerImage.ImageRectSize = Vector2.new(0, 0)
+				villagerImage.ImageRectOffset = Vector2.new(0, 0)
+				print("[DialogueGUI] 🎨 Initial Tom Nook image set to expression 1 (eyes wide open) - Image:", firstExpression.image)
+				self:_connectImageGuard(villagerImage, firstExpression.image)
+				-- Wait a moment before starting animation so first frame shows correctly
+				task.spawn(function()
+					task.wait(0.2)
+					if villagerImage and villagerImage.Parent and self._currentVillagerName == "Tom Nook" then
+						self:_startTomNookAnimation(villagerImage)
+					end
+				end)
+			else
+				-- Reset rect for other villagers (use full image) and stop any guards/animations
+				villagerImage.ImageRectSize = Vector2.new(0, 0)
+				villagerImage.ImageRectOffset = Vector2.new(0, 0)
+				self:_stopTomNookAnimation()
+				self:_disconnectImageGuard()
+			end
+
 			print("[DialogueGUI] ✅ Updated VillagerImage for:", villagerName, "→", imageAssetId)
 		else
-			warn("[DialogueGUI] ⚠️ VillagerImage ImageLabel not found in VillagerCard")
-			-- List children to help debug structure
+			warn("[DialogueGUI] ⚠️ VillagerImage not found in card. Make sure you have 'VillagerImage' Frame with 'PortraitImage' ImageLabel inside, or 'VillagerImage' ImageLabel directly in your Studio GUI.")
+			-- Debug: list what we found
 			local children = {}
 			for _, child in ipairs(card:GetChildren()) do
 				table.insert(children, child.Name .. " (" .. child.ClassName .. ")")
@@ -484,17 +669,79 @@ function DialogueGUI:AdvanceDialogue()
 		local entry = self._currentSequence[self._currentIndex]
 		local villagerName = entry.villagerName or entry[1]
 		local text = entry.text or entry[2]
+		-- Track current speaker
+		self._currentVillagerName = villagerName or ""
 		if self._nameLabelRef then
 			self._nameLabelRef.Text = villagerName or ""
 		end
 		if self._dialogueTextRef then
 			self._dialogueTextRef.Text = text or ""
 		end
-		-- Update image if ImageLabel exists
-		if self._villagerImageRef and self._villagerImageRef:IsA("ImageLabel") then
-			local imageAssetId = VILLAGER_IMAGES[villagerName] or DEFAULT_VILLAGER_IMAGE
-			self._villagerImageRef.Image = imageAssetId
-			print("[DialogueGUI] ✅ Updated image for:", villagerName)
+		-- Update image - refresh reference in case card was recreated
+		local card = self._singleCard
+		if card then
+			local villagerImage, containerFrame = self:_findVillagerImage(card)
+			if villagerImage then
+				self._villagerImageRef = villagerImage
+				villagerImage.BackgroundTransparency = 1
+				villagerImage.ImageTransparency = 0
+				pcall(function()
+					villagerImage.ScaleType = Enum.ScaleType.Fit
+				end)
+				if containerFrame then
+					containerFrame.BackgroundTransparency = 1
+				end
+				
+				local imageAssetId = VILLAGER_IMAGES[villagerName] or DEFAULT_VILLAGER_IMAGE
+				print("[DialogueGUI] 🔄 AdvanceDialogue - Setting image for", villagerName, "- Old asset:", villagerImage.Image, "→ New asset:", imageAssetId)
+				villagerImage.Image = imageAssetId
+				
+				-- Configure Tom Nook individual images if it's Tom Nook
+				if villagerName == "Tom Nook" then
+					print("[DialogueGUI] 🎨 AdvanceDialogue - Configuring Tom Nook images")
+					-- Reset to expression 1 (eyes wide open) first
+					self._tomNookCurrentExpression = 1
+					local firstExpression = TOM_NOOK_EXPRESSIONS[1]
+					villagerImage.Image = firstExpression.image
+					-- Reset any sprite sheet cropping
+					villagerImage.ImageRectSize = Vector2.new(0, 0)
+					villagerImage.ImageRectOffset = Vector2.new(0, 0)
+					print("[DialogueGUI] 🎨 Initial image set to expression 1 (eyes wide open) - Image:", firstExpression.image)
+					-- Guard against external overrides and start animation
+					self:_connectImageGuard(villagerImage, firstExpression.image)
+					-- Wait a moment before starting animation
+					task.spawn(function()
+						task.wait(0.2)
+						if villagerImage and villagerImage.Parent and self._currentVillagerName == "Tom Nook" then
+							self:_startTomNookAnimation(villagerImage)
+						end
+					end)
+				else
+					-- Reset rect for other villagers (use full image)
+					villagerImage.ImageRectSize = Vector2.new(0, 0)
+					villagerImage.ImageRectOffset = Vector2.new(0, 0)
+					-- Stop any existing Tom Nook animation
+					self:_stopTomNookAnimation()
+					self:_disconnectImageGuard()
+				end
+				
+				print("[DialogueGUI] ✅ Updated image for:", villagerName)
+			elseif self._villagerImageRef and self._villagerImageRef:IsA("ImageLabel") then
+				-- Fallback: use cached reference if refresh failed
+				local imageAssetId = VILLAGER_IMAGES[villagerName] or DEFAULT_VILLAGER_IMAGE
+				self._villagerImageRef.Image = imageAssetId
+				if villagerName == "Tom Nook" then
+					self._villagerImageRef.ImageRectSize = TOM_NOOK_EXPRESSIONS[1].size
+					self._villagerImageRef.ImageRectOffset = TOM_NOOK_EXPRESSIONS[1].offset
+					self:_connectImageGuard(self._villagerImageRef, imageAssetId)
+					self:_startTomNookAnimation(self._villagerImageRef)
+				else
+					self._villagerImageRef.ImageRectSize = Vector2.new(0, 0)
+					self._villagerImageRef.ImageRectOffset = Vector2.new(0, 0)
+					self:_stopTomNookAnimation()
+					self:_disconnectImageGuard()
+				end
+			end
 		end
 	else
 		-- Sequence complete - call onComplete callback (e.g., open island selection)
@@ -617,9 +864,140 @@ function DialogueGUI:Show()
 end
 
 --[[
+	Preload Tom Nook expression images to prevent loading delays
+]]
+function DialogueGUI:_preloadTomNookImages()
+	local imageIds = {}
+	for _, expression in ipairs(TOM_NOOK_EXPRESSIONS) do
+		table.insert(imageIds, expression.image)
+	end
+	
+	print("[DialogueGUI] 📦 Preloading", #imageIds, "Tom Nook expression images...")
+	
+	local success, err = pcall(function()
+		ContentProvider:PreloadAsync(imageIds, function(assetId, assetName)
+			print("[DialogueGUI] ✅ Preloaded:", assetId)
+		end)
+	end)
+	
+	if success then
+		print("[DialogueGUI] ✅ All Tom Nook images preloaded successfully!")
+	else
+		warn("[DialogueGUI] ⚠️ Failed to preload images:", err)
+	end
+end
+
+--[[
+	Start Tom Nook expression animation
+]]
+function DialogueGUI:_startTomNookAnimation(imageLabel)
+	-- Stop any existing animation
+	self:_stopTomNookAnimation()
+	
+	if not imageLabel or not imageLabel.Parent then
+		return
+	end
+	
+	-- Preload images before starting animation (only once, async so it doesn't block)
+	if not self._tomNookImagesPreloaded then
+		task.spawn(function()
+			self:_preloadTomNookImages()
+		end)
+		self._tomNookImagesPreloaded = true
+	end
+	
+	-- Ensure we start with expression 1 (eyes wide open) - don't change it yet
+	if not self._tomNookCurrentExpression or self._tomNookCurrentExpression == 0 then
+		self._tomNookCurrentExpression = 1
+	end
+	
+	-- Verify current frame is expression 1
+	local currentExpression = TOM_NOOK_EXPRESSIONS[self._tomNookCurrentExpression]
+	if currentExpression then
+		imageLabel.Image = currentExpression.image
+		-- Ensure no sprite sheet cropping
+		imageLabel.ImageRectSize = Vector2.new(0, 0)
+		imageLabel.ImageRectOffset = Vector2.new(0, 0)
+		print("[DialogueGUI] 🎬 Starting animation from expression", self._tomNookCurrentExpression, "- Image:", currentExpression.image)
+		-- Wait a moment for the initial image to load
+		task.wait(TOM_NOOK_IMAGE_LOAD_DELAY)
+	end
+	
+	-- Animation loop
+	local function animate()
+		if not imageLabel or not imageLabel.Parent then
+			self:_stopTomNookAnimation()
+			return
+		end
+		
+		-- Natural talking animation pattern:
+		-- Cycle: Eyes wide open (1) -> Eyes half way (2) -> Eyes wide open (1) -> ...
+		-- Occasionally blink (eyes closed - 3) for realism
+		local expressionIndex
+		
+		if math.random() < TOM_NOOK_BLINK_CHANCE then
+			-- Blink: show eyes closed briefly
+			expressionIndex = 3
+			print("[DialogueGUI] 👁️ Blink! Expression 3 (eyes closed)")
+			-- After blink, return to wide open
+			self._tomNookCurrentExpression = 1
+		else
+			-- Normal talking: alternate between wide open (1) and half way (2)
+			if self._tomNookCurrentExpression == 1 then
+				expressionIndex = 2 -- Wide open -> Half way
+			else
+				expressionIndex = 1 -- Half way -> Wide open
+			end
+			self._tomNookCurrentExpression = expressionIndex
+			print("[DialogueGUI] 🗣️ Talking - Expression", expressionIndex, "(1=wide open, 2=half way)")
+		end
+		
+		local expression = TOM_NOOK_EXPRESSIONS[expressionIndex]
+		if expression then
+			imageLabel.Image = expression.image
+			-- Ensure no sprite sheet cropping
+			imageLabel.ImageRectSize = Vector2.new(0, 0)
+			imageLabel.ImageRectOffset = Vector2.new(0, 0)
+			-- Wait for image to load before continuing
+			task.wait(TOM_NOOK_IMAGE_LOAD_DELAY)
+		end
+		
+		-- Faster blink animation, slower talking animation
+		local delay = (expressionIndex == 3) and (TOM_NOOK_ANIMATION_SPEED * 0.3) or TOM_NOOK_ANIMATION_SPEED
+		
+		-- Schedule next animation frame
+		self._tomNookAnimationConnection = task.delay(delay, animate)
+	end
+	
+	-- Start animation loop (will begin from current expression)
+	animate()
+end
+
+--[[
+	Stop Tom Nook expression animation
+]]
+function DialogueGUI:_stopTomNookAnimation()
+	if self._tomNookAnimationConnection then
+		-- task.delay returns a thread that can be cancelled
+		local success = pcall(function()
+			task.cancel(self._tomNookAnimationConnection)
+		end)
+		self._tomNookAnimationConnection = nil
+		if success then
+			print("[DialogueGUI] 🛑 Stopped Tom Nook expression animation")
+		end
+	end
+	-- Also release image override guard
+	self:_disconnectImageGuard()
+end
+
+--[[
 	Hide the dialogue GUI
 ]]
 function DialogueGUI:Hide()
+	-- Stop Tom Nook animation when hiding
+	self:_stopTomNookAnimation()
+	
 	if self._skipButton then
 		self._skipButton.Visible = false
 	end
@@ -646,6 +1024,9 @@ end
 	Destroy the GUI
 ]]
 function DialogueGUI:Destroy()
+	-- Stop animation before destroying
+	self:_stopTomNookAnimation()
+	
 	self:Clear()
 	if self._screenGui then
 		self._screenGui:Destroy()
