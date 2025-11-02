@@ -14,6 +14,16 @@ local LocalPlayer = Players.LocalPlayer
 -- Constants
 local FLIGHT_SPEED = 80 -- Forward speed
 local ROTATION_SPEED = 2 -- Turn speed
+local WATER_SURFACE_CLEARANCE = 0.75 -- How far the floats sit above the water surface
+local LIFT_COEFFICIENT = 45 -- Upward force gained from throttle while flying
+local CLIMB_RATE = 35 -- Additional climb rate when pressing the climb key
+local DESCEND_RATE = 40 -- Additional sink rate when pressing the descend key
+local MAX_BANK_ANGLE = math.rad(18) -- Maximum roll of the plane while turning
+local MAX_PITCH_ANGLE = math.rad(12) -- Maximum pitch (nose up/down)
+local AIR_TURN_RATE = math.rad(35) -- How fast the plane yaws while airborne
+local WATER_TURN_RATE = math.rad(60) -- How fast the plane yaws while on water
+local TAXI_SPEED = 28 -- Default taxi speed when throttle is applied on the water
+local TAXI_REVERSE_SPEED = 12 -- Reverse speed while on the water
 -- Removed unused constants
 
 local NookPlane = {}
@@ -32,33 +42,46 @@ function NookPlane.new()
 	self._lightFlashConnection = nil
 	self._lightsWeld = nil
 	self._bodyWeld = nil
-	self._floatWeld = nil  -- Weld for float part
-	self._flying = false
-	self._inputConnections = {}
-	self._flightConnection = nil
-	self._propellerConnection = nil
-	self._hudUpdateConnection = nil
-	self._proximityUpdateConnection = nil
-	self._playerWeld = nil
-	self._playerMotor = nil
-	self._engineSound = nil
-	self._takeoffStartTime = nil
-	self._isOnWater = false
-	
-	-- Flight controls state (WASD for plane, Spacebar for throttle)
-	self.CONTROLS = {
-		forward = false,
-		backward = false,
-		left = false,
-		right = false,
-		throttle = false, -- Spacebar for throttle
-	}
-	self._currentSpeedMultiplier = 1.0 -- Current speed multiplier (0.0 to 1.0)
-	self._targetSpeedMultiplier = 0.0 -- Target speed (0 when not throttling)
-	self._cameraConnection = nil
-	self._cameraCFrame = nil
-	self._originalCameraType = nil
-	self._originalCameraSubject = nil
+        self._floatWeld = nil  -- Weld for float part
+        self._modelHeight = nil
+        self._floatWaterlineOffset = nil
+        self._orientationCFrame = nil
+        self._currentPitch = 0
+        self._currentYaw = 0
+        self._currentRoll = 0
+        self._flying = false
+        self._inputConnections = {}
+        self._flightConnection = nil
+        self._propellerConnection = nil
+        self._hudUpdateConnection = nil
+        self._hudElements = {}
+        self._proximityUpdateConnection = nil
+        self._playerWeld = nil
+        self._playerMotor = nil
+        self._engineSound = nil
+        self._takeoffStartTime = nil
+        self._isOnWater = false
+        self._orientationCFrame = nil
+        self._currentPitch = 0
+        self._currentRoll = 0
+        self._currentYaw = 0
+
+        -- Flight controls state (WASD for plane, Spacebar for throttle)
+        self.CONTROLS = {
+                forward = false,
+                backward = false,
+                left = false,
+                right = false,
+                throttle = false, -- Spacebar for throttle
+                ascend = false, -- R key
+                descend = false, -- F key
+        }
+        self._currentSpeedMultiplier = 0.25 -- Current speed multiplier (0.0 to 1.0)
+        self._targetSpeedMultiplier = 0.0 -- Target speed (0 when not throttling)
+        self._cameraConnection = nil
+        self._cameraCFrame = nil
+        self._originalCameraType = nil
+        self._originalCameraSubject = nil
 	
 	print("[NookPlane] ✅ NookPlane client instance created")
 	return self
@@ -129,10 +152,10 @@ function NookPlane:_createOrFindPlane()
 				print("[NookPlane] ✅ Found Body mesh")
 			end
 			
-			if self._planeBody then
-				print("[NookPlane] ✅ Connected to PlaneBody at position:", self._planeBody.Position)
-				
-				-- Ensure BodyVelocity and BodyAngularVelocity exist
+                        if self._planeBody then
+                                print("[NookPlane] ✅ Connected to PlaneBody at position:", self._planeBody.Position)
+
+                                -- Ensure BodyVelocity and BodyAngularVelocity exist
 				if not self._planeBody:FindFirstChild("BodyVelocity") then
 					warn("[NookPlane] ⚠️ BodyVelocity missing on PlaneBody - creating it")
 					local bv = Instance.new("BodyVelocity")
@@ -150,20 +173,57 @@ function NookPlane:_createOrFindPlane()
 					bav.AngularVelocity = Vector3.new(0, 0, 0)
 					bav.Parent = self._planeBody
 				end
-				if not self._planeBody:FindFirstChild("BodyPosition") then
-					print("[NookPlane] ℹ️ BodyPosition missing - will be created when needed")
-				end
-				
-				-- Find or create interior seat
-				self._seatPart = existingPlane:FindFirstChild("InteriorSeat")
-				if not self._seatPart then
-					print("[NookPlane] ℹ️ InteriorSeat not found, will use PlaneBody for seating")
-					self._seatPart = self._planeBody
-				end
-				
-				self:_createProximityUI()
-				return true
-			else
+                                if not self._planeBody:FindFirstChild("BodyPosition") then
+                                        print("[NookPlane] ℹ️ BodyPosition missing - will be created when needed")
+                                end
+
+                                -- Find or create interior seat
+                                self._seatPart = existingPlane:FindFirstChild("InteriorSeat")
+                                if not self._seatPart then
+                                        print("[NookPlane] ℹ️ InteriorSeat not found, will use PlaneBody for seating")
+                                        self._seatPart = self._planeBody
+                                end
+
+                                if not self._planeModel.PrimaryPart then
+                                        local ok, err = pcall(function()
+                                                self._planeModel.PrimaryPart = self._planeBody
+                                        end)
+                                        if not ok then
+                                                warn("[NookPlane] ⚠️ Failed to set PrimaryPart:", err)
+                                        end
+                                end
+
+                                local ok, _, modelSize = pcall(function()
+                                        return self._planeModel:GetBoundingBox()
+                                end)
+                                if ok and modelSize then
+                                        self._modelHeight = modelSize.Y
+                                else
+                                        self._modelHeight = self._planeBody.Size.Y
+                                end
+
+                                if self._floatPart then
+                                        local floatBottomWorld = self._floatPart.Position.Y - (self._floatPart.Size.Y / 2)
+                                        self._floatWaterlineOffset = self._planeBody.Position.Y - floatBottomWorld
+                                elseif self._modelHeight then
+                                        self._floatWaterlineOffset = self._modelHeight / 2
+                                else
+                                        self._floatWaterlineOffset = self._planeBody.Size.Y / 2
+                                end
+
+                                if self._floatWaterlineOffset and self._floatWaterlineOffset < 1 then
+                                        self._floatWaterlineOffset = math.max(self._planeBody.Size.Y / 2, 6)
+                                end
+
+                                local pitch, yaw, roll = self._planeBody.CFrame:ToOrientation()
+                                self._currentPitch = pitch
+                                self._currentYaw = yaw
+                                self._currentRoll = roll
+                                self._orientationCFrame = self._planeBody.CFrame
+
+                                self:_createProximityUI()
+                                return true
+                        else
 				warn("[NookPlane] ⚠️ NookPlane exists but PlaneBody not found!")
 				local children = {}
 				for _, child in pairs(existingPlane:GetChildren()) do
@@ -312,290 +372,218 @@ end
 
 -- Start flight physics with cartoon takeoff and water floating
 function NookPlane:_startFlight()
-	if self._flightConnection then
-		print("[NookPlane] ⚠️ Flight already started")
-		return
-	end
+        if self._flightConnection then
+                print("[NookPlane] ⚠️ Flight already started")
+                return
+        end
 
-	print("[NookPlane] ✈️ Starting sea plane flight")
-	
-	local bodyVelocity = self._planeBody:FindFirstChild("BodyVelocity")
-	local bodyAngularVelocity = self._planeBody:FindFirstChild("BodyAngularVelocity")
-	local bodyPosition = self._planeBody:FindFirstChild("BodyPosition")
-	
-	-- Add BodyPosition for water floating if it doesn't exist
-	if not bodyPosition then
-		bodyPosition = Instance.new("BodyPosition")
-		bodyPosition.Name = "BodyPosition"
-		bodyPosition.MaxForce = Vector3.new(4000, 4000, 4000)
-		bodyPosition.P = 500
-		bodyPosition.D = 100
-		bodyPosition.Position = self._planeBody.Position
-		bodyPosition.Parent = self._planeBody
-	end
-	
-	if not bodyVelocity or not bodyAngularVelocity then
-		warn("[NookPlane] ❌ Missing BodyVelocity or BodyAngularVelocity!")
-		return
-	end
+        print("[NookPlane] ✈️ Starting sea plane flight")
 
-	self._flightConnection = RunService.Heartbeat:Connect(function(deltaTime)
-		if not self._planeBody or not self._planeBody.Parent then
-			self:TurnOff()
-			return
-		end
+        local bodyVelocity = self._planeBody and self._planeBody:FindFirstChild("BodyVelocity")
+        local bodyAngularVelocity = self._planeBody and self._planeBody:FindFirstChild("BodyAngularVelocity")
+        local bodyPosition = self._planeBody and self._planeBody:FindFirstChild("BodyPosition")
 
-		-- ============================================================
-		-- CAMERA FOLLOW - External view behind plane (FIXED)
-		-- ============================================================
-		if self._planeBody then
-			local camera = workspace.CurrentCamera
-			if camera.CameraType == Enum.CameraType.Scriptable then
-				local planePos = self._planeBody.Position
-				local planeCFrame = self._planeBody.CFrame
-				local planeForward = planeCFrame.LookVector
-				local planeRight = planeCFrame.RightVector
-				
-				-- Camera position: behind, above, and slightly to the side for better view
-				local cameraDistance = 25 -- Studs behind plane
-				local cameraHeight = 10 -- Studs above plane
-				local cameraSideOffset = 3 -- Slightly to the side
-				
-				-- Calculate camera position behind and to the right
-				local cameraOffset = (planeForward * -cameraDistance) + (Vector3.new(0, cameraHeight, 0)) + (planeRight * cameraSideOffset)
-				local targetCameraPos = planePos + cameraOffset
-				
-				-- Smooth camera movement
-				local currentCamPos = camera.CFrame.Position
-				local lerpAlpha = math.min(deltaTime * 10, 1) -- Smooth following
-				local smoothCamPos = currentCamPos:Lerp(targetCameraPos, lerpAlpha)
-				
-				-- Look at plane (slightly ahead)
-				local lookTarget = planePos + (planeForward * 8)
-				local cameraCFrame = CFrame.lookAt(smoothCamPos, lookTarget)
-				
-				camera.CFrame = cameraCFrame
-			end
-		end
+        if not bodyPosition then
+                bodyPosition = Instance.new("BodyPosition")
+                bodyPosition.Name = "BodyPosition"
+                bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+                bodyPosition.P = 500
+                bodyPosition.D = 100
+                bodyPosition.Position = self._planeBody.Position
+                bodyPosition.Parent = self._planeBody
+        end
 
-	-- Flight physics - no water physics, just pure flight
-		
-		-- Calculate movement based on controls
-		local cf = self._planeBody.CFrame
-		local targetVelocity = Vector3.new(0, 0, 0)
-		
-		-- THROTTLE: Spacebar controls speed (gradual increase/decrease)
-		local throttleSpeedChange = 0.5 -- How fast throttle changes (per second)
-		if self.CONTROLS.throttle then
-			-- Spacebar held: Gradually increase throttle (target = 1.0)
-			self._targetSpeedMultiplier = math.min(self._targetSpeedMultiplier + (throttleSpeedChange * deltaTime), 1.0)
-		else
-			-- Spacebar released: Gradually decrease throttle (target = 0.0)
-			self._targetSpeedMultiplier = math.max(self._targetSpeedMultiplier - (throttleSpeedChange * deltaTime), 0.0)
-		end
-		
-		-- Smooth current speed towards target
-		local speedDiff = self._targetSpeedMultiplier - self._currentSpeedMultiplier
-		self._currentSpeedMultiplier = self._currentSpeedMultiplier + (speedDiff * math.min(deltaTime * 2, 1))
-		
-		-- Forward/backward movement (works everywhere - taxi, takeoff, flight)
-		-- Speed is multiplied by throttle
-		if self.CONTROLS.forward then
-			local speed = FLIGHT_SPEED * math.max(self._currentSpeedMultiplier, 0.5) -- Minimum 50% speed even without throttle
-			targetVelocity = targetVelocity + (cf.LookVector * speed)
-		end
-		if self.CONTROLS.backward then
-			local speed = FLIGHT_SPEED * 0.5 * math.max(self._currentSpeedMultiplier, 0.3)
-			targetVelocity = targetVelocity - (cf.LookVector * speed) -- Slower reverse
-		end
-		
-		-- Left/right turning
-		local targetAngularVelocity = Vector3.new(0, 0, 0)
-		if self.CONTROLS.left then
-			targetAngularVelocity = Vector3.new(0, ROTATION_SPEED, 0)
-		elseif self.CONTROLS.right then
-			targetAngularVelocity = Vector3.new(0, -ROTATION_SPEED, 0)
-		end
-		
-		-- ============================================================
-		-- WATER DETECTION & FLOATING PHYSICS
-		-- ============================================================
-		
-		-- Detect water below plane using raycast
-		local planePos = self._planeBody.Position
-		local raycastParams = RaycastParams.new()
-		raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-		raycastParams.IgnoreWater = false
-		if self._planeModel then
-			raycastParams.FilterDescendantsInstances = {self._planeModel}
-		end
-		
-		-- Cast ray downward to find water
-		local waterRaycast = Workspace:Raycast(planePos, Vector3.new(0, -200, 0), raycastParams)
-		local isOnWater = false
-		local waterSurfaceY = nil
-		
-		if waterRaycast and waterRaycast.Material == Enum.Material.Water then
-			isOnWater = true
-			waterSurfaceY = waterRaycast.Position.Y
-		end
-		
-		-- Also check if plane is near water (within 10 studs)
-		if not isOnWater then
-			-- Check multiple points around plane
-			local checkOffsets = {
-				Vector3.new(0, 0, 0),
-				Vector3.new(5, 0, 0),
-				Vector3.new(-5, 0, 0),
-				Vector3.new(0, 0, 5),
-				Vector3.new(0, 0, -5),
-			}
-			
-			for _, offset in ipairs(checkOffsets) do
-				local checkPos = planePos + offset
-				local checkRay = Workspace:Raycast(checkPos, Vector3.new(0, -50, 0), raycastParams)
-				if checkRay and checkRay.Material == Enum.Material.Water then
-					local checkWaterY = checkRay.Position.Y
-					-- If plane is within 10 studs of water surface, consider it on water
-					if math.abs(planePos.Y - checkWaterY) < 10 then
-						isOnWater = true
-						waterSurfaceY = checkWaterY
-						break
-					end
-				end
-			end
-		end
-		
-		if isOnWater and waterSurfaceY then
-			-- ============================================================
-			-- ON WATER: RELIABLE FLOATING USING BODYPOSITION
-			-- ============================================================
-			
-			-- Get plane's actual bounding box for accurate height calculation
-			local planeSizeY = self._planeBody.Size.Y
-			local _modelCFrame, modelSize = nil, nil
-			if self._planeModel and self._planeModel.PrimaryPart then
-				_modelCFrame, modelSize = self._planeModel:GetBoundingBox()
-			end
-			
-			-- Use full model height if available
-			local totalHeight = modelSize and modelSize.Y or planeSizeY
-			
-			-- Calculate float height: plane bottom should be 10 studs above water
-			local floatOffset = 10 -- Studs above water for plane bottom
-			local desiredBottomY = waterSurfaceY + floatOffset
-			local desiredCenterY = desiredBottomY + (totalHeight / 2)
-			
-			-- Safety: ensure minimum height (20 studs above water for center)
-			if desiredCenterY < waterSurfaceY + 20 then
-				desiredCenterY = waterSurfaceY + 20
-			end
-			
-			-- Get or create BodyPosition for floating
-			if not bodyPosition then
-				bodyPosition = Instance.new("BodyPosition")
-				bodyPosition.Name = "BodyPosition"
-				bodyPosition.Parent = self._planeBody
-			end
-			
-			-- Calculate level rotation (yaw only, no pitch/roll)
-			local currentLook = cf.LookVector
-			local horizontalLook = Vector3.new(currentLook.X, 0, currentLook.Z)
-			if horizontalLook.Magnitude < 0.001 then
-				horizontalLook = Vector3.new(0, 0, -1)
-			else
-				horizontalLook = horizontalLook.Unit
-			end
-			
-			local yawAngle = math.atan2(-horizontalLook.X, -horizontalLook.Z)
-			
-			-- Apply turning
-			if self.CONTROLS.left then
-				yawAngle = yawAngle + (ROTATION_SPEED * deltaTime)
-			elseif self.CONTROLS.right then
-				yawAngle = yawAngle - (ROTATION_SPEED * deltaTime)
-			end
-			
-			-- Calculate target position (horizontal movement)
-			local targetPosition = Vector3.new(planePos.X, desiredCenterY, planePos.Z)
-			
-			-- Handle forward/backward movement
-			if self.CONTROLS.forward then
-				local moveSpeed = FLIGHT_SPEED * 0.5 * deltaTime
-				targetPosition = targetPosition + (horizontalLook * moveSpeed)
-			elseif self.CONTROLS.backward then
-				local moveSpeed = FLIGHT_SPEED * 0.25 * deltaTime
-				targetPosition = targetPosition - (horizontalLook * moveSpeed)
-			end
-			
-			-- UNANCHOR for BodyPosition to work (BodyPosition needs unanchored parts)
-			if self._planeBody.Anchored then
-				self._planeBody.Anchored = false
-			end
-			
-			-- Use BodyPosition to maintain float height
-			bodyPosition.Position = targetPosition
-			bodyPosition.MaxForce = Vector3.new(40000, 40000, 40000) -- Strong force in all directions
-			bodyPosition.P = 10000 -- High responsiveness
-			bodyPosition.D = 2000 -- Strong damping
-			
-			-- Apply level rotation using BodyAngularVelocity
-			bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0) -- Reset first
-			
-			-- Apply level CFrame EVERY FRAME (BodyPosition handles position, CFrame handles rotation)
-			local currentY = self._planeBody.Position.Y
-			local levelCFrame = CFrame.new(targetPosition.X, currentY, targetPosition.Z) * CFrame.Angles(0, yawAngle, 0)
-			self._planeBody.CFrame = levelCFrame
-			
-			-- Zero velocities (BodyPosition handles position, CFrame handles rotation)
-			bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-			bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
-			
-		else
-			-- ============================================================
-			-- IN AIR: Normal flight physics
-			-- ============================================================
-			
-			-- Remove AlignPosition and AlignOrientation when not on water
-			local alignPosition = self._planeBody:FindFirstChild("AlignPosition")
-			if alignPosition then
-				alignPosition.MaxForce = 0 -- Disable but keep it
-			end
-			
-			local alignOrientation = self._planeBody:FindFirstChild("AlignOrientation")
-			if alignOrientation then
-				alignOrientation.MaxTorque = 0 -- Disable but keep it
-			end
-			
-			-- Ensure unanchored for flight
-			if self._planeBody.Anchored then
-				self._planeBody.Anchored = false
-			end
-			
-			-- Unanchor sub-parts
-			if self._lightsPart and self._lightsPart.Anchored then
-				self._lightsPart.Anchored = false
-			end
-			if self._bodyMesh and self._bodyMesh.Anchored then
-				self._bodyMesh.Anchored = false
-			end
-			
-			-- Disable BodyPosition
-			if bodyPosition then
-				bodyPosition.MaxForce = Vector3.new(0, 0, 0)
-			end
-			
-			-- Apply flight velocities
-			bodyVelocity.Velocity = targetVelocity
-			bodyAngularVelocity.AngularVelocity = targetAngularVelocity
-			
-			-- Natural lift from forward movement
-			if self.CONTROLS.forward then
-				local liftForce = 10 -- Base lift force
-				bodyVelocity.Velocity = bodyVelocity.Velocity + Vector3.new(0, liftForce, 0)
-			end
-		end
-	end)
+        if not bodyVelocity or not bodyAngularVelocity then
+                warn("[NookPlane] ❌ Missing BodyVelocity or BodyAngularVelocity!")
+                return
+        end
+
+        self._planeBody.Anchored = false
+        bodyAngularVelocity.MaxTorque = Vector3.new(0, 0, 0)
+        bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
+
+        local pitch, yaw, roll = self._planeBody.CFrame:ToOrientation()
+        self._currentPitch = pitch
+        self._currentYaw = yaw
+        self._currentRoll = roll
+        self._orientationCFrame = self._planeBody.CFrame
+
+        self._flightConnection = RunService.Heartbeat:Connect(function(deltaTime)
+                if not self._planeBody or not self._planeBody.Parent then
+                        self:TurnOff()
+                        return
+                end
+
+                deltaTime = math.clamp(deltaTime, 0, 0.1)
+
+                local camera = workspace.CurrentCamera
+                if camera and camera.CameraType == Enum.CameraType.Scriptable then
+                        local planeCFrame = self._planeBody.CFrame
+                        local planePos = planeCFrame.Position
+                        local forward = planeCFrame.LookVector
+                        local right = planeCFrame.RightVector
+                        local cameraDistance = 25
+                        local cameraHeight = 10
+                        local cameraSideOffset = 3
+                        local targetPos = planePos + (forward * -cameraDistance) + Vector3.new(0, cameraHeight, 0) + (right * cameraSideOffset)
+                        local currentPos = camera.CFrame.Position
+                        local lerpAlpha = math.min(deltaTime * 8, 1)
+                        local smoothPos = currentPos:Lerp(targetPos, lerpAlpha)
+                        local lookTarget = planePos + (forward * 10)
+                        camera.CFrame = CFrame.lookAt(smoothPos, lookTarget)
+                end
+
+                local throttleChange = 0.6
+                if self.CONTROLS.throttle then
+                        self._targetSpeedMultiplier = math.min(self._targetSpeedMultiplier + (throttleChange * deltaTime), 1)
+                else
+                        self._targetSpeedMultiplier = math.max(self._targetSpeedMultiplier - (throttleChange * deltaTime), 0)
+                end
+
+                local speedDiff = self._targetSpeedMultiplier - self._currentSpeedMultiplier
+                self._currentSpeedMultiplier = self._currentSpeedMultiplier + (speedDiff * math.min(deltaTime * 3, 1))
+                local throttle = math.clamp(self._currentSpeedMultiplier, 0, 1)
+
+                local planePos = self._planeBody.Position
+                local raycastParams = RaycastParams.new()
+                raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                raycastParams.IgnoreWater = false
+                if self._planeModel then
+                        raycastParams.FilterDescendantsInstances = {self._planeModel}
+                end
+
+                local primaryCast = Workspace:Raycast(planePos, Vector3.new(0, -200, 0), raycastParams)
+                local isOnWater = false
+                local waterSurfaceY
+
+                if primaryCast and primaryCast.Material == Enum.Material.Water then
+                        isOnWater = true
+                        waterSurfaceY = primaryCast.Position.Y
+                else
+                        local offsets = {
+                                Vector3.new(6, 0, 0),
+                                Vector3.new(-6, 0, 0),
+                                Vector3.new(0, 0, 6),
+                                Vector3.new(0, 0, -6),
+                        }
+                        for _, offset in ipairs(offsets) do
+                                local sample = Workspace:Raycast(planePos + offset, Vector3.new(0, -200, 0), raycastParams)
+                                if sample and sample.Material == Enum.Material.Water then
+                                        isOnWater = true
+                                        waterSurfaceY = sample.Position.Y
+                                        break
+                                end
+                        end
+                end
+
+                self._isOnWater = isOnWater
+                self._planeBody.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+                local yawInput = 0
+                if self.CONTROLS.left then
+                        yawInput += 1
+                end
+                if self.CONTROLS.right then
+                        yawInput -= 1
+                end
+
+                local climbCommand = 0
+                if self.CONTROLS.ascend then
+                        climbCommand += 1
+                end
+                if self.CONTROLS.descend then
+                        climbCommand -= 1
+                end
+
+                if isOnWater and waterSurfaceY then
+                        if bodyPosition then
+                                local heightOffset = self._floatWaterlineOffset or (self._modelHeight and (self._modelHeight / 2)) or (self._planeBody.Size.Y / 2)
+                                local desiredCenterY = waterSurfaceY + heightOffset + WATER_SURFACE_CLEARANCE
+                                bodyPosition.MaxForce = Vector3.new(0, 400000, 0)
+                                bodyPosition.P = 6000
+                                bodyPosition.D = 1200
+                                bodyPosition.Position = Vector3.new(planePos.X, desiredCenterY, planePos.Z)
+                        end
+
+                        local decay = math.min(deltaTime * 5, 1)
+                        self._currentPitch += (-self._currentPitch * decay)
+                        self._currentRoll += (-self._currentRoll * decay)
+                        self._currentYaw += yawInput * WATER_TURN_RATE * deltaTime
+
+                        local orientation = CFrame.fromOrientation(self._currentPitch, self._currentYaw, self._currentRoll)
+                        self._orientationCFrame = CFrame.new(self._planeBody.Position) * orientation
+                        self._planeBody.CFrame = self._orientationCFrame
+
+                        local forward = self._orientationCFrame.LookVector
+                        local right = self._orientationCFrame.RightVector
+
+                        local taxiVelocity = Vector3.zero
+                        if self.CONTROLS.forward then
+                                taxiVelocity += forward * (TAXI_SPEED + (FLIGHT_SPEED * throttle * 0.5))
+                        elseif self.CONTROLS.backward then
+                                taxiVelocity -= forward * TAXI_REVERSE_SPEED
+                        end
+                        if yawInput ~= 0 then
+                                taxiVelocity += right * (yawInput * 6)
+                        end
+
+                        bodyVelocity.MaxForce = Vector3.new(50000, 0, 50000)
+                        bodyVelocity.Velocity = Vector3.new(taxiVelocity.X, 0, taxiVelocity.Z)
+                else
+                        if bodyPosition then
+                                bodyPosition.MaxForce = Vector3.new(0, 0, 0)
+                        end
+
+                        self._currentYaw += yawInput * AIR_TURN_RATE * deltaTime
+
+                        local rollTarget = math.clamp(yawInput, -1, 1) * MAX_BANK_ANGLE
+                        local pitchTarget = math.clamp(climbCommand, -1, 1) * MAX_PITCH_ANGLE
+
+                        local rollLerp = math.min(deltaTime * 3, 1)
+                        local pitchLerp = math.min(deltaTime * 3, 1)
+
+                        self._currentRoll += (rollTarget - self._currentRoll) * rollLerp
+                        self._currentPitch += (pitchTarget - self._currentPitch) * pitchLerp
+
+                        local orientation = CFrame.fromOrientation(self._currentPitch, self._currentYaw, self._currentRoll)
+                        self._orientationCFrame = CFrame.new(self._planeBody.Position) * orientation
+                        self._planeBody.CFrame = self._orientationCFrame
+
+                        local forward = self._orientationCFrame.LookVector
+                        local right = self._orientationCFrame.RightVector
+                        local up = self._orientationCFrame.UpVector
+
+                        local forwardSpeed = FLIGHT_SPEED * throttle
+                        if self.CONTROLS.forward then
+                                forwardSpeed += 20
+                        end
+                        if self.CONTROLS.backward then
+                                forwardSpeed -= 15
+                        end
+                        forwardSpeed = math.clamp(forwardSpeed, -FLIGHT_SPEED * 0.4, FLIGHT_SPEED * 1.4)
+
+                        local targetVelocity = forward * forwardSpeed
+                        targetVelocity += right * (self._currentRoll / MAX_BANK_ANGLE) * 12
+
+                        local lift = (throttle ^ 1.2) * LIFT_COEFFICIENT
+                        lift += climbCommand * CLIMB_RATE
+                        if not self.CONTROLS.throttle then
+                                lift -= DESCEND_RATE * 0.5
+                        end
+                        if self.CONTROLS.backward then
+                                lift -= DESCEND_RATE * 0.6
+                        end
+                        local verticalVelocity = math.clamp(lift, -DESCEND_RATE * 2, CLIMB_RATE * 2)
+                        targetVelocity += up * verticalVelocity
+
+                        local currentVelocity = self._planeBody.AssemblyLinearVelocity
+                        local smoothing = math.min(deltaTime * 4, 1)
+                        local blendedVelocity = currentVelocity:Lerp(targetVelocity, smoothing)
+
+                        bodyVelocity.MaxForce = Vector3.new(120000, 120000, 120000)
+                        bodyVelocity.Velocity = blendedVelocity
+                end
+        end)
 end
 
 -- Stop flight physics
@@ -623,8 +611,12 @@ function NookPlane:_stopFlight()
 		end
 	end
 	
-	self._takeoffStartTime = nil
-	self._isOnWater = false
+        self._takeoffStartTime = nil
+        self._isOnWater = false
+        self._orientationCFrame = nil
+        self._currentPitch = 0
+        self._currentRoll = 0
+        self._currentYaw = 0
 end
 
 -- Setup camera for flight (SIMPLIFIED - just make it follow plane externally)
@@ -683,33 +675,41 @@ function NookPlane:_setupInput()
 	table.insert(self._inputConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		
-		if input.KeyCode == Enum.KeyCode.W then
-			self.CONTROLS.forward = true
-		elseif input.KeyCode == Enum.KeyCode.S then
-			self.CONTROLS.backward = true
-		elseif input.KeyCode == Enum.KeyCode.A then
-			self.CONTROLS.left = true
-		elseif input.KeyCode == Enum.KeyCode.D then
-			self.CONTROLS.right = true
-		elseif input.KeyCode == Enum.KeyCode.Space then
-			self.CONTROLS.throttle = true
-		end
-	end))
-	
-	-- Input ended
-	table.insert(self._inputConnections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                if input.KeyCode == Enum.KeyCode.W then
+                        self.CONTROLS.forward = true
+                elseif input.KeyCode == Enum.KeyCode.S then
+                        self.CONTROLS.backward = true
+                elseif input.KeyCode == Enum.KeyCode.A then
+                        self.CONTROLS.left = true
+                elseif input.KeyCode == Enum.KeyCode.D then
+                        self.CONTROLS.right = true
+                elseif input.KeyCode == Enum.KeyCode.Space then
+                        self.CONTROLS.throttle = true
+                elseif input.KeyCode == Enum.KeyCode.R then
+                        self.CONTROLS.ascend = true
+                elseif input.KeyCode == Enum.KeyCode.F then
+                        self.CONTROLS.descend = true
+                end
+        end))
+
+        -- Input ended
+        table.insert(self._inputConnections, UserInputService.InputEnded:Connect(function(input, gameProcessed)
 		if input.KeyCode == Enum.KeyCode.W then
 			self.CONTROLS.forward = false
 		elseif input.KeyCode == Enum.KeyCode.S then
 			self.CONTROLS.backward = false
 		elseif input.KeyCode == Enum.KeyCode.A then
 			self.CONTROLS.left = false
-		elseif input.KeyCode == Enum.KeyCode.D then
-			self.CONTROLS.right = false
-		elseif input.KeyCode == Enum.KeyCode.Space then
-			self.CONTROLS.throttle = false
-		end
-	end))
+                elseif input.KeyCode == Enum.KeyCode.D then
+                        self.CONTROLS.right = false
+                elseif input.KeyCode == Enum.KeyCode.Space then
+                        self.CONTROLS.throttle = false
+                elseif input.KeyCode == Enum.KeyCode.R then
+                        self.CONTROLS.ascend = false
+                elseif input.KeyCode == Enum.KeyCode.F then
+                        self.CONTROLS.descend = false
+                end
+        end))
 end
 
 -- Turn on the plane
@@ -728,10 +728,12 @@ function NookPlane:TurnOn()
 		end
 	end
 
-	print("[NookPlane] 🚀 Turning on plane")
-	self._flying = true
+        print("[NookPlane] 🚀 Turning on plane")
+        self._flying = true
+        self._currentSpeedMultiplier = 0.25
+        self._targetSpeedMultiplier = 0
 
-	-- Seat the player properly
+        -- Seat the player properly
 	local character = LocalPlayer.Character
 	if character then
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -887,14 +889,18 @@ function NookPlane:TurnOff()
 	end
 	
 	-- Clear input connections
-	for _, conn in pairs(self._inputConnections) do
-		if conn then
-			conn:Disconnect()
-		end
-	end
-	self._inputConnections = {}
-	
-	print("[NookPlane] ✅ Plane turned OFF")
+        for _, conn in pairs(self._inputConnections) do
+                if conn then
+                        conn:Disconnect()
+                end
+        end
+        self._inputConnections = {}
+
+        for key in pairs(self.CONTROLS) do
+                self.CONTROLS[key] = false
+        end
+
+        print("[NookPlane] ✅ Plane turned OFF")
 end
 
 -- Check if plane is flying
@@ -904,152 +910,249 @@ end
 
 -- Create flight HUD
 function NookPlane:_createFlightHUD()
-	local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-	
-	-- Remove existing HUD if present
-	local existingHUD = playerGui:FindFirstChild("PlaneHUD")
-	if existingHUD then
-		existingHUD:Destroy()
-	end
-	
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "PlaneHUD"
-	screenGui.ResetOnSpawn = false
-	screenGui.Parent = playerGui
-	
-	local hudFrame = Instance.new("Frame")
-	hudFrame.Name = "HUDFrame"
-	hudFrame.Size = UDim2.new(0, 300, 0, 180)
-	hudFrame.Position = UDim2.new(0.5, -150, 0, 20)
-	hudFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-	hudFrame.BackgroundTransparency = 0.3
-	hudFrame.BorderSizePixel = 0
-	hudFrame.Parent = screenGui
-	
-	-- Corner
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = hudFrame
-	
-	-- Title
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "✈️ NOOK AIRLINES"
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.TextSize = 18
-	title.Font = Enum.Font.GothamBold
-	title.Parent = hudFrame
-	
-	-- Speed Label
-	local speedLabel = Instance.new("TextLabel")
-	speedLabel.Name = "SpeedLabel"
-	speedLabel.Size = UDim2.new(1, -20, 0, 25)
-	speedLabel.Position = UDim2.new(0, 10, 0, 40)
-	speedLabel.BackgroundTransparency = 1
-	speedLabel.Text = "Speed: 0"
-	speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	speedLabel.TextSize = 16
-	speedLabel.Font = Enum.Font.Gotham
-	speedLabel.TextXAlignment = Enum.TextXAlignment.Left
-	speedLabel.Parent = hudFrame
-	
-	-- Altitude Label
-	local altitudeLabel = Instance.new("TextLabel")
-	altitudeLabel.Name = "AltitudeLabel"
-	altitudeLabel.Size = UDim2.new(1, -20, 0, 25)
-	altitudeLabel.Position = UDim2.new(0, 10, 0, 70)
-	altitudeLabel.BackgroundTransparency = 1
-	altitudeLabel.Text = "Altitude: 0"
-	altitudeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	altitudeLabel.TextSize = 16
-	altitudeLabel.Font = Enum.Font.Gotham
-	altitudeLabel.TextXAlignment = Enum.TextXAlignment.Left
-	altitudeLabel.Parent = hudFrame
-	
-	-- Throttle Label
-	local throttleLabel = Instance.new("TextLabel")
-	throttleLabel.Name = "ThrottleLabel"
-	throttleLabel.Size = UDim2.new(1, -20, 0, 25)
-	throttleLabel.Position = UDim2.new(0, 10, 0, 100)
-	throttleLabel.BackgroundTransparency = 1
-	throttleLabel.Text = "Throttle: 0%"
-	throttleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	throttleLabel.TextSize = 16
-	throttleLabel.Font = Enum.Font.Gotham
-	throttleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	throttleLabel.Parent = hudFrame
-	
-	-- Controls Label
-	local controlsLabel = Instance.new("TextLabel")
-	controlsLabel.Name = "ControlsLabel"
-	controlsLabel.Size = UDim2.new(1, -20, 0, 40)
-	controlsLabel.Position = UDim2.new(0, 10, 0, 130)
-	controlsLabel.BackgroundTransparency = 1
-	controlsLabel.Text = "WASD: Controls | Spacebar: Throttle\nP: Exit | Camera: Free 3D View"
-	controlsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-	controlsLabel.TextSize = 12
-	controlsLabel.Font = Enum.Font.Gotham
-	controlsLabel.TextXAlignment = Enum.TextXAlignment.Left
-	controlsLabel.TextWrapped = true
-	controlsLabel.Parent = hudFrame
-	
-	-- Update speed and altitude in real-time
-	self._hudUpdateConnection = RunService.Heartbeat:Connect(function()
-		if not self._planeBody or not self._planeBody.Parent then
-			self:_removeFlightHUD()
-			return
-		end
-		
-		local velocity = self._planeBody.AssemblyLinearVelocity
-		local speed = math.floor(velocity.Magnitude)
-		local altitude = math.floor(self._planeBody.Position.Y)
-		local throttlePercent = math.floor(self._currentSpeedMultiplier * 100)
-		
-		speedLabel.Text = "Speed: " .. speed .. " studs/s"
-		altitudeLabel.Text = "Altitude: " .. altitude .. " studs"
-		
-		-- Update throttle label
-		local throttleLabel = hudFrame:FindFirstChild("ThrottleLabel")
-		if throttleLabel then
-			throttleLabel.Text = "Throttle: " .. throttlePercent .. "%"
-			-- Color based on throttle level
-			if throttlePercent < 30 then
-				throttleLabel.TextColor3 = Color3.fromRGB(255, 100, 100) -- Red (low)
-			elseif throttlePercent < 70 then
-				throttleLabel.TextColor3 = Color3.fromRGB(255, 255, 100) -- Yellow (medium)
-			else
-				throttleLabel.TextColor3 = Color3.fromRGB(100, 255, 100) -- Green (high)
-			end
-		end
-		
-		-- Show water status
-		local isOnWater = self._isOnWater or false
-		if isOnWater then
-			altitudeLabel.Text = "🌊 On Water - Float Mode"
-			altitudeLabel.TextColor3 = Color3.fromRGB(100, 200, 255) -- Blue (water)
-		else
-			-- Color altitude label based on height
-			if altitude < 20 then
-				altitudeLabel.TextColor3 = Color3.fromRGB(255, 100, 100) -- Red (low)
-			elseif altitude < 50 then
-				altitudeLabel.TextColor3 = Color3.fromRGB(255, 255, 100) -- Yellow (medium)
-			else
-				altitudeLabel.TextColor3 = Color3.fromRGB(100, 255, 100) -- Green (high)
-			end
-		end
-		
-		-- Show speed and mode
-		local speed = self._planeBody.AssemblyLinearVelocity.Magnitude
-		if isOnWater then
-			speedLabel.Text = "🌊 TAXI MODE | Speed: " .. math.floor(speed) .. " | Press W to takeoff"
-		else
-			speedLabel.Text = "✈️ FLIGHT MODE | Speed: " .. math.floor(speed) .. " | Altitude: " .. math.floor(altitude)
-		end
-	end)
-	
-	print("[NookPlane] ✅ Flight HUD created")
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+        local existingHUD = playerGui:FindFirstChild("PlaneHUD")
+        if existingHUD then
+                existingHUD:Destroy()
+        end
+
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "PlaneHUD"
+        screenGui.ResetOnSpawn = false
+        screenGui.Parent = playerGui
+
+        local hudFrame = Instance.new("Frame")
+        hudFrame.Name = "HUDFrame"
+        hudFrame.Size = UDim2.new(0, 320, 0, 220)
+        hudFrame.Position = UDim2.new(0, 20, 1, -240)
+        hudFrame.BackgroundColor3 = Color3.fromRGB(24, 34, 48)
+        hudFrame.BackgroundTransparency = 0.1
+        hudFrame.BorderSizePixel = 0
+        hudFrame.Parent = screenGui
+
+        local hudCorner = Instance.new("UICorner")
+        hudCorner.CornerRadius = UDim.new(0, 14)
+        hudCorner.Parent = hudFrame
+
+        local hudStroke = Instance.new("UIStroke")
+        hudStroke.Thickness = 2
+        hudStroke.Color = Color3.fromRGB(80, 160, 220)
+        hudStroke.Transparency = 0.3
+        hudStroke.Parent = hudFrame
+
+        local gradient = Instance.new("UIGradient")
+        gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 26, 38)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(32, 48, 68)),
+        })
+        gradient.Rotation = 90
+        gradient.Parent = hudFrame
+
+        local padding = Instance.new("UIPadding")
+        padding.PaddingTop = UDim.new(0, 14)
+        padding.PaddingBottom = UDim.new(0, 14)
+        padding.PaddingLeft = UDim.new(0, 16)
+        padding.PaddingRight = UDim.new(0, 16)
+        padding.Parent = hudFrame
+
+        local title = Instance.new("TextLabel")
+        title.Name = "Title"
+        title.Size = UDim2.new(1, 0, 0, 24)
+        title.BackgroundTransparency = 1
+        title.Text = "✈️ Nook Airlines Flight Deck"
+        title.TextColor3 = Color3.fromRGB(230, 240, 255)
+        title.TextSize = 20
+        title.Font = Enum.Font.GothamBold
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = hudFrame
+
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Name = "StatusLabel"
+        statusLabel.Size = UDim2.new(1, 0, 0, 20)
+        statusLabel.Position = UDim2.new(0, 0, 0, 28)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = "Systems Initializing..."
+        statusLabel.TextColor3 = Color3.fromRGB(115, 190, 255)
+        statusLabel.TextSize = 14
+        statusLabel.Font = Enum.Font.GothamMedium
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        statusLabel.Parent = hudFrame
+
+        local modeLabel = Instance.new("TextLabel")
+        modeLabel.Name = "ModeLabel"
+        modeLabel.Size = UDim2.new(1, 0, 0, 18)
+        modeLabel.Position = UDim2.new(0, 0, 0, 50)
+        modeLabel.BackgroundTransparency = 1
+        modeLabel.Text = "Mode: --"
+        modeLabel.TextColor3 = Color3.fromRGB(200, 220, 255)
+        modeLabel.TextSize = 13
+        modeLabel.Font = Enum.Font.Gotham
+        modeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        modeLabel.Parent = hudFrame
+
+        local statsFrame = Instance.new("Frame")
+        statsFrame.Name = "Stats"
+        statsFrame.Size = UDim2.new(1, -8, 0, 96)
+        statsFrame.Position = UDim2.new(0, 0, 0, 74)
+        statsFrame.BackgroundTransparency = 1
+        statsFrame.Parent = hudFrame
+
+        local statsList = Instance.new("UIListLayout")
+        statsList.FillDirection = Enum.FillDirection.Vertical
+        statsList.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        statsList.SortOrder = Enum.SortOrder.LayoutOrder
+        statsList.Padding = UDim.new(0, 6)
+        statsList.Parent = statsFrame
+
+        local function createStatLabel(name)
+                local label = Instance.new("TextLabel")
+                label.Name = name .. "Label"
+                label.Size = UDim2.new(1, 0, 0, 26)
+                label.BackgroundTransparency = 1
+                label.Text = name .. ": --"
+                label.TextColor3 = Color3.fromRGB(235, 240, 255)
+                label.TextSize = 16
+                label.Font = Enum.Font.Gotham
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.Parent = statsFrame
+                return label
+        end
+
+        local speedLabel = createStatLabel("Speed")
+        local altitudeLabel = createStatLabel("Altitude")
+
+        local throttleFrame = Instance.new("Frame")
+        throttleFrame.Name = "ThrottleFrame"
+        throttleFrame.Size = UDim2.new(1, -4, 0, 42)
+        throttleFrame.Position = UDim2.new(0, 0, 0, 176)
+        throttleFrame.BackgroundColor3 = Color3.fromRGB(18, 26, 38)
+        throttleFrame.BackgroundTransparency = 0.1
+        throttleFrame.BorderSizePixel = 0
+        throttleFrame.Parent = hudFrame
+
+        local throttleCorner = Instance.new("UICorner")
+        throttleCorner.CornerRadius = UDim.new(0, 10)
+        throttleCorner.Parent = throttleFrame
+
+        local throttleStroke = Instance.new("UIStroke")
+        throttleStroke.Thickness = 1
+        throttleStroke.Color = Color3.fromRGB(80, 120, 160)
+        throttleStroke.Transparency = 0.4
+        throttleStroke.Parent = throttleFrame
+
+        local throttleLabel = Instance.new("TextLabel")
+        throttleLabel.Name = "ThrottleValue"
+        throttleLabel.Size = UDim2.new(1, 0, 0, 20)
+        throttleLabel.Position = UDim2.new(0, 0, 0, 4)
+        throttleLabel.BackgroundTransparency = 1
+        throttleLabel.Text = "Throttle 0%"
+        throttleLabel.TextColor3 = Color3.fromRGB(230, 240, 255)
+        throttleLabel.TextSize = 14
+        throttleLabel.Font = Enum.Font.GothamMedium
+        throttleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        throttleLabel.Parent = throttleFrame
+
+        local throttleBar = Instance.new("Frame")
+        throttleBar.Name = "ThrottleBar"
+        throttleBar.Size = UDim2.new(1, 0, 0, 10)
+        throttleBar.Position = UDim2.new(0, 0, 1, -14)
+        throttleBar.BackgroundColor3 = Color3.fromRGB(50, 60, 75)
+        throttleBar.BorderSizePixel = 0
+        throttleBar.Parent = throttleFrame
+
+        local throttleBarCorner = Instance.new("UICorner")
+        throttleBarCorner.CornerRadius = UDim.new(1, 0)
+        throttleBarCorner.Parent = throttleBar
+
+        local throttleFill = Instance.new("Frame")
+        throttleFill.Name = "Fill"
+        throttleFill.Size = UDim2.new(0, 0, 1, 0)
+        throttleFill.BackgroundColor3 = Color3.fromRGB(255, 120, 90)
+        throttleFill.BorderSizePixel = 0
+        throttleFill.Parent = throttleBar
+
+        local throttleFillCorner = Instance.new("UICorner")
+        throttleFillCorner.CornerRadius = UDim.new(1, 0)
+        throttleFillCorner.Parent = throttleFill
+
+        local controlsLabel = Instance.new("TextLabel")
+        controlsLabel.Name = "ControlsLabel"
+        controlsLabel.Size = UDim2.new(1, 0, 0, 34)
+        controlsLabel.Position = UDim2.new(0, 0, 1, -34)
+        controlsLabel.BackgroundTransparency = 1
+        controlsLabel.Text = "Controls: W/S Taxi • A/D Turn • Space Throttle\nR Climb • F Descend • P Exit"
+        controlsLabel.TextColor3 = Color3.fromRGB(190, 205, 235)
+        controlsLabel.TextSize = 12
+        controlsLabel.Font = Enum.Font.Gotham
+        controlsLabel.TextXAlignment = Enum.TextXAlignment.Left
+        controlsLabel.TextWrapped = true
+        controlsLabel.Parent = hudFrame
+
+        self._hudElements = {
+                speed = speedLabel,
+                altitude = altitudeLabel,
+                throttleValue = throttleLabel,
+                throttleFill = throttleFill,
+                status = statusLabel,
+                mode = modeLabel,
+        }
+
+        if self._hudUpdateConnection then
+                self._hudUpdateConnection:Disconnect()
+        end
+
+        self._hudUpdateConnection = RunService.Heartbeat:Connect(function()
+                if not self._planeBody or not self._planeBody.Parent then
+                        self:_removeFlightHUD()
+                        return
+                end
+
+                local elements = self._hudElements
+                if not elements or not elements.speed then
+                        return
+                end
+
+                local velocity = self._planeBody.AssemblyLinearVelocity
+                local speed = math.floor(velocity.Magnitude + 0.5)
+                local altitude = math.floor(self._planeBody.Position.Y + 0.5)
+                local throttlePercent = math.floor(math.clamp(self._currentSpeedMultiplier, 0, 1) * 100)
+
+                elements.speed.Text = string.format("Speed: %d studs/s", speed)
+
+                if self._isOnWater then
+                        elements.altitude.Text = "Altitude: 🌊 Sea Level"
+                        elements.altitude.TextColor3 = Color3.fromRGB(110, 200, 255)
+                        elements.mode.Text = string.format("Mode: 🌊 Taxi | Speed %d", speed)
+                        elements.status.Text = "Taxi Systems Ready"
+                        elements.status.TextColor3 = Color3.fromRGB(115, 190, 255)
+                else
+                        elements.altitude.Text = string.format("Altitude: %d studs", altitude)
+                        if altitude < 25 then
+                                elements.altitude.TextColor3 = Color3.fromRGB(255, 140, 105)
+                        elseif altitude < 80 then
+                                elements.altitude.TextColor3 = Color3.fromRGB(255, 220, 120)
+                        else
+                                elements.altitude.TextColor3 = Color3.fromRGB(160, 250, 160)
+                        end
+                        elements.mode.Text = string.format("Mode: ✈️ Cruise | Alt %d", altitude)
+                        elements.status.Text = "Flight Controls Active"
+                        elements.status.TextColor3 = Color3.fromRGB(156, 255, 180)
+                end
+
+                elements.throttleValue.Text = string.format("Throttle %d%%", throttlePercent)
+                local fillRatio = math.clamp(throttlePercent / 100, 0, 1)
+                elements.throttleFill.Size = UDim2.new(fillRatio, 0, 1, 0)
+                if throttlePercent < 30 then
+                        elements.throttleFill.BackgroundColor3 = Color3.fromRGB(255, 120, 90)
+                elseif throttlePercent < 70 then
+                        elements.throttleFill.BackgroundColor3 = Color3.fromRGB(255, 205, 100)
+                else
+                        elements.throttleFill.BackgroundColor3 = Color3.fromRGB(110, 225, 140)
+                end
+        end)
+
+        print("[NookPlane] ✅ Flight HUD created")
 end
 
 -- Remove flight HUD
@@ -1060,13 +1163,15 @@ function NookPlane:_removeFlightHUD()
 	end
 	
 	local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-	if playerGui then
-		local hud = playerGui:FindFirstChild("PlaneHUD")
-		if hud then
-			hud:Destroy()
-			print("[NookPlane] ✅ Flight HUD removed")
-		end
-	end
+        if playerGui then
+                local hud = playerGui:FindFirstChild("PlaneHUD")
+                if hud then
+                        hud:Destroy()
+                        print("[NookPlane] ✅ Flight HUD removed")
+                end
+        end
+
+        self._hudElements = {}
 end
 
 -- Check if player is near the plane
