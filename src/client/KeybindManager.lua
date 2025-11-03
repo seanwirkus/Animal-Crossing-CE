@@ -33,7 +33,7 @@ KeybindManager.KEYBINDS = {
 	SETTINGS = Enum.KeyCode.Escape,
 	
 	-- Plane controls
-	PLANE_TOGGLE = Enum.KeyCode.P,  -- P to toggle plane on/off
+	PLANE_TOGGLE = Enum.KeyCode.P,  -- P to exit plane
 }
 
 -- Keybind callback handlers

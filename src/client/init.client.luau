@@ -92,27 +92,9 @@ print("[Client] ✅ Responsive layout enabled")
 local inventoryClient = InventoryClient.init()
 print("[Client] ✅ InventoryClient initialized")
 
--- Initialize NookPlane and spawn it
+-- Initialize NookPlane
 local nookPlane = NookPlaneModule.new()
 print("[Client] ✅ NookPlane initialized")
-
--- Wait for server to spawn the plane, then connect to it
-task.spawn(function()
-	-- Wait longer for server to create the plane
-	task.wait(5)
-	print("[Client] 🔍 Looking for NookPlane spawned by server...")
-	local success, result = pcall(function()
-		return nookPlane:_createOrFindPlane()
-	end)
-	if success and result then
-		print("[Client] ✅ Connected to NookPlane in world")
-	elseif success and not result then
-		warn("[Client] ⚠️ NookPlane not found - server may not have spawned it yet")
-		warn("[Client] ℹ️ Check if NookPlaneSetup.luau is running on the server")
-	else
-		warn("[Client] ❌ Failed to connect to plane:", result)
-	end
-end)
 
 -- Setup KeybindManager
 local keybindManager = KeybindManager.new()
@@ -200,9 +182,24 @@ debugCraftingMenu:Hide()  -- Start hidden
 guiManager:registerGUI("crafting", debugCraftingMenu)
 print("[Client] ✅ DebugCraftingMenu initialized standalone")
 
--- Register INVENTORY keybind (E key)
+-- Register INVENTORY keybind (E key) - handle plane entry or inventory toggle
 keybindManager:registerBind("INVENTORY", function(inputState)
     if inputState == "began" then
+        -- Priority 1: If in plane and flying, E toggles engine off
+        if nookPlane and nookPlane:IsFlying() then
+            print("[Keybind] E key pressed in plane - turning off engine...")
+            nookPlane:TurnOff()
+            return
+        end
+        
+        -- Priority 2: If near plane and not flying, E tries to enter plane
+        if nookPlane and not nookPlane:IsFlying() and nookPlane:IsNearPlane() then
+            print("[Keybind] E key pressed near plane - attempting to enter plane...")
+            nookPlane:TryEnter()
+            return
+        end
+        
+        -- Priority 3: Normal inventory toggle (when not near plane or plane not available)
         print("[Keybind] E key pressed - toggling inventory...")
         
         -- Try to attach GUI if not already attached
@@ -346,30 +343,6 @@ keybindManager:registerBind("PLANE_TOGGLE", function(inputState)
 	end
 end)
 
--- Register INVENTORY keybind to also handle plane entry/engine (E key)
-local originalInventoryHandler = KeybindManager.HANDLERS["INVENTORY"]
-keybindManager:registerBind("INVENTORY", function(inputState)
-	if inputState == "began" then
-		-- Priority 1: If in plane and flying, E toggles engine
-		if nookPlane and nookPlane:IsFlying() then
-			print("[Keybind] E key pressed in plane - turning off engine...")
-			nookPlane:TurnOff()
-			return
-		end
-		
-		-- Priority 2: If near plane and not flying, E enters plane and turns on engine
-		if nookPlane and not nookPlane:IsFlying() and nookPlane:_isPlayerNearPlane() then
-			print("[Keybind] E key pressed near plane - entering and starting engine...")
-			nookPlane:TryEnter()
-			return
-		end
-		
-		-- Priority 3: Normal inventory toggle (when not near plane)
-		if originalInventoryHandler then
-			originalInventoryHandler(inputState)
-		end
-	end
-end)
 
 -- Register START_ONBOARDING debug keybind (N key) - only if DialogueGUI loaded
 print("[Client] 🔍 Checking DialogueGUI registration - success:", dialogueGUISuccess, "type:", type(DialogueGUI))
