@@ -247,6 +247,25 @@ function InventoryClient:ensureSlot(slotIndex)
         nameLabel.Parent = clone
     end
 
+    -- Ensure EquipButton exists for hover interaction
+    local equipButton = clone:FindFirstChild("EquipButton")
+    if not equipButton then
+        equipButton = Instance.new("TextButton")
+        equipButton.Name = "EquipButton"
+        equipButton.Text = "⚒️"  -- Tool emoji for equip
+        equipButton.Font = Enum.Font.Gotham
+        equipButton.TextSize = 18
+        equipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        equipButton.BackgroundColor3 = Color3.fromRGB(3, 176, 170)  -- Teal from color scheme
+        equipButton.BackgroundTransparency = 0
+        equipButton.BorderSizePixel = 0
+        equipButton.Size = UDim2.new(0.4, 0, 0.4, 0)  -- 40% size in corner
+        equipButton.Position = UDim2.new(0.6, 0, 0, 0)  -- Top-right corner
+        equipButton.ZIndex = clone.ZIndex + 2
+        equipButton.Visible = false  -- Hidden by default, shown on hover
+        equipButton.Parent = clone
+    end
+
     -- Configure interactions for this NEW slot
     self:configureSlotInteractions(clone, slotIndex)
     
@@ -332,19 +351,34 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         print("[InventoryClient] 🖱️ Mouse ENTERED slot", slotIndex)
         local state = self.slotState[slotIndex]
         local nameLabel = slot:FindFirstChild("ItemName")
+        local equipButton = slot:FindFirstChild("EquipButton")
+        
         if nameLabel and state and self.displayItems[state.itemId] then
             nameLabel.Text = self.displayItems[state.itemId].name
             nameLabel.Visible = true
         end
+        
+        -- Show equip button on hover if slot has an item
+        if equipButton and state and state.itemId and state.itemId ~= "" then
+            equipButton.Visible = true
+        end
+        
         slot.BackgroundColor3 = Color3.fromHex("#04AFA6")
     end)
 
     local leaveConnection = clickRegion.MouseLeave:Connect(function()
         print("[InventoryClient] 🖱️ Mouse LEFT slot", slotIndex)
         local nameLabel = slot:FindFirstChild("ItemName")
+        local equipButton = slot:FindFirstChild("EquipButton")
+        
         if nameLabel then
             nameLabel.Visible = false
         end
+        
+        if equipButton then
+            equipButton.Visible = false
+        end
+        
         slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     end)
     
@@ -352,6 +386,23 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
     self:trackConnection(clickConnection)
     self:trackConnection(enterConnection)
     self:trackConnection(leaveConnection)
+    
+    -- Add equip button click handler
+    local equipButton = slot:FindFirstChild("EquipButton")
+    if equipButton then
+        local equipButtonConnection = equipButton.MouseButton1Click:Connect(function()
+            print("[InventoryClient] ⚒️ EQUIP BUTTON CLICKED for slot", slotIndex)
+            local state = self.slotState[slotIndex]
+            if state and state.itemId then
+                print("[InventoryClient] ✅ Equipping item:", state.itemId)
+                if self.contextMenu then
+                    -- Pass an item object with id property
+                    self.contextMenu:equipItem({id = state.itemId})
+                end
+            end
+        end)
+        self:trackConnection(equipButtonConnection)
+    end
     
     print("[InventoryClient] ✅ Connections setup complete for slot", slotIndex, "- Total connections:", #self.connections)
 end

@@ -13,7 +13,8 @@ local InventoryStyling = {}
 InventoryStyling.Slot = {
 	DefaultBackgroundColor = Color3.fromRGB(200, 200, 200),
 	DefaultBackgroundTransparency = 0.2,
-	HoverBackgroundColor = Color3.fromRGB(4, 175, 166),      -- Teal/cyan
+	HoverBackgroundColor = Color3.fromRGB(255, 234, 160),      -- #FFEEA0 for item grabbed
+	SelectedBackgroundColor = Color3.fromRGB(3, 176, 170),     -- #03B0AA for item selected
 	HoverBackgroundTransparency = 0.1,
 	BorderColor = Color3.fromRGB(100, 100, 100),
 	BorderSizePixel = 1,
@@ -112,6 +113,16 @@ function InventoryStyling.ApplyHoverStyling(slot)
 	if not slot then return end
 	
 	slot.BackgroundColor3 = InventoryStyling.Slot.HoverBackgroundColor
+	slot.BackgroundTransparency = InventoryStyling.Slot.HoverBackgroundTransparency
+end
+
+-- ============================================================================
+-- HELPER FUNCTION: Apply Selected Styling
+-- ============================================================================
+function InventoryStyling.ApplySelectedStyling(slot)
+	if not slot then return end
+	
+	slot.BackgroundColor3 = InventoryStyling.Slot.SelectedBackgroundColor
 	slot.BackgroundTransparency = InventoryStyling.Slot.HoverBackgroundTransparency
 end
 

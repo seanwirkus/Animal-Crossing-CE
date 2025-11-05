@@ -32,8 +32,8 @@ print("[Client] ✅ RecipesInventoryGUI module loaded")
 local DebugManager = require(script.Modules.DebugManager)
 print("[Client] ✅ DebugManager module loaded")
 
-local NookPlaneModule = require(script.Modules.NookPlane)
-print("[Client] ✅ NookPlane module loaded")
+local ToolRingGUIModule = require(script.Modules.ToolRingGUI)
+print("[Client] ✅ ToolRingGUI module loaded")
 
 local WaterEffectsModule = require(script.Modules.WaterEffects)
 print("[Client] ✅ WaterEffects module loaded")
@@ -91,10 +91,6 @@ print("[Client] ✅ Responsive layout enabled")
 -- Initialize InventoryClient
 local inventoryClient = InventoryClient.init()
 print("[Client] ✅ InventoryClient initialized")
-
--- Initialize NookPlane
-local nookPlane = NookPlaneModule.new()
-print("[Client] ✅ NookPlane initialized")
 
 -- Setup KeybindManager
 local keybindManager = KeybindManager.new()
@@ -155,12 +151,21 @@ keybindManager:registerBind("ITEM_BROWSER", function(inputState)
 end)
 print("[Client] ✅ Item Browser keybind registered (B key)")
 
--- Register TOOL_WHEEL keybind (T key) - can be added later
+-- Initialize Tool Ring GUI
+local toolRingGUI = ToolRingGUIModule.new()
+-- Connect tool ring to inventory
+toolRingGUI:setInventoryClient(inventoryClient)
+guiManager:registerGUI("toolRing", toolRingGUI)
+print("[Client] ✅ ToolRingGUI initialized")
+
+-- Register TOOL_WHEEL keybind (T key)
 keybindManager:registerBind("TOOL_WHEEL", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] Tool wheel triggered (T key)")
-        end
-    end)
+		guiManager:toggleGUI("toolRing")
+	end
+end)
+print("[Client] ✅ Tool Ring keybind registered (T key)")
 
 -- DebugManager is no longer needed (can be removed later if unused)
 print("[Client] ✅ Debug systems initialized")
@@ -182,24 +187,9 @@ debugCraftingMenu:Hide()  -- Start hidden
 guiManager:registerGUI("crafting", debugCraftingMenu)
 print("[Client] ✅ DebugCraftingMenu initialized standalone")
 
--- Register INVENTORY keybind (E key) - handle plane entry or inventory toggle
+-- Register INVENTORY keybind (E key)
 keybindManager:registerBind("INVENTORY", function(inputState)
     if inputState == "began" then
-        -- Priority 1: If in plane and flying, E toggles engine off
-        if nookPlane and nookPlane:IsFlying() then
-            print("[Keybind] E key pressed in plane - turning off engine...")
-            nookPlane:TurnOff()
-            return
-        end
-        
-        -- Priority 2: If near plane and not flying, E tries to enter plane
-        if nookPlane and not nookPlane:IsFlying() and nookPlane:IsNearPlane() then
-            print("[Keybind] E key pressed near plane - attempting to enter plane...")
-            nookPlane:TryEnter()
-            return
-        end
-        
-        -- Priority 3: Normal inventory toggle (when not near plane or plane not available)
         print("[Keybind] E key pressed - toggling inventory...")
         
         -- Try to attach GUI if not already attached
@@ -333,16 +323,6 @@ keybindManager:registerBind("DEBUG_DELETE", function(inputState)
 	end
 end)
 
--- Register PLANE_TOGGLE keybind (P key) to exit plane
-keybindManager:registerBind("PLANE_TOGGLE", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] P key pressed - exiting plane...")
-		if nookPlane:IsFlying() then
-			nookPlane:TurnOff()
-		end
-	end
-end)
-
 
 -- Register START_ONBOARDING debug keybind (N key) - only if DialogueGUI loaded
 print("[Client] 🔍 Checking DialogueGUI registration - success:", dialogueGUISuccess, "type:", type(DialogueGUI))
@@ -391,7 +371,7 @@ if dialogueGUISuccess and DialogueGUI then
 						or _ReplicatedStorage:FindFirstChild("OnboardingGUI")
 					
 					if onboardingPath then
-						local OnboardingGUI = require(onboardingPath)
+						local _OnboardingGUI = require(onboardingPath)
 						-- Open island selection (you'll need to provide templates)
 						warn("[OnboardingDebug] ⚠️ OnboardingGUI found but integration not yet complete")
 					else
