@@ -10,10 +10,10 @@ local ToolRingGUI = {}
 ToolRingGUI.__index = ToolRingGUI
 
 -- Tool Ring Configuration
-local RING_RADIUS = 110
-local TOOL_SLOT_SIZE = 60
-local CENTER_SIZE = 80
-local GLOW_SIZE = 68
+local RING_RADIUS = 80
+local TOOL_SLOT_SIZE = 45
+local CENTER_SIZE = 60
+local GLOW_SIZE = 52
 
 -- Tool Categories - items that can be equipped from tool ring
 local TOOL_KEYWORDS = {
@@ -58,53 +58,18 @@ end
 -- Check if an item is a tool
 local function isTool(itemId, itemName)
 	if not itemId then return false end
-	-- itemName can be nil, that's OK - we have itemId as fallback
 	
-	local lowerName = string.lower(tostring(itemName))
 	local lowerId = string.lower(tostring(itemId))
+	local lowerName = string.lower(tostring(itemName or ""))
 	
-	print("[ToolRing] 🔍 isTool DEBUG: itemId='" .. lowerId .. "' itemName='" .. lowerName .. "'")
-	print("[ToolRing] ⚙️ TOOL_KEYWORDS type: " .. type(TOOL_KEYWORDS) .. " length: " .. (TOOL_KEYWORDS and #TOOL_KEYWORDS or "nil"))
-	
-	if not TOOL_KEYWORDS then
-		print("[ToolRing] ❌ ERROR: TOOL_KEYWORDS is nil!")
-		return false
-	end
-	
-	-- Check if item name/id contains tool keywords
-	print("[ToolRing] 📋 Checking " .. #TOOL_KEYWORDS .. " keywords...")
+	-- Check if itemId contains tool keywords
 	for _, keyword in ipairs(TOOL_KEYWORDS) do
-		print("[ToolRing]   Testing keyword: '" .. keyword .. "'")
-		local nameMatch = string.find(lowerName, keyword)
-		local idMatch = string.find(lowerId, keyword)
-		print("[ToolRing]     nameMatch: " .. tostring(nameMatch) .. " idMatch: " .. tostring(idMatch))
-		if nameMatch or idMatch then
-			print("[ToolRing] ✅ MATCHED keyword: '" .. keyword .. "' (name:" .. tostring(nameMatch) .. " id:" .. tostring(idMatch) .. ")")
+		if string.find(lowerId, keyword) or string.find(lowerName, keyword) then
+			print("[ToolRing] ✅ Tool detected: " .. lowerId .. " (matched keyword: " .. keyword .. ")")
 			return true
 		end
 	end
 	
-	-- Also check for specific tool-like item IDs with proper Lua pattern matching
-	-- Suffix patterns (ends with) - use %z for end anchor
-	if string.match(lowerId, "_rod%z") or 
-	   string.match(lowerId, "_net%z") or 
-	   string.match(lowerId, "_axe%z") or 
-	   string.match(lowerId, "_shovel%z") or
-	   string.match(lowerId, "_pick%z") then
-		print("[ToolRing] ✅ Matched suffix pattern")
-		return true
-	end
-	
-	-- Prefix patterns (starts with) - ^ means start
-	if string.match(lowerId, "^rod_") or 
-	   string.match(lowerId, "^net_") or 
-	   string.match(lowerId, "^axe_") or 
-	   string.match(lowerId, "^shovel_") then
-		print("[ToolRing] ✅ Matched prefix pattern")
-		return true
-	end
-	
-	print("[ToolRing] ❌ No match for: " .. lowerId)
 	return false
 end
 
@@ -119,6 +84,7 @@ function ToolRingGUI.new()
 	self.centerLabel = nil
 	self.backgroundFrame = nil
 	self.inventoryClient = nil  -- Will be set when connected to inventory
+	self.equippedItemSlot = nil -- Track currently equipped item slot
 	
 	self:createGUI()
 	
@@ -135,8 +101,18 @@ function ToolRingGUI:setInventoryClient(inventoryClient)
 	-- Listen to inventory remote events to update tool ring when items change
 	local inventoryRemote = inventoryClient.inventoryRemote
 	if inventoryRemote then
-		inventoryRemote.OnClientEvent:Connect(function()
-			print("[ToolRing] 🔔 Inventory remote event fired, updating tools...")
+		inventoryRemote.OnClientEvent:Connect(function(action, data)
+			print("[ToolRing] 🔔 Inventory remote event fired:", action, data)
+			
+			if action == "EquipItem" then
+				-- Update equipped item state
+				self.equippedItemSlot = data.slotIndex
+				print("[ToolRing] 🔧 Item equipped in slot:", self.equippedItemSlot)
+			elseif action == "UnequipItem" then
+				self.equippedItemSlot = nil
+				print("[ToolRing] 🔧 Item unequipped")
+			end
+			
 			self:updateToolsFromInventory()
 		end)
 	end
@@ -163,6 +139,17 @@ function ToolRingGUI:updateToolsFromInventory()
 		return 
 	end
 	
+	-- Load ItemDataFetcher to get proper item names
+	local ItemDataFetcher = nil
+	local success, result = pcall(function()
+		return require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("ItemDataFetcher"))
+	end)
+	if success and result then
+		ItemDataFetcher = result
+	else
+		print("[ToolRing] ⚠️ Failed to load ItemDataFetcher:", result)
+	end
+	
 	-- Collect all tools from inventory
 	local toolList = {}
 	local slotState = self.inventoryClient.slotState
@@ -174,16 +161,27 @@ function ToolRingGUI:updateToolsFromInventory()
 			itemCount = itemCount + 1
 			if itemState and itemState.itemId then
 				local itemId = tostring(itemState.itemId)
-				local itemName = tostring(itemState.name or "Unknown")
+				
+				-- Try to get proper item name from ItemDataFetcher
+				local itemName = itemState.name or "Unknown"
+				if ItemDataFetcher and type(ItemDataFetcher.getItemData) == "function" then
+					local itemDataSuccess, itemData = pcall(function()
+						return ItemDataFetcher.getItemData(itemId)
+					end)
+					if itemDataSuccess and itemData and itemData.name then
+						itemName = itemData.name
+					end
+				end
+				
 				print("[ToolRing] 🔍 Checking slot " .. tostring(slotIndex) .. ": " .. itemId .. " (" .. itemName .. ")")
 				
 				-- Check if this item is a tool
 				if isTool(itemState.itemId, itemState.name) then
 					table.insert(toolList, {
-						name = itemState.name or "Unknown",
+						name = itemName,
 						itemId = itemState.itemId,
 						spriteIndex = itemState.spriteIndex,
-						description = itemState.name or "Tool",
+						description = itemName,
 						isEmpty = false,
 						count = itemState.count or 1,
 						slotIndex = slotIndex
@@ -220,6 +218,9 @@ end
 function ToolRingGUI:updateSlotUI()
 	if not self.gui then return end
 	
+	-- Local reference to equipped slot for clarity
+	local equippedSlot = self.equippedItemSlot
+	
 	local container = self.gui:FindFirstChild("ToolRingContainer")
 	if not container then return end
 	
@@ -234,38 +235,44 @@ function ToolRingGUI:updateSlotUI()
 	end
 	
 	for i = 1, 8 do
-		local slot = container:FindFirstChild("ToolSlot" .. i)
-		if slot then
+		local slotData = self.toolSlots[i]
+		if slotData then
 			local tool = self.tools[i]
-			local icon = slot:FindFirstChild("Icon")
-			local name = slot:FindFirstChild("Name")
-			local countLabel = slot:FindFirstChild("Count")
 			
-			-- Update name and count
-			if name then
-				name.Text = tool.name
+			-- Update item name
+			if slotData.name then
+				slotData.name.Text = tool.name or "Empty"
 			end
 			
 			-- Update icon with sprite if item has sprite index
-			if icon and tool.spriteIndex and not tool.isEmpty then
+			if slotData.icon and tool.spriteIndex and not tool.isEmpty then
 				local spriteSuccess = pcall(function()
-					SpriteConfig.applySprite(icon, tool.spriteIndex)
+					SpriteConfig.applySprite(slotData.icon, tool.spriteIndex)
 				end)
 				if not spriteSuccess then
-					icon.Image = ""
+					slotData.icon.Image = ""
 				end
-			elseif icon then
-				icon.Image = ""  -- Clear if empty
+			elseif slotData.icon then
+				slotData.icon.Image = ""  -- Clear if empty
+			end
+			
+					-- Update equipped state visual feedback
+			if slotData.frame then
+				if tool.slotIndex and tool.slotIndex == self.equippedItemSlot then
+					slotData.frame.BackgroundColor3 = COLORS.SLOT_EQUIPPED
+				else
+					slotData.frame.BackgroundColor3 = COLORS.SLOT_NORMAL
+				end
 			end
 			
 			-- Update count label
 			if tool.count and tool.count > 1 then
-				if countLabel then
-					countLabel.Text = tostring(tool.count)
-					countLabel.Visible = true
+				if slotData.count then
+					slotData.count.Text = tostring(tool.count)
+					slotData.count.Visible = true
 				end
-			elseif countLabel then
-				countLabel.Visible = false
+			elseif slotData.count then
+				slotData.count.Visible = false
 			end
 		end
 	end
@@ -348,102 +355,101 @@ function ToolRingGUI:createGUI()
 	glowCorner.CornerRadius = UDim.new(1, 0)
 	glowCorner.Parent = glowBg
 	
-	-- Create tool slots in circle with enhanced styling
+	-- Create tool slots in circle with ItemSlotTemplate design
 	for i, tool in ipairs(self.tools) do
 		local angle = (i - 1) * (math.pi * 2 / #self.tools) - (math.pi / 2)  -- Start at top
 		local x = math.cos(angle) * RING_RADIUS
 		local y = math.sin(angle) * RING_RADIUS
 		
-		-- Create slot frame
-		local slot = Instance.new("TextButton")
+		-- Create slot frame (matching ItemSlotTemplate)
+		local slot = Instance.new("Frame")
 		slot.Name = "ToolSlot" .. i
 		slot.Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)
 		slot.Position = UDim2.new(0.5, x - (TOOL_SLOT_SIZE/2), 0.5, y - (TOOL_SLOT_SIZE/2))
-		slot.BackgroundColor3 = COLORS.SLOT_NORMAL
-		slot.BorderSizePixel = 0
-		slot.Text = ""  -- No text on button itself
-		slot.AutoButtonColor = false  -- Disable auto color change
+		
+		-- Set color based on equipped state
+		if tool.slotIndex and tool.slotIndex == self.equippedItemSlot then
+			slot.BackgroundColor3 = COLORS.SLOT_EQUIPPED
+		else
+			slot.BackgroundColor3 = COLORS.SLOT_NORMAL
+		end
+		
+		slot.BorderSizePixel = 2
+		slot.BorderColor3 = COLORS.BORDER_DARK
 		slot.ZIndex = 4
 		slot.Parent = container
 		
-		-- Slot corner rounding (fully round)
+		-- Slot corner rounding
 		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(1, 0)  -- Fully round (circle)
+		corner.CornerRadius = UDim.new(0, 4)
 		corner.Parent = slot
 		
-		-- Inner frame for visual separation
-		local innerFrame = Instance.new("Frame")
-		innerFrame.Name = "InnerFrame"
-		innerFrame.Size = UDim2.new(0.9, 0, 0.9, 0)
-		innerFrame.Position = UDim2.new(0.05, 0, 0.05, 0)
-		innerFrame.BackgroundTransparency = 1
-		innerFrame.BorderSizePixel = 0
-		innerFrame.ZIndex = 5
-		innerFrame.Parent = slot
+		-- Item icon (ImageLabel for sprites) - matching ItemSlotTemplate
+		local itemIcon = Instance.new("ImageLabel")
+		itemIcon.Name = "ItemIcon"
+		itemIcon.Size = UDim2.new(0.8, 0, 0.7, 0)
+		itemIcon.Position = UDim2.new(0.1, 0, 0.05, 0)
+		itemIcon.AnchorPoint = Vector2.new(0, 0)
+		itemIcon.BackgroundTransparency = 1
+		itemIcon.Image = ""
+		itemIcon.ScaleType = Enum.ScaleType.Fit
+		itemIcon.ImageRectSize = Vector2.new(36, 36)
+		itemIcon.ZIndex = 5
+		itemIcon.Parent = slot
 		
-		-- Tool icon (ImageLabel for sprites)
-		local icon = Instance.new("ImageLabel")
-		icon.Name = "Icon"
-		icon.Size = UDim2.new(1, 0, 1, 0)
-		icon.Position = UDim2.new(0, 0, 0, 0)
-		icon.BackgroundTransparency = 1
-		icon.Image = ""  -- Will be populated with sprites
-		icon.ZIndex = 5
-		icon.Parent = innerFrame
+		-- Item count label - matching ItemSlotTemplate
+		local itemCount = Instance.new("TextLabel")
+		itemCount.Name = "ItemCount"
+		itemCount.Size = UDim2.new(0.4, 0, 0.25, 0)
+		itemCount.Position = UDim2.new(0.58, 0, 0.73, 0)
+		itemCount.AnchorPoint = Vector2.new(0, 0)
+		itemCount.BackgroundTransparency = 1
+		itemCount.Text = ""
+		itemCount.TextColor3 = COLORS.TEXT_DARK
+		itemCount.TextSize = 12
+		itemCount.Font = Enum.Font.GothamBold
+		itemCount.TextXAlignment = Enum.TextXAlignment.Right
+		itemCount.TextYAlignment = Enum.TextYAlignment.Bottom
+		itemCount.Visible = false
+		itemCount.ZIndex = 6
+		itemCount.Parent = slot
 		
-		-- Tool name (shown on hover or when empty)
-		local name = Instance.new("TextLabel")
-		name.Name = "Name"
-		name.Size = UDim2.new(1, 0, 0.4, 0)
-		name.Position = UDim2.new(0, 0, 0.6, 0)
-		name.BackgroundTransparency = 0.8
-		name.BackgroundColor3 = COLORS.TEXT_DARK
-		name.Text = tool.name
-		name.TextSize = 11
-		name.Font = Enum.Font.GothamBold
-		name.TextColor3 = COLORS.TEXT_LIGHT
-		name.TextScaled = true
-		name.TextWrapped = true
-		name.ZIndex = 6
-		name.Visible = false  -- Hidden by default
-		name.Parent = slot
-		
-		-- Count label for stacked items
-		local countLabel = Instance.new("TextLabel")
-		countLabel.Name = "Count"
-		countLabel.Size = UDim2.new(0, 24, 0, 24)
-		countLabel.Position = UDim2.new(1, -28, 1, -28)
-		countLabel.BackgroundColor3 = COLORS.ITEM_GRABBED
-		countLabel.BorderSizePixel = 0
-		countLabel.Text = "1"
-		countLabel.TextSize = 12
-		countLabel.Font = Enum.Font.GothamBold
-		countLabel.TextColor3 = COLORS.TEXT_DARK
-		countLabel.Visible = false
-		countLabel.ZIndex = 7
-		local countCorner = Instance.new("UICorner")
-		countCorner.CornerRadius = UDim.new(0, 4)
-		countCorner.Parent = countLabel
-		countLabel.Parent = slot
+		-- Item name label - matching ItemSlotTemplate (shown on hover)
+		local itemName = Instance.new("TextLabel")
+		itemName.Name = "ItemName"
+		itemName.Size = UDim2.new(1, 0, 0.3, 0)
+		itemName.Position = UDim2.new(0, 0, 0.7, 0)
+		itemName.BackgroundTransparency = 0.3
+		itemName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		itemName.Text = ""
+		itemName.TextColor3 = COLORS.TEXT_LIGHT
+		itemName.TextSize = 10
+		itemName.Font = Enum.Font.Gotham
+		itemName.TextWrapped = true
+		itemName.TextScaled = true
+		itemName.Visible = false
+		itemName.ZIndex = 6
+		itemName.Parent = slot
 		
 		-- Store reference
 		self.toolSlots[i] = {
 			frame = slot,
-			icon = icon,
-			name = name,
+			icon = itemIcon,
+			name = itemName,
+			count = itemCount,
 			tool = tool,
-			index = i,
-			innerFrame = innerFrame,
-			countLabel = countLabel,
-			glow = glowBg
+			index = i
 		}
 		
-		-- Click handler - equip the tool
-		slot.MouseButton1Click:Connect(function()
-			self:selectTool(i)
-			-- Equip the item if it exists
-			if not self.tools[i].isEmpty then
-				self:equipTool(i)
+		-- Make frame interactive
+		slot.InputBegan:Connect(function(input, gameProcessed)
+			if gameProcessed then return end
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				self:selectTool(i)
+				-- Equip the item if it exists
+				if not self.tools[i].isEmpty then
+					self:equipTool(i)
+				end
 			end
 		end)
 		
@@ -452,6 +458,7 @@ function ToolRingGUI:createGUI()
 			local slotData = self.toolSlots[i]
 			if slotData then
 				-- Show name label
+				slotData.name.Visible = true
 				if slotData.name then
 					slotData.name.Visible = true
 				end
