@@ -1,6 +1,20 @@
 -- Server initialization script
 -- Complete server-side inventory management
 
+--[[
+    TODO: GAME LAUNCH INTEGRATION CHECKLIST
+    - [DAY 1] Integrate CurrencyManager.luau
+    - [DAY 2] Integrate FishingSystem.luau
+    - [DAY 3] Integrate BugSystem.luau (create file)
+    - [DAY 4] Integrate ShopManager.luau (create file)
+    - [DAY 6] Integrate TutorialManager.luau (create file)
+    - [DAY 7] Integrate DailyRewardsSystem.luau (create file)
+    - [DAY 8] Integrate GamePassManager.luau (create file)
+    - [DAY 9] Integrate ProductPurchaseHandler.luau (create file)
+    
+    See GAME_LAUNCH_PLAN.md for full implementation timeline
+]]
+
 -- Roblox globals
 local game = game
 local workspace = game:GetService("Workspace")

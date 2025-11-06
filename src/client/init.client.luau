@@ -1,6 +1,20 @@
 -- Roblox globals
 local game = game
 
+--[[
+    TODO: GAME LAUNCH INTEGRATION CHECKLIST
+    - [DAY 1] Integrate CurrencyDisplay.luau
+    - [DAY 2] Integrate FishingController.luau
+    - [DAY 3] Integrate BugController.luau (create file)
+    - [DAY 4] Integrate ShopGUI.luau
+    - [DAY 6] Integrate TutorialManager.luau (create file)
+    - [DAY 7] Integrate AchievementPopup.luau (create file)
+    - [DAY 11] Add sound effects and particle systems
+    - [DAY 11] Add mobile control buttons
+    
+    See GAME_LAUNCH_PLAN.md for full implementation timeline
+]]
+
 -- Import services
 local _Players = game:GetService("Players")
 local _ReplicatedStorage = game:GetService("ReplicatedStorage")

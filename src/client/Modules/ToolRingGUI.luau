@@ -302,6 +302,21 @@ function ToolRingGUI:createGUI()
 	local player = Players.LocalPlayer
 	local playerGui = player:WaitForChild("PlayerGui")
 	
+	-- Get ItemSlotTemplate from InventoryGUI
+	local inventoryGUI = playerGui:FindFirstChild("InventoryGUI")
+	local slotTemplate = nil
+	if inventoryGUI then
+		local inventoryItems = inventoryGUI:FindFirstChild("InventoryFrame") and 
+		                       inventoryGUI.InventoryFrame:FindFirstChild("InventoryItems")
+		if inventoryItems then
+			slotTemplate = inventoryItems:FindFirstChild("ItemSlotTemplate")
+		end
+	end
+	
+	if not slotTemplate then
+		warn("[ToolRing] ⚠️ Could not find ItemSlotTemplate - icons may not display correctly")
+	end
+	
 	-- Create ScreenGui with high visibility
 	self.gui = Instance.new("ScreenGui")
 	self.gui.Name = "ToolRingGUI"
@@ -355,17 +370,71 @@ function ToolRingGUI:createGUI()
 	glowCorner.CornerRadius = UDim.new(1, 0)
 	glowCorner.Parent = glowBg
 	
-	-- Create tool slots in circle with ItemSlotTemplate design
+	-- Create tool slots in circle using ItemSlotTemplate
 	for i, tool in ipairs(self.tools) do
 		local angle = (i - 1) * (math.pi * 2 / #self.tools) - (math.pi / 2)  -- Start at top
 		local x = math.cos(angle) * RING_RADIUS
 		local y = math.sin(angle) * RING_RADIUS
 		
-		-- Create slot frame (matching ItemSlotTemplate)
-		local slot = Instance.new("Frame")
-		slot.Name = "ToolSlot" .. i
-		slot.Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)
-		slot.Position = UDim2.new(0.5, x - (TOOL_SLOT_SIZE/2), 0.5, y - (TOOL_SLOT_SIZE/2))
+		local slot
+		if slotTemplate then
+			-- Clone from ItemSlotTemplate for consistent styling
+			slot = slotTemplate:Clone()
+			slot.Name = "ToolSlot" .. i
+			slot.Visible = true
+			slot.Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)
+			slot.Position = UDim2.new(0.5, x - (TOOL_SLOT_SIZE/2), 0.5, y - (TOOL_SLOT_SIZE/2))
+			slot.ZIndex = 4
+		else
+			-- Fallback: Create manually if template not found
+			slot = Instance.new("Frame")
+			slot.Name = "ToolSlot" .. i
+			slot.Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)
+			slot.Position = UDim2.new(0.5, x - (TOOL_SLOT_SIZE/2), 0.5, y - (TOOL_SLOT_SIZE/2))
+			slot.BackgroundColor3 = COLORS.SLOT_NORMAL
+			slot.BorderSizePixel = 2
+			slot.BorderColor3 = COLORS.BORDER_DARK
+			slot.ZIndex = 4
+			
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 4)
+			corner.Parent = slot
+			
+			-- Manually create children
+			local itemIcon = Instance.new("ImageLabel")
+			itemIcon.Name = "ItemIcon"
+			itemIcon.Size = UDim2.new(0.8, 0, 0.7, 0)
+			itemIcon.Position = UDim2.new(0.1, 0, 0.05, 0)
+			itemIcon.BackgroundTransparency = 1
+			itemIcon.ScaleType = Enum.ScaleType.Fit
+			itemIcon.ZIndex = 5
+			itemIcon.Parent = slot
+			
+			local itemCount = Instance.new("TextLabel")
+			itemCount.Name = "ItemCount"
+			itemCount.Size = UDim2.new(0.4, 0, 0.25, 0)
+			itemCount.Position = UDim2.new(0.58, 0, 0.73, 0)
+			itemCount.BackgroundTransparency = 1
+			itemCount.Font = Enum.Font.GothamBold
+			itemCount.TextSize = 12
+			itemCount.TextXAlignment = Enum.TextXAlignment.Right
+			itemCount.Visible = false
+			itemCount.ZIndex = 6
+			itemCount.Parent = slot
+			
+			local itemName = Instance.new("TextLabel")
+			itemName.Name = "ItemName"
+			itemName.Size = UDim2.new(1, 0, 0.3, 0)
+			itemName.Position = UDim2.new(0, 0, 0.7, 0)
+			itemName.BackgroundTransparency = 0.3
+			itemName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			itemName.TextColor3 = COLORS.TEXT_LIGHT
+			itemName.Font = Enum.Font.Gotham
+			itemName.TextSize = 10
+			itemName.Visible = false
+			itemName.ZIndex = 6
+			itemName.Parent = slot
+		end
 		
 		-- Set color based on equipped state
 		if tool.slotIndex and tool.slotIndex == self.equippedItemSlot then
@@ -374,62 +443,12 @@ function ToolRingGUI:createGUI()
 			slot.BackgroundColor3 = COLORS.SLOT_NORMAL
 		end
 		
-		slot.BorderSizePixel = 2
-		slot.BorderColor3 = COLORS.BORDER_DARK
-		slot.ZIndex = 4
 		slot.Parent = container
 		
-		-- Slot corner rounding
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 4)
-		corner.Parent = slot
-		
-		-- Item icon (ImageLabel for sprites) - matching ItemSlotTemplate
-		local itemIcon = Instance.new("ImageLabel")
-		itemIcon.Name = "ItemIcon"
-		itemIcon.Size = UDim2.new(0.8, 0, 0.7, 0)
-		itemIcon.Position = UDim2.new(0.1, 0, 0.05, 0)
-		itemIcon.AnchorPoint = Vector2.new(0, 0)
-		itemIcon.BackgroundTransparency = 1
-		itemIcon.Image = ""
-		itemIcon.ScaleType = Enum.ScaleType.Fit
-		itemIcon.ImageRectSize = Vector2.new(36, 36)
-		itemIcon.ZIndex = 5
-		itemIcon.Parent = slot
-		
-		-- Item count label - matching ItemSlotTemplate
-		local itemCount = Instance.new("TextLabel")
-		itemCount.Name = "ItemCount"
-		itemCount.Size = UDim2.new(0.4, 0, 0.25, 0)
-		itemCount.Position = UDim2.new(0.58, 0, 0.73, 0)
-		itemCount.AnchorPoint = Vector2.new(0, 0)
-		itemCount.BackgroundTransparency = 1
-		itemCount.Text = ""
-		itemCount.TextColor3 = COLORS.TEXT_DARK
-		itemCount.TextSize = 12
-		itemCount.Font = Enum.Font.GothamBold
-		itemCount.TextXAlignment = Enum.TextXAlignment.Right
-		itemCount.TextYAlignment = Enum.TextYAlignment.Bottom
-		itemCount.Visible = false
-		itemCount.ZIndex = 6
-		itemCount.Parent = slot
-		
-		-- Item name label - matching ItemSlotTemplate (shown on hover)
-		local itemName = Instance.new("TextLabel")
-		itemName.Name = "ItemName"
-		itemName.Size = UDim2.new(1, 0, 0.3, 0)
-		itemName.Position = UDim2.new(0, 0, 0.7, 0)
-		itemName.BackgroundTransparency = 0.3
-		itemName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		itemName.Text = ""
-		itemName.TextColor3 = COLORS.TEXT_LIGHT
-		itemName.TextSize = 10
-		itemName.Font = Enum.Font.Gotham
-		itemName.TextWrapped = true
-		itemName.TextScaled = true
-		itemName.Visible = false
-		itemName.ZIndex = 6
-		itemName.Parent = slot
+		-- Get child elements (works whether cloned or manually created)
+		local itemIcon = slot:FindFirstChild("ItemIcon")
+		local itemCount = slot:FindFirstChild("ItemCount")
+		local itemName = slot:FindFirstChild("ItemName")
 		
 		-- Store reference
 		self.toolSlots[i] = {
@@ -456,12 +475,10 @@ function ToolRingGUI:createGUI()
 		-- Hover effects - show name on hover
 		slot.MouseEnter:Connect(function()
 			local slotData = self.toolSlots[i]
-			if slotData then
+			if slotData and slotData.name then
 				-- Show name label
 				slotData.name.Visible = true
-				if slotData.name then
-					slotData.name.Visible = true
-				end
+				
 				-- Hover animation
 				if i ~= self.selectedSlot then
 					local hoverTween = TweenService:Create(slot, 
