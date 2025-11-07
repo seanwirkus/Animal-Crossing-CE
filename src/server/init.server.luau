@@ -27,6 +27,8 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 
+local CurrencyManager = require(script.Parent:WaitForChild("CurrencyManager"))
+
 -- Roblox types and enums
 local Instance = Instance
 local Enum = Enum
@@ -69,6 +71,98 @@ local playerInventories = {}
 
 -- DataStore for inventory persistence
 local InventoryDataStore = DataStoreService:GetDataStore("PlayerInventories")
+
+-- Player currency storage
+local playerCurrencyStates = {}
+
+local CurrencyDataStore = DataStoreService:GetDataStore("PlayerCurrency")
+
+local DEFAULT_CURRENCY_STATE = {
+        bells = 1000,
+        miles = 0,
+        lifetimeEarned = 0,
+        lifetimeSpent = 0,
+}
+
+local function createDefaultCurrencyState()
+        return {
+                bells = DEFAULT_CURRENCY_STATE.bells,
+                miles = DEFAULT_CURRENCY_STATE.miles,
+                lifetimeEarned = DEFAULT_CURRENCY_STATE.lifetimeEarned,
+                lifetimeSpent = DEFAULT_CURRENCY_STATE.lifetimeSpent,
+        }
+end
+
+local function sanitizeCurrencyState(state)
+        local sanitized = createDefaultCurrencyState()
+        if typeof(state) == "table" then
+                if state.bells ~= nil then
+                        sanitized.bells = math.max(0, math.floor(tonumber(state.bells) or sanitized.bells))
+                end
+                if state.miles ~= nil then
+                        sanitized.miles = math.max(0, math.floor(tonumber(state.miles) or sanitized.miles))
+                end
+                if state.lifetimeEarned ~= nil then
+                        sanitized.lifetimeEarned = math.max(0, math.floor(tonumber(state.lifetimeEarned) or sanitized.lifetimeEarned))
+                end
+                if state.lifetimeSpent ~= nil then
+                        sanitized.lifetimeSpent = math.max(0, math.floor(tonumber(state.lifetimeSpent) or sanitized.lifetimeSpent))
+                end
+        end
+
+        return sanitized
+end
+
+local function loadPlayerCurrency(player)
+        local userId = player.UserId
+        local success, data = pcall(function()
+                return CurrencyDataStore:GetAsync(tostring(userId))
+        end)
+
+        if not success then
+                warn("[Server] ❌ Failed to load currency for", player.Name, ":", data)
+                return createDefaultCurrencyState()
+        end
+
+        if not data then
+                return createDefaultCurrencyState()
+        end
+
+        return sanitizeCurrencyState(data)
+end
+
+local function savePlayerCurrency(player, state)
+        if not player then
+                return
+        end
+
+        local userId = player.UserId
+        local currencyState = state or playerCurrencyStates[userId]
+        if not currencyState then
+                return
+        end
+
+        local payload = {
+                bells = currencyState.bells or 0,
+                miles = currencyState.miles or 0,
+                lifetimeEarned = currencyState.lifetimeEarned or 0,
+                lifetimeSpent = currencyState.lifetimeSpent or 0,
+        }
+
+        local success, err = pcall(function()
+                CurrencyDataStore:SetAsync(tostring(userId), payload)
+        end)
+
+        if not success then
+                warn("[Server] ❌ Failed to save currency for", player.Name, ":", err)
+        end
+end
+
+CurrencyManager.configure({
+        playerCurrencyTable = playerCurrencyStates,
+        saveCallback = savePlayerCurrency,
+        createDefaultState = createDefaultCurrencyState,
+})
 
 -- Start with level 1 inventory (10 slots)
 local STARTING_INVENTORY_LEVEL = InventoryConstants.STARTING_INVENTORY_LEVEL
@@ -1172,10 +1266,14 @@ end)
 
 -- Player events
 Players.PlayerAdded:Connect(function(player)
-	print("[Server] Player added:", player.Name)
-	
-	-- Try to load saved inventory first
-	local savedData = loadPlayerInventory(player)
+        print("[Server] Player added:", player.Name)
+
+        local currencyState = loadPlayerCurrency(player)
+        playerCurrencyStates[player.UserId] = currencyState
+        CurrencyManager.registerPlayer(player, currencyState)
+
+        -- Try to load saved inventory first
+        local savedData = loadPlayerInventory(player)
 	
 	if savedData then
 		-- Initialize with saved data
@@ -1227,6 +1325,7 @@ Players.PlayerAdded:Connect(function(player)
 
                 -- Send initial inventory to client when character spawns
                 local currentInventory = playerInventories[player.UserId]
+                CurrencyManager.registerPlayer(player, playerCurrencyStates[player.UserId])
                 if currentInventory then
                         print("[Server] Sending initial inventory to", player.Name, "with", countFilledSlots(currentInventory.slots), "items")
                         syncInventoryToClient(player)
@@ -1237,10 +1336,14 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
-	-- Save inventory before player leaves
-	savePlayerInventory(player)
-	playerInventories[player.UserId] = nil
-	print("[Server] Cleaned up inventory for", player.Name)
+        -- Save inventory before player leaves
+        savePlayerInventory(player)
+        playerInventories[player.UserId] = nil
+        print("[Server] Cleaned up inventory for", player.Name)
+
+        savePlayerCurrency(player)
+        CurrencyManager.unregisterPlayer(player)
+        playerCurrencyStates[player.UserId] = nil
 end)
 
 -- Auto-save inventory periodically (every 30 seconds)
@@ -1251,17 +1354,35 @@ RunService.Heartbeat:Connect(function()
 		_G.lastInventorySave = currentTime
 	end
 	
-	if currentTime - _G.lastInventorySave >= 30 then
-		_G.lastInventorySave = currentTime
-		for _, player in pairs(Players:GetPlayers()) do
-			if playerInventories[player.UserId] then
-				savePlayerInventory(player)
-			end
-		end
-	end
+        if currentTime - _G.lastInventorySave >= 30 then
+                _G.lastInventorySave = currentTime
+                for _, player in pairs(Players:GetPlayers()) do
+                        if playerInventories[player.UserId] then
+                                savePlayerInventory(player)
+                        end
+                        if playerCurrencyStates[player.UserId] then
+                                savePlayerCurrency(player)
+                        end
+                end
+        end
 end)
 
 print("[Server] ✅ Inventory system loaded and ready!")
+
+local currencyDebugEvent
+if RunService:IsStudio() then
+        currencyDebugEvent = Instance.new("RemoteEvent")
+        currencyDebugEvent.Name = "CurrencyDebugEvent"
+        currencyDebugEvent.Parent = ReplicatedStorage
+
+        currencyDebugEvent.OnServerEvent:Connect(function(player, action, amount)
+                if action == "AwardBells" then
+                        CurrencyManager.addBells(player, tonumber(amount) or 0)
+                elseif action == "AwardMiles" then
+                        CurrencyManager.addMiles(player, tonumber(amount) or 0)
+                end
+        end)
+end
 
 -- Debug item test event
 local testItemEvent = Instance.new("RemoteEvent")

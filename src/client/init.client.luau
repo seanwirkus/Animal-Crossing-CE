@@ -31,6 +31,9 @@ print("[Client] ✅ InventoryClient loaded")
 local InventoryGuiSetup = require(script.Modules.InventoryGuiSetup)
 print("[Client] ✅ InventoryGuiSetup loaded")
 
+local CurrencyDisplay = require(script.Modules.CurrencyDisplay)
+print("[Client] ✅ CurrencyDisplay module loaded")
+
 local KeybindManager = require(script.KeybindManager)
 print("[Client] ✅ KeybindManager loaded")
 
@@ -124,6 +127,10 @@ print("[Client] ✅ GUIManager loaded successfully")
 
 -- Find or create ScreenGui for Recipes Inventory
 local playerGui = _Players.LocalPlayer:WaitForChild("PlayerGui")
+
+local currencyDisplay = CurrencyDisplay.new()
+print("[Client] ✅ Currency HUD initialized")
+
 local recipesScreenGui = playerGui:FindFirstChild("RecipesInventoryGUI")
 if not recipesScreenGui then
 	recipesScreenGui = Instance.new("ScreenGui")
