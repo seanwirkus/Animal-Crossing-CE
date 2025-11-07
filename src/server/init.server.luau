@@ -27,7 +27,8 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 
-local CurrencyManager = require(script.Parent:WaitForChild("CurrencyManager"))
+-- Load CurrencyManager module (it's a child of this script)
+local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 
 -- Roblox types and enums
 local Instance = Instance

@@ -52,8 +52,12 @@ print("[Client] ✅ DebugManager module loaded")
 local ToolRingGUIModule = require(script.Modules.ToolRingGUI)
 print("[Client] ✅ ToolRingGUI module loaded")
 
-local WaterEffectsModule = require(script.Modules.WaterEffects)
-print("[Client] ✅ WaterEffects module loaded")
+local ChibiCharacter = require(script.Modules.ChibiCharacter)
+print("[Client] ✅ ChibiCharacter module loaded")
+
+-- WaterEffects DISABLED - was causing material rendering issues in Studio
+-- local WaterEffectsModule = require(script.Modules.WaterEffects)
+-- print("[Client] ✅ WaterEffects module loaded")
 
 -- Initialize HUD system
 local _HUD = nil
@@ -453,10 +457,14 @@ _G.DebugInventoryGrid = debugInventoryGrid  -- Store for refresh hook
 _G.RecipesInventoryGUI = recipesInventoryGUI  -- Store for debugging
 _G.GUIManager = guiManager  -- Store for debugging
 
--- Initialize Water Visual Effects (makes water look nice)
-local waterEffects = WaterEffectsModule.new()
-waterEffects:Start()
-print("[Client] ✅ Water visual effects started")
+-- Water Visual Effects DISABLED - was causing material rendering issues in Studio
+-- local waterEffects = WaterEffectsModule.new()
+-- waterEffects:Start()
+print("[Client] ℹ️ Water visual effects DISABLED (use Studio lighting instead)")
+
+-- Initialize Chibi Character System (cute Animal Crossing style!)
+local chibiCharacter = ChibiCharacter.new()
+print("[Client] ✨ Chibi character mode enabled!")
 
 print("[Client] ✅ All systems ready!")
 

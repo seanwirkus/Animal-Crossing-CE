@@ -25,16 +25,25 @@ function WaterEffects:Start()
 		return
 	end
 	
+	-- Completely disable water effects - they interfere with Studio rendering
+	print("[WaterEffects] ⚠️ Water effects DISABLED (was causing material rendering issues)")
+	return
+	
+	--[[ DISABLED - Uncomment to re-enable water effects
 	print("[WaterEffects] 🌊 Starting water visual effects")
 	
 	-- Find all water parts
 	local function setupWaterEffects()
-		for _, descendant in pairs(Workspace:GetDescendants()) do
-			if descendant:IsA("BasePart") and descendant.Material == Enum.Material.Water then
-				-- Skip if already processed
-				if not descendant:FindFirstChild("WaterEffectsApplied") then
-					self:_applyWaterEffects(descendant)
-					descendant:SetAttribute("WaterEffectsApplied", true)
+		-- Only look in specific water-related folders to avoid scanning everything
+		local waterFolder = Workspace:FindFirstChild("Water")
+		if waterFolder then
+			for _, descendant in pairs(waterFolder:GetDescendants()) do
+				if descendant:IsA("BasePart") and descendant.Material == Enum.Material.Water then
+					-- Skip if already processed
+					if not descendant:GetAttribute("WaterEffectsApplied") then
+						self:_applyWaterEffects(descendant)
+						descendant:SetAttribute("WaterEffectsApplied", true)
+					end
 				end
 			end
 		end
@@ -43,14 +52,18 @@ function WaterEffects:Start()
 	-- Setup existing water
 	setupWaterEffects()
 	
-	-- Watch for new water parts
-	self._connection = Workspace.DescendantAdded:Connect(function(descendant)
-		if descendant:IsA("BasePart") and descendant.Material == Enum.Material.Water then
-			task.wait(0.1) -- Wait for part to fully load
-			self:_applyWaterEffects(descendant)
-			descendant:SetAttribute("WaterEffectsApplied", true)
-		end
-	end)
+	-- Watch for new water parts (only in Water folder)
+	local waterFolder = Workspace:FindFirstChild("Water")
+	if waterFolder then
+		self._connection = waterFolder.DescendantAdded:Connect(function(descendant)
+			if descendant:IsA("BasePart") and descendant.Material == Enum.Material.Water then
+				task.wait(0.1)
+				self:_applyWaterEffects(descendant)
+				descendant:SetAttribute("WaterEffectsApplied", true)
+			end
+		end)
+	end
+	--]]
 end
 
 function WaterEffects:_applyWaterEffects(waterPart)

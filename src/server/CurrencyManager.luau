@@ -252,11 +252,25 @@ function CurrencyManager.getEarningMultiplier(_player: Player): number
 end
 
 function CurrencyManager.getPlayerState(player: Player): PlayerCurrencyState?
-    if not player then
-        return nil
-    end
+	if not player then
+		return nil
+	end
 
-    return playerCurrency[player.UserId]
+	return playerCurrency[player.UserId]
 end
+
+-- Handle client requests
+currencyRemote.OnServerEvent:Connect(function(player, action)
+	print("[CurrencyManager] 📨 Received request from", player.Name, "- Action:", action)
+	
+	if action == "GetCurrency" then
+		local state = ensureState(player)
+		print("[CurrencyManager] 📤 Sending currency to", player.Name, "- Bells:", state.bells, "Miles:", state.miles)
+		fireUpdate(player, "UpdateAll", {
+			bells = state.bells,
+			miles = state.miles,
+		})
+	end
+end)
 
 return CurrencyManager

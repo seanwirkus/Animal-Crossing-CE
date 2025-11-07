@@ -31,9 +31,6 @@ KeybindManager.KEYBINDS = {
 	-- Future binds (placeholder)
 	EMOTE = Enum.KeyCode.V,
 	SETTINGS = Enum.KeyCode.Escape,
-	
-	-- Plane controls
-	PLANE_TOGGLE = Enum.KeyCode.P,  -- P to exit plane
 }
 
 -- Keybind callback handlers
