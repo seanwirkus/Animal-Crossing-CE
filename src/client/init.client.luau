@@ -52,6 +52,9 @@ print("[Client] ✅ DebugManager module loaded")
 local ToolRingGUIModule = require(script.Modules.ToolRingGUI)
 print("[Client] ✅ ToolRingGUI module loaded")
 
+local FishingControllerModule = require(script.Modules.FishingController)
+print("[Client] ✅ FishingController module loaded")
+
 local ChibiCharacter = require(script.Modules.ChibiCharacter)
 print("[Client] ✅ ChibiCharacter module loaded")
 
@@ -123,6 +126,10 @@ local debugCraftingMenu = DebugCraftingMenuModule.new()
 
 -- Create Recipes Inventory GUI instance
 local recipesInventoryGUI = RecipesInventoryGUIModule.new()
+
+local fishingController = FishingControllerModule.new()
+fishingController:init()
+print("[Client] ✅ FishingController initialized")
 
 -- Create GUIManager for exclusive GUI visibility
 local GUIManager = require(script.Modules.GUIManager)
