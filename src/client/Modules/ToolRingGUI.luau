@@ -1,725 +1,772 @@
--- ToolRingGUI.lua
--- Animal Crossing-style tool ring that appears when T is pressed
--- Displays 8 tools in a circular arrangement
--- Only shows tools (fishing rods, axes, nets, etc.), not regular items
+--[[
+    ToolRingGUI.luau
+
+    Re-implementation of the Animal Crossing inspired tool ring.
+    Shows up to 8 tools in a circular menu, highlights the equipped tool,
+    and mirrors the cozy ACNH colour palette.
+]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+
+local SLOT_COUNT = 8
+
+local RING_RADIUS = 140
+local TOOL_SLOT_SIZE = 75
+local CENTER_SIZE = 100
+local GLOW_SIZE = 130
+
+local COLORS = {
+    ITEM_GRABBED = Color3.fromRGB(255, 234, 160), -- Bright yellow highlight
+    ITEM_SELECTED = Color3.fromRGB(3, 176, 170), -- Teal accent
+    BG_PRIMARY = Color3.fromRGB(255, 251, 231),
+    BG_SECONDARY = Color3.fromRGB(255, 255, 255),
+    BORDER_DARK = Color3.fromRGB(100, 80, 60),
+    SLOT_NORMAL = Color3.fromRGB(240, 235, 220),
+    SLOT_HOVER = Color3.fromRGB(222, 216, 200),
+    SLOT_EQUIPPED = Color3.fromRGB(253, 211, 120),
+    TEXT_DARK = Color3.fromRGB(60, 50, 40),
+    TEXT_LIGHT = Color3.fromRGB(255, 255, 255),
+}
+
+local TOOL_KEYWORDS = {
+    "fishing", "rod", "axe", "net", "shovel", "watering", "can", "slingshot",
+    "ladder", "flimsy", "stone", "iron", "golden", "tool", "tools",
+}
+
+local ACCEPTED_CATEGORIES = {
+    Tools = true,
+    Equipment = true,
+    "Vaulting Pole" = true,
+}
 
 local ToolRingGUI = {}
 ToolRingGUI.__index = ToolRingGUI
 
--- Tool Ring Configuration
-local RING_RADIUS = 80
-local TOOL_SLOT_SIZE = 45
-local CENTER_SIZE = 60
-local GLOW_SIZE = 52
+-- Utility -------------------------------------------------------------------
 
--- Tool Categories - items that can be equipped from tool ring
-local TOOL_KEYWORDS = {
-	"fishing", "rod", "axe", "net", "shovel", "pickaxe", "watering", "can", 
-	"slingshot", "ladder", "flimsy", "stone", "iron", "golden", "tools", "tool",
-	"bug_net", "net_", "rod_", "fishing_rod", "golden_"
-}
+local function isToolKeywordMatch(itemId: string, itemName: string?): boolean
+    local lowerId = string.lower(itemId)
+    local lowerName = string.lower(itemName or "")
 
--- Colors - ACNH Aesthetic
-local COLORS = {
-	-- Item states
-	ITEM_GRABBED = Color3.fromRGB(255, 234, 160),  -- #FFEEA0 (grabbing)
-	ITEM_SELECTED = Color3.fromRGB(3, 176, 170),   -- #03B0AA (selected/teal)
-	
-	-- UI Theme (Animal Crossing style)
-	BG_PRIMARY = Color3.fromRGB(255, 251, 231),    -- Cream background
-	BG_SECONDARY = Color3.fromRGB(255, 255, 255),  -- White
-	ACCENT_BROWN = Color3.fromRGB(120, 100, 80),   -- Brown titles
-	TEXT_DARK = Color3.fromRGB(60, 50, 40),
-	TEXT_LIGHT = Color3.fromRGB(255, 255, 255),
-	SLOT_NORMAL = Color3.fromRGB(240, 235, 220),
-	SLOT_HOVER = Color3.fromRGB(220, 215, 200),
-	SLOT_EQUIPPED = Color3.fromRGB(255, 234, 160), -- Bright highlight when equipped
-	BORDER_DARK = Color3.fromRGB(100, 80, 60),
-	GLOW_COLOR = Color3.fromRGB(3, 176, 170),      -- Teal glow for selected
-}
+    for _, keyword in ipairs(TOOL_KEYWORDS) do
+        if string.find(lowerId, keyword, 1, true) or string.find(lowerName, keyword, 1, true) then
+            return true
+        end
+    end
 
--- 8 Tool slots - will be populated from inventory
-local function createEmptyToolSlots()
-	return {
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-		{name = "Empty", icon = "", description = "No tool equipped", isEmpty = true},
-	}
+    return false
 end
 
--- Check if an item is a tool
-local function isTool(itemId, itemName)
-	if not itemId then return false end
-	
-	local lowerId = string.lower(tostring(itemId))
-	local lowerName = string.lower(tostring(itemName or ""))
-	
-	-- Check if itemId contains tool keywords
-	for _, keyword in ipairs(TOOL_KEYWORDS) do
-		if string.find(lowerId, keyword) or string.find(lowerName, keyword) then
-			print("[ToolRing] ✅ Tool detected: " .. lowerId .. " (matched keyword: " .. keyword .. ")")
-			return true
-		end
-	end
-	
-	return false
+local function cloneToolEntry(entry)
+    local copy = {}
+    for key, value in pairs(entry) do
+        copy[key] = value
+    end
+    return copy
 end
+
+-- Class ---------------------------------------------------------------------
 
 function ToolRingGUI.new()
-	local self = setmetatable({}, ToolRingGUI)
-	
-	self.gui = nil
-	self.visible = false
-	self.selectedSlot = 1
-	self.toolSlots = {}
-	self.tools = createEmptyToolSlots()  -- Initialize with empty slots
-	self.centerLabel = nil
-	self.backgroundFrame = nil
-	self.inventoryClient = nil  -- Will be set when connected to inventory
-	self.equippedItemSlot = nil -- Track currently equipped item slot
-	
-	self:createGUI()
-	
-	return self
+    local self = setmetatable({}, ToolRingGUI)
+
+    self.player = Players.LocalPlayer
+    self.gui = nil
+    self.backgroundFrame = nil
+    self.ringContainer = nil
+    self.centerLabel = nil
+    self.descriptionLabel = nil
+    self.instructionLabel = nil
+    self.toolSlots = table.create(SLOT_COUNT)
+    self.selectedSlot = 1
+    self.equippedItemSlot = nil
+    self.visible = false
+
+    self.inventoryClient = nil
+    self.inventoryConnections = {}
+    self.inventorySignalConn = nil
+
+    local shared = ReplicatedStorage:WaitForChild("Shared")
+    self.spriteConfig = require(shared:WaitForChild("SpriteConfig"))
+    self.itemDataFetcher = require(shared:WaitForChild("ItemDataFetcher"))
+    self.displayItemMap = self.itemDataFetcher.getDisplayItemMap()
+
+    self.tools = {}
+    for i = 1, SLOT_COUNT do
+        self.tools[i] = {
+            isEmpty = true,
+            name = "Empty",
+            description = "",
+            count = 0,
+        }
+    end
+
+    self:buildGui()
+
+    return self
 end
 
--- Connect to inventory client to populate tools
+-- Internal helpers ----------------------------------------------------------
+
+function ToolRingGUI:destroyInventoryConnections()
+    for _, connection in ipairs(self.inventoryConnections) do
+        connection:Disconnect()
+    end
+    table.clear(self.inventoryConnections)
+
+    if self.inventorySignalConn then
+        self.inventorySignalConn:Disconnect()
+        self.inventorySignalConn = nil
+    end
+end
+
+function ToolRingGUI:resolveItemDefinition(itemId: string?)
+    if not itemId then
+        return nil
+    end
+
+    local definition = self.displayItemMap[itemId]
+    if not definition and self.inventoryClient and self.inventoryClient.getItemDefinition then
+        definition = self.inventoryClient:getItemDefinition(itemId)
+    end
+
+    if not definition then
+        definition = self.itemDataFetcher.getItem and self.itemDataFetcher.getItem(itemId) or nil
+    end
+
+    return definition
+end
+
+function ToolRingGUI:isTool(itemId: string, itemName: string?, definition: any?)
+    if definition and definition.category and ACCEPTED_CATEGORIES[definition.category] then
+        return true
+    end
+
+    return isToolKeywordMatch(itemId, itemName or (definition and definition.name))
+end
+
+function ToolRingGUI:getToolDescription(definition, count)
+    if not definition then
+        return count and count > 1 and ("x" .. tostring(count)) or ""
+    end
+
+    local segments = {}
+    if definition.name then
+        table.insert(segments, definition.name)
+    end
+
+    if definition.category and definition.category ~= "" then
+        table.insert(segments, definition.category)
+    end
+
+    if definition.source and typeof(definition.source) == "table" and #definition.source > 0 then
+        table.insert(segments, definition.source[1])
+    end
+
+    return table.concat(segments, " • ")
+end
+
+function ToolRingGUI:applySprite(imageObject, spriteIndex)
+    if not imageObject then
+        return
+    end
+
+    imageObject.Visible = spriteIndex ~= nil
+    if not spriteIndex then
+        imageObject.Image = ""
+        return
+    end
+
+    local success = self.spriteConfig.applySprite(imageObject, spriteIndex)
+    if not success then
+        imageObject.Image = ""
+    end
+end
+
+function ToolRingGUI:updateSelectionHighlight()
+    for index, slot in ipairs(self.toolSlots) do
+        if slot and slot.frame then
+            local tool = self.tools[index]
+
+            local isSelected = index == self.selectedSlot
+            local isEquipped = tool.slotIndex and tool.slotIndex == self.equippedItemSlot
+
+            local backgroundColor = COLORS.SLOT_NORMAL
+            if isSelected then
+                backgroundColor = COLORS.ITEM_GRABBED
+            elseif isEquipped then
+                backgroundColor = COLORS.SLOT_EQUIPPED
+            end
+
+            slot.frame.BackgroundColor3 = backgroundColor
+
+            if slot.selectionTween then
+                slot.selectionTween:Cancel()
+                slot.selectionTween = nil
+            end
+
+            local targetSize = TOOL_SLOT_SIZE
+            if isSelected then
+                targetSize = TOOL_SLOT_SIZE + 8
+            end
+
+            slot.selectionTween = TweenService:Create(
+                slot.frame,
+                TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                { Size = UDim2.fromOffset(targetSize, targetSize) }
+            )
+            slot.selectionTween:Play()
+        end
+    end
+end
+
+-- GUI creation --------------------------------------------------------------
+
+function ToolRingGUI:buildGui()
+    local playerGui = self.player:WaitForChild("PlayerGui")
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "ToolRingGUI"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 50
+    gui.Enabled = false
+    gui.Parent = playerGui
+    self.gui = gui
+
+    local boardSize = (RING_RADIUS + TOOL_SLOT_SIZE) * 2 + 120
+
+    local backdrop = Instance.new("Frame")
+    backdrop.Name = "Backdrop"
+    backdrop.Size = UDim2.fromOffset(boardSize, boardSize)
+    backdrop.Position = UDim2.new(0.5, -boardSize / 2, 0.5, -boardSize / 2)
+    backdrop.BackgroundColor3 = COLORS.BG_PRIMARY
+    backdrop.BackgroundTransparency = 0.05
+    backdrop.BorderSizePixel = 0
+    backdrop.ZIndex = 1
+    backdrop.Parent = gui
+    self.backgroundFrame = backdrop
+
+    local backdropCorner = Instance.new("UICorner")
+    backdropCorner.CornerRadius = UDim.new(0, 32)
+    backdropCorner.Parent = backdrop
+
+    local backdropStroke = Instance.new("UIStroke")
+    backdropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    backdropStroke.Thickness = 3
+    backdropStroke.Color = COLORS.BORDER_DARK
+    backdropStroke.Parent = backdrop
+
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "DropShadow"
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.Position = UDim2.fromScale(0.5, 0.5)
+    shadow.Size = UDim2.fromScale(1, 1)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://6015897843"
+    shadow.ImageTransparency = 0.5
+    shadow.ZIndex = 0
+    shadow.Parent = backdrop
+
+    local ringContainer = Instance.new("Frame")
+    ringContainer.Name = "RingContainer"
+    local diameter = (RING_RADIUS + TOOL_SLOT_SIZE)
+    ringContainer.Size = UDim2.fromOffset(diameter * 2, diameter * 2)
+    ringContainer.Position = UDim2.new(0.5, -diameter, 0.5, -diameter - 20)
+    ringContainer.BackgroundTransparency = 1
+    ringContainer.ZIndex = 3
+    ringContainer.Parent = backdrop
+    self.ringContainer = ringContainer
+
+    local glow = Instance.new("Frame")
+    glow.Name = "CenterGlow"
+    glow.Size = UDim2.fromOffset(GLOW_SIZE, GLOW_SIZE)
+    glow.Position = UDim2.new(0.5, -GLOW_SIZE / 2, 0.5, -GLOW_SIZE / 2)
+    glow.BackgroundColor3 = COLORS.ITEM_SELECTED
+    glow.BackgroundTransparency = 0.85
+    glow.BorderSizePixel = 0
+    glow.ZIndex = 2
+    glow.Parent = ringContainer
+
+    local glowCorner = Instance.new("UICorner")
+    glowCorner.CornerRadius = UDim.new(1, 0)
+    glowCorner.Parent = glow
+
+    local centerLabel = Instance.new("TextLabel")
+    centerLabel.Name = "CenterLabel"
+    centerLabel.Size = UDim2.fromOffset(CENTER_SIZE, CENTER_SIZE)
+    centerLabel.Position = UDim2.new(0.5, -CENTER_SIZE / 2, 0.5, -CENTER_SIZE / 2)
+    centerLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+    centerLabel.BorderSizePixel = 0
+    centerLabel.Font = Enum.Font.GothamBold
+    centerLabel.TextColor3 = COLORS.ITEM_SELECTED
+    centerLabel.TextScaled = true
+    centerLabel.Text = ""
+    centerLabel.ZIndex = 4
+    centerLabel.Parent = ringContainer
+    self.centerLabel = centerLabel
+
+    local centerCorner = Instance.new("UICorner")
+    centerCorner.CornerRadius = UDim.new(1, 0)
+    centerCorner.Parent = centerLabel
+
+    local descriptionLabel = Instance.new("TextLabel")
+    descriptionLabel.Name = "DescriptionLabel"
+    descriptionLabel.Size = UDim2.fromOffset(boardSize - 80, 44)
+    descriptionLabel.Position = UDim2.new(0.5, -(boardSize - 80) / 2, 1, -60)
+    descriptionLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+    descriptionLabel.BorderSizePixel = 0
+    descriptionLabel.Font = Enum.Font.GothamBold
+    descriptionLabel.TextColor3 = COLORS.TEXT_DARK
+    descriptionLabel.TextSize = 20
+    descriptionLabel.TextWrapped = true
+    descriptionLabel.Text = "Select a tool"
+    descriptionLabel.ZIndex = 3
+    descriptionLabel.Parent = backdrop
+    self.descriptionLabel = descriptionLabel
+
+    local descriptionCorner = Instance.new("UICorner")
+    descriptionCorner.CornerRadius = UDim.new(0, 16)
+    descriptionCorner.Parent = descriptionLabel
+
+    local instructionLabel = Instance.new("TextLabel")
+    instructionLabel.Name = "InstructionLabel"
+    instructionLabel.Size = UDim2.fromOffset(boardSize - 60, 32)
+    instructionLabel.Position = UDim2.new(0.5, -(boardSize - 60) / 2, 0, 24)
+    instructionLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+    instructionLabel.BorderSizePixel = 0
+    instructionLabel.Font = Enum.Font.GothamBold
+    instructionLabel.TextColor3 = COLORS.BORDER_DARK
+    instructionLabel.TextSize = 18
+    instructionLabel.Text = "⚒️ TOOL RING — Click a tool to equip"
+    instructionLabel.ZIndex = 3
+    instructionLabel.Parent = backdrop
+    self.instructionLabel = instructionLabel
+
+    local instructionCorner = Instance.new("UICorner")
+    instructionCorner.CornerRadius = UDim.new(0, 14)
+    instructionCorner.Parent = instructionLabel
+
+    self:createSlots()
+end
+
+function ToolRingGUI:createSlots()
+    for index = 1, SLOT_COUNT do
+        local angle = (index - 1) * (math.pi * 2 / SLOT_COUNT) - math.pi / 2
+        local offsetX = math.cos(angle) * RING_RADIUS
+        local offsetY = math.sin(angle) * RING_RADIUS
+
+        local slotFrame = Instance.new("Frame")
+        slotFrame.Name = "ToolSlot" .. index
+        slotFrame.Size = UDim2.fromOffset(TOOL_SLOT_SIZE, TOOL_SLOT_SIZE)
+        slotFrame.Position = UDim2.new(0.5, offsetX - TOOL_SLOT_SIZE / 2, 0.5, offsetY - TOOL_SLOT_SIZE / 2)
+        slotFrame.BackgroundColor3 = COLORS.SLOT_NORMAL
+        slotFrame.BorderColor3 = COLORS.BORDER_DARK
+        slotFrame.BorderSizePixel = 3
+        slotFrame.ZIndex = 4
+        slotFrame.Parent = self.ringContainer
+
+        local slotCorner = Instance.new("UICorner")
+        slotCorner.CornerRadius = UDim.new(1, 0)
+        slotCorner.Parent = slotFrame
+
+        local button = Instance.new("TextButton")
+        button.Name = "Interactive"
+        button.Text = ""
+        button.Size = UDim2.fromScale(1, 1)
+        button.BackgroundTransparency = 1
+        button.ZIndex = 5
+        button.Parent = slotFrame
+
+        local icon = Instance.new("ImageLabel")
+        icon.Name = "ItemIcon"
+        icon.BackgroundTransparency = 1
+        icon.Size = UDim2.new(0, TOOL_SLOT_SIZE - 18, 0, TOOL_SLOT_SIZE - 24)
+        icon.Position = UDim2.new(0.5, 0, 0.5, -6)
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
+        icon.ZIndex = 6
+        icon.Parent = slotFrame
+
+        local countBadge = Instance.new("Frame")
+        countBadge.Name = "CountBadge"
+        countBadge.Size = UDim2.fromOffset(28, 24)
+        countBadge.Position = UDim2.new(1, -24, 1, -26)
+        countBadge.BackgroundColor3 = COLORS.ITEM_SELECTED
+        countBadge.BorderSizePixel = 0
+        countBadge.Visible = false
+        countBadge.ZIndex = 7
+        countBadge.Parent = slotFrame
+
+        local badgeCorner = Instance.new("UICorner")
+        badgeCorner.CornerRadius = UDim.new(1, 0)
+        badgeCorner.Parent = countBadge
+
+        local countLabel = Instance.new("TextLabel")
+        countLabel.Name = "CountLabel"
+        countLabel.Size = UDim2.fromScale(1, 1)
+        countLabel.BackgroundTransparency = 1
+        countLabel.Font = Enum.Font.GothamBold
+        countLabel.TextColor3 = COLORS.TEXT_LIGHT
+        countLabel.TextScaled = true
+        countLabel.Text = "1"
+        countLabel.ZIndex = 8
+        countLabel.Parent = countBadge
+
+        local nameTag = Instance.new("TextLabel")
+        nameTag.Name = "NameTag"
+        nameTag.Size = UDim2.new(1, 12, 0, 22)
+        nameTag.Position = UDim2.new(0, -6, 1, 6)
+        nameTag.BackgroundColor3 = COLORS.BG_PRIMARY
+        nameTag.BorderSizePixel = 0
+        nameTag.Font = Enum.Font.Gotham
+        nameTag.TextColor3 = COLORS.TEXT_DARK
+        nameTag.TextSize = 12
+        nameTag.TextWrapped = true
+        nameTag.Visible = false
+        nameTag.ZIndex = 5
+        nameTag.Parent = slotFrame
+
+        local nameCorner = Instance.new("UICorner")
+        nameCorner.CornerRadius = UDim.new(0, 10)
+        nameCorner.Parent = nameTag
+
+        button.MouseEnter:Connect(function()
+            nameTag.Visible = not self.tools[index].isEmpty
+
+            if not self.tools[index].isEmpty and index ~= self.selectedSlot then
+                TweenService:Create(
+                    slotFrame,
+                    TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    { BackgroundColor3 = COLORS.SLOT_HOVER }
+                ):Play()
+            end
+        end)
+
+        button.MouseLeave:Connect(function()
+            nameTag.Visible = false
+
+            if index ~= self.selectedSlot then
+                TweenService:Create(
+                    slotFrame,
+                    TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    { BackgroundColor3 = COLORS.SLOT_NORMAL }
+                ):Play()
+            end
+        end)
+
+        button.Activated:Connect(function()
+            self:selectTool(index)
+            self:equipTool(index)
+        end)
+
+        self.toolSlots[index] = {
+            frame = slotFrame,
+            icon = icon,
+            countBadge = countBadge,
+            countLabel = countLabel,
+            nameTag = nameTag,
+        }
+    end
+
+    self:updateSlotUI()
+end
+
+-- Inventory integration -----------------------------------------------------
+
 function ToolRingGUI:setInventoryClient(inventoryClient)
-	self.inventoryClient = inventoryClient
-	
-	-- Initial update (may be empty if inventory not loaded yet)
-	self:updateToolsFromInventory()
-	
-	-- Listen to inventory remote events to update tool ring when items change
-	local inventoryRemote = inventoryClient.inventoryRemote
-	if inventoryRemote then
-		inventoryRemote.OnClientEvent:Connect(function(action, data)
-			print("[ToolRing] 🔔 Inventory remote event fired:", action, data)
-			
-			if action == "EquipItem" then
-				-- Update equipped item state
-				self.equippedItemSlot = data.slotIndex
-				print("[ToolRing] 🔧 Item equipped in slot:", self.equippedItemSlot)
-			elseif action == "UnequipItem" then
-				self.equippedItemSlot = nil
-				print("[ToolRing] 🔧 Item unequipped")
-			end
-			
-			self:updateToolsFromInventory()
-		end)
-	end
-	
-	-- Also set up a periodic check to catch inventory updates
-	-- This helps with timing issues where items arrive after this function is called
-	task.spawn(function()
-		for i = 1, 50 do  -- Check for 5 seconds (50 * 0.1s)
-			task.wait(0.1)
-			if #self.tools > 0 and not self.tools[1].isEmpty then
-				-- Tools are now populated, stop checking
-				print("[ToolRing] ✅ Tools populated, stopping periodic checks")
-				return
-			end
-			self:updateToolsFromInventory()
-		end
-	end)
+    self:destroyInventoryConnections()
+
+    self.inventoryClient = inventoryClient
+    if not inventoryClient then
+        return
+    end
+
+    if inventoryClient.onInventoryChanged then
+        self.inventorySignalConn = inventoryClient:onInventoryChanged(function()
+            self:updateToolsFromInventory()
+        end)
+    end
+
+    local remote = inventoryClient.inventoryRemote
+    if remote then
+        table.insert(self.inventoryConnections, remote.OnClientEvent:Connect(function(action, data)
+            if action == "SyncInventory" then
+                self:updateToolsFromInventory()
+            elseif action == "EquipItem" and data then
+                self.equippedItemSlot = data.slotIndex
+                self:updateSlotUI()
+            elseif action == "UnequipItem" then
+                self.equippedItemSlot = nil
+                self:updateSlotUI()
+            end
+        end))
+    end
+
+    self:updateToolsFromInventory()
 end
 
--- Update tool slots from inventory (only includes tools)
 function ToolRingGUI:updateToolsFromInventory()
-	if not self.inventoryClient then 
-		print("[ToolRing] ⚠️ No inventory client set yet")
-		return 
-	end
-	
-	-- Load ItemDataFetcher to get proper item names
-	local ItemDataFetcher = nil
-	local success, result = pcall(function()
-		return require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("ItemDataFetcher"))
-	end)
-	if success and result then
-		ItemDataFetcher = result
-	else
-		print("[ToolRing] ⚠️ Failed to load ItemDataFetcher:", result)
-	end
-	
-	-- Collect all tools from inventory
-	local toolList = {}
-	local slotState = self.inventoryClient.slotState
-	
-	if slotState then
-		print("[ToolRing] 🔍 slotState exists, iterating items...")
-		local itemCount = 0
-		for slotIndex, itemState in pairs(slotState) do
-			itemCount = itemCount + 1
-			if itemState and itemState.itemId then
-				local itemId = tostring(itemState.itemId)
-				
-				-- Try to get proper item name from ItemDataFetcher
-				local itemName = itemState.name or "Unknown"
-				if ItemDataFetcher and type(ItemDataFetcher.getItemData) == "function" then
-					local itemDataSuccess, itemData = pcall(function()
-						return ItemDataFetcher.getItemData(itemId)
-					end)
-					if itemDataSuccess and itemData and itemData.name then
-						itemName = itemData.name
-					end
-				end
-				
-				print("[ToolRing] 🔍 Checking slot " .. tostring(slotIndex) .. ": " .. itemId .. " (" .. itemName .. ")")
-				
-				-- Check if this item is a tool
-				if isTool(itemState.itemId, itemState.name) then
-					table.insert(toolList, {
-						name = itemName,
-						itemId = itemState.itemId,
-						spriteIndex = itemState.spriteIndex,
-						description = itemName,
-						isEmpty = false,
-						count = itemState.count or 1,
-						slotIndex = slotIndex
-					})
-					print("[ToolRing] ✅ Found tool: " .. itemId .. " (" .. itemName .. ")")
-				else
-					print("[ToolRing] ❌ Not a tool: " .. itemId .. " (" .. itemName .. ")")
-				end
-			end
-		end
-		print("[ToolRing] 📊 Checked " .. tostring(itemCount) .. " items total")
-	else
-		print("[ToolRing] ⚠️ slotState is nil")
-	end
-	
-	print("[ToolRing] 📊 Total tools found: " .. tostring(#toolList))
-	
-	-- Fill tool ring with collected tools (up to 8)
-	for i = 1, 8 do
-		if i <= #toolList then
-			self.tools[i] = toolList[i]
-		else
-			self.tools[i] = {name = "Empty", icon = "", description = "No tool", isEmpty = true}
-		end
-	end
-	
-	-- Update UI if visible
-	if self.visible then
-		self:updateSlotUI()
-	end
+    if not self.inventoryClient then
+        return
+    end
+
+    local slotState = self.inventoryClient.slotState or {}
+    local maxSlots = self.inventoryClient.maxSlots or SLOT_COUNT
+
+    local toolEntries = {}
+
+    for slotIndex = 1, maxSlots do
+        local state = slotState[slotIndex]
+        if state and state.itemId then
+            local itemId = tostring(state.itemId)
+            local definition = self:resolveItemDefinition(itemId)
+            local displayName = definition and (definition.displayName or definition.name) or state.name or itemId
+
+            if self:isTool(itemId, displayName, definition) then
+                local entry = {
+                    slotIndex = slotIndex,
+                    itemId = itemId,
+                    spriteIndex = definition and definition.spriteIndex or state.spriteIndex,
+                    name = displayName,
+                    count = state.count or 1,
+                    description = self:getToolDescription(definition, state.count),
+                    definition = definition,
+                    isEmpty = false,
+                }
+
+                table.insert(toolEntries, entry)
+            end
+        end
+    end
+
+    table.sort(toolEntries, function(a, b)
+        return a.slotIndex < b.slotIndex
+    end)
+
+    for i = 1, SLOT_COUNT do
+        local entry = toolEntries[i]
+        if entry then
+            self.tools[i] = entry
+        else
+            self.tools[i] = {
+                isEmpty = true,
+                name = "Empty",
+                description = "No tool equipped",
+                count = 0,
+            }
+        end
+    end
+
+    if self.tools[self.selectedSlot].isEmpty then
+        for index, tool in ipairs(self.tools) do
+            if not tool.isEmpty then
+                self.selectedSlot = index
+                break
+            end
+        end
+    end
+
+    self:updateSlotUI()
 end
 
--- Update all slot UI elements with sprites and visual feedback
 function ToolRingGUI:updateSlotUI()
-	if not self.gui then return end
-	
-	-- Local reference to equipped slot for clarity
-	local equippedSlot = self.equippedItemSlot
-	
-	local container = self.gui:FindFirstChild("ToolRingContainer")
-	if not container then return end
-	
-	-- Load SpriteConfig for sprite display
-	local success, SpriteConfig = pcall(function()
-		return require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("SpriteConfig"))
-	end)
-	
-	if not success then
-		print("[ToolRing] ⚠️ Could not load SpriteConfig")
-		return
-	end
-	
-	for i = 1, 8 do
-		local slotData = self.toolSlots[i]
-		if slotData then
-			local tool = self.tools[i]
-			
-			-- Update item name
-			if slotData.name then
-				slotData.name.Text = tool.name or "Empty"
-			end
-			
-			-- Update icon with sprite if item has sprite index
-			if slotData.icon and tool.spriteIndex and not tool.isEmpty then
-				local spriteSuccess = pcall(function()
-					SpriteConfig.applySprite(slotData.icon, tool.spriteIndex)
-				end)
-				if not spriteSuccess then
-					slotData.icon.Image = ""
-				end
-			elseif slotData.icon then
-				slotData.icon.Image = ""  -- Clear if empty
-			end
-			
-					-- Update equipped state visual feedback
-			if slotData.frame then
-				if tool.slotIndex and tool.slotIndex == self.equippedItemSlot then
-					slotData.frame.BackgroundColor3 = COLORS.SLOT_EQUIPPED
-				else
-					slotData.frame.BackgroundColor3 = COLORS.SLOT_NORMAL
-				end
-			end
-			
-			-- Update count label
-			if tool.count and tool.count > 1 then
-				if slotData.count then
-					slotData.count.Text = tostring(tool.count)
-					slotData.count.Visible = true
-				end
-			elseif slotData.count then
-				slotData.count.Visible = false
-			end
-		end
-	end
-	
-	-- Update center display
-	self:updateCenterDisplay()
+    for index, slot in ipairs(self.toolSlots) do
+        local tool = self.tools[index]
+        if slot then
+            slot.nameTag.Text = tool.name or "Empty"
+            slot.nameTag.Visible = false
+
+            if tool.isEmpty then
+                slot.icon.Image = ""
+                slot.icon.Visible = false
+                slot.countBadge.Visible = false
+            else
+                self:applySprite(slot.icon, tool.spriteIndex)
+                slot.icon.Visible = true
+
+                if tool.count and tool.count > 1 then
+                    slot.countBadge.Visible = true
+                    slot.countLabel.Text = tostring(tool.count)
+                else
+                    slot.countBadge.Visible = false
+                end
+            end
+        end
+    end
+
+    self:updateCenterDisplay()
+    self:updateSelectionHighlight()
 end
 
--- Update the center label display
 function ToolRingGUI:updateCenterDisplay()
-	if not self.centerLabel then return end
-	
-	local selectedTool = self.tools[self.selectedSlot]
-	if selectedTool then
-		-- Show item count if not empty
-		if not selectedTool.isEmpty then
-			self.centerLabel.Text = selectedTool.count and tostring(selectedTool.count) or "1"
-		else
-			self.centerLabel.Text = ""
-		end
-		self.descriptionLabel.Text = selectedTool.description
-	end
+    if not self.centerLabel then
+        return
+    end
+
+    local tool = self.tools[self.selectedSlot]
+    if not tool or tool.isEmpty then
+        self.centerLabel.Text = ""
+        if self.descriptionLabel then
+            self.descriptionLabel.Text = "Select a tool"
+        end
+        return
+    end
+
+    local countDisplay = tool.count and tool.count > 1 and ("x" .. tostring(tool.count)) or "1"
+    self.centerLabel.Text = countDisplay
+
+    if self.descriptionLabel then
+        self.descriptionLabel.Text = tool.description ~= "" and tool.description or tool.name
+    end
 end
 
-function ToolRingGUI:createGUI()
-	-- Get player and playerGui
-	local player = Players.LocalPlayer
-	local playerGui = player:WaitForChild("PlayerGui")
-	
-	-- Get ItemSlotTemplate from InventoryGUI
-	local inventoryGUI = playerGui:FindFirstChild("InventoryGUI")
-	local slotTemplate = nil
-	if inventoryGUI then
-		local inventoryItems = inventoryGUI:FindFirstChild("InventoryFrame") and 
-		                       inventoryGUI.InventoryFrame:FindFirstChild("InventoryItems")
-		if inventoryItems then
-			slotTemplate = inventoryItems:FindFirstChild("ItemSlotTemplate")
-		end
-	end
-	
-	if not slotTemplate then
-		warn("[ToolRing] ⚠️ Could not find ItemSlotTemplate - icons may not display correctly")
-	end
-	
-	-- Create ScreenGui with high visibility
-	self.gui = Instance.new("ScreenGui")
-	self.gui.Name = "ToolRingGUI"
-	self.gui.ResetOnSpawn = false
-	self.gui.DisplayOrder = 20  -- Higher priority for visibility
-	self.gui.Enabled = false
-	self.gui.IgnoreGuiInset = false
-	self.gui.Parent = playerGui
-	
-	-- Main container (center of screen) - NO BACKGROUND
-	local container = Instance.new("Frame")
-	container.Name = "ToolRingContainer"
-	local diameter = (RING_RADIUS + TOOL_SLOT_SIZE) * 2.2
-	container.Size = UDim2.new(0, diameter, 0, diameter)
-	container.Position = UDim2.new(0.5, -(diameter/2), 0.5, -(diameter/2))
-	container.BackgroundTransparency = 1  -- Fully transparent
-	container.ZIndex = 1
-	container.Parent = self.gui
-	
-	-- Center indicator (large, highlighted circle)
-	self.centerLabel = Instance.new("TextLabel")
-	self.centerLabel.Name = "CenterLabel"
-	self.centerLabel.Size = UDim2.new(0, CENTER_SIZE, 0, CENTER_SIZE)
-	self.centerLabel.Position = UDim2.new(0.5, -(CENTER_SIZE/2), 0.5, -(CENTER_SIZE/2))
-	self.centerLabel.BackgroundColor3 = COLORS.BG_PRIMARY
-	self.centerLabel.BorderSizePixel = 0
-	self.centerLabel.Text = ""
-	self.centerLabel.TextSize = 32
-	self.centerLabel.Font = Enum.Font.GothamBold
-	self.centerLabel.TextColor3 = COLORS.ITEM_SELECTED
-	self.centerLabel.ZIndex = 5
-	self.centerLabel.Parent = container
-	
-	-- Center label corner (fully round)
-	local centerCorner = Instance.new("UICorner")
-	centerCorner.CornerRadius = UDim.new(1, 0)  -- Fully round (circle)
-	centerCorner.Parent = self.centerLabel
-	
-	-- Center glow effect (larger, semi-transparent background)
-	local glowBg = Instance.new("Frame")
-	glowBg.Name = "GlowBg"
-	glowBg.Size = UDim2.new(0, GLOW_SIZE, 0, GLOW_SIZE)
-	glowBg.Position = UDim2.new(0.5, -(GLOW_SIZE/2), 0.5, -(GLOW_SIZE/2))
-	glowBg.BackgroundColor3 = COLORS.ITEM_SELECTED
-	glowBg.BackgroundTransparency = 0.85  -- Very transparent
-	glowBg.BorderSizePixel = 0
-	glowBg.ZIndex = 3
-	glowBg.Parent = container
-	
-	local glowCorner = Instance.new("UICorner")
-	glowCorner.CornerRadius = UDim.new(1, 0)
-	glowCorner.Parent = glowBg
-	
-	-- Create tool slots in circle using ItemSlotTemplate
-	for i, tool in ipairs(self.tools) do
-		local angle = (i - 1) * (math.pi * 2 / #self.tools) - (math.pi / 2)  -- Start at top
-		local x = math.cos(angle) * RING_RADIUS
-		local y = math.sin(angle) * RING_RADIUS
-		
-		local slot
-		if slotTemplate then
-			-- Clone from ItemSlotTemplate for consistent styling
-			slot = slotTemplate:Clone()
-			slot.Name = "ToolSlot" .. i
-			slot.Visible = true
-			slot.Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)
-			slot.Position = UDim2.new(0.5, x - (TOOL_SLOT_SIZE/2), 0.5, y - (TOOL_SLOT_SIZE/2))
-			slot.ZIndex = 4
-		else
-			-- Fallback: Create manually if template not found
-			slot = Instance.new("Frame")
-			slot.Name = "ToolSlot" .. i
-			slot.Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)
-			slot.Position = UDim2.new(0.5, x - (TOOL_SLOT_SIZE/2), 0.5, y - (TOOL_SLOT_SIZE/2))
-			slot.BackgroundColor3 = COLORS.SLOT_NORMAL
-			slot.BorderSizePixel = 2
-			slot.BorderColor3 = COLORS.BORDER_DARK
-			slot.ZIndex = 4
-			
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 4)
-			corner.Parent = slot
-			
-			-- Manually create children
-			local itemIcon = Instance.new("ImageLabel")
-			itemIcon.Name = "ItemIcon"
-			itemIcon.Size = UDim2.new(0.8, 0, 0.7, 0)
-			itemIcon.Position = UDim2.new(0.1, 0, 0.05, 0)
-			itemIcon.BackgroundTransparency = 1
-			itemIcon.ScaleType = Enum.ScaleType.Fit
-			itemIcon.ZIndex = 5
-			itemIcon.Parent = slot
-			
-			local itemCount = Instance.new("TextLabel")
-			itemCount.Name = "ItemCount"
-			itemCount.Size = UDim2.new(0.4, 0, 0.25, 0)
-			itemCount.Position = UDim2.new(0.58, 0, 0.73, 0)
-			itemCount.BackgroundTransparency = 1
-			itemCount.Font = Enum.Font.GothamBold
-			itemCount.TextSize = 12
-			itemCount.TextXAlignment = Enum.TextXAlignment.Right
-			itemCount.Visible = false
-			itemCount.ZIndex = 6
-			itemCount.Parent = slot
-			
-			local itemName = Instance.new("TextLabel")
-			itemName.Name = "ItemName"
-			itemName.Size = UDim2.new(1, 0, 0.3, 0)
-			itemName.Position = UDim2.new(0, 0, 0.7, 0)
-			itemName.BackgroundTransparency = 0.3
-			itemName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-			itemName.TextColor3 = COLORS.TEXT_LIGHT
-			itemName.Font = Enum.Font.Gotham
-			itemName.TextSize = 10
-			itemName.Visible = false
-			itemName.ZIndex = 6
-			itemName.Parent = slot
-		end
-		
-		-- Set color based on equipped state
-		if tool.slotIndex and tool.slotIndex == self.equippedItemSlot then
-			slot.BackgroundColor3 = COLORS.SLOT_EQUIPPED
-		else
-			slot.BackgroundColor3 = COLORS.SLOT_NORMAL
-		end
-		
-		slot.Parent = container
-		
-		-- Get child elements (works whether cloned or manually created)
-		local itemIcon = slot:FindFirstChild("ItemIcon")
-		local itemCount = slot:FindFirstChild("ItemCount")
-		local itemName = slot:FindFirstChild("ItemName")
-		
-		-- Store reference
-		self.toolSlots[i] = {
-			frame = slot,
-			icon = itemIcon,
-			name = itemName,
-			count = itemCount,
-			tool = tool,
-			index = i
-		}
-		
-		-- Make frame interactive
-		slot.InputBegan:Connect(function(input, gameProcessed)
-			if gameProcessed then return end
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				self:selectTool(i)
-				-- Equip the item if it exists
-				if not self.tools[i].isEmpty then
-					self:equipTool(i)
-				end
-			end
-		end)
-		
-		-- Hover effects - show name on hover
-		slot.MouseEnter:Connect(function()
-			local slotData = self.toolSlots[i]
-			if slotData and slotData.name then
-				-- Show name label
-				slotData.name.Visible = true
-				
-				-- Hover animation
-				if i ~= self.selectedSlot then
-					local hoverTween = TweenService:Create(slot, 
-						TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-						{BackgroundColor3 = COLORS.SLOT_HOVER}
-					)
-					hoverTween:Play()
-				end
-			end
-		end)
-		
-		slot.MouseLeave:Connect(function()
-			local slotData = self.toolSlots[i]
-			if slotData then
-				-- Hide name label
-				if slotData.name then
-					slotData.name.Visible = false
-				end
-				-- Leave animation
-				if i ~= self.selectedSlot then
-					local leaveTween = TweenService:Create(slot, 
-						TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-						{BackgroundColor3 = COLORS.SLOT_NORMAL}
-					)
-					leaveTween:Play()
-				end
-			end
-		end)
-	end
-	
-	-- Tool description at bottom - LARGER AND MORE PROMINENT
-	self.descriptionLabel = Instance.new("TextLabel")
-	self.descriptionLabel.Name = "Description"
-	self.descriptionLabel.Size = UDim2.new(0, 300, 0, 40)
-	self.descriptionLabel.Position = UDim2.new(0.5, -150, 1, -60)
-	self.descriptionLabel.BackgroundColor3 = COLORS.BG_PRIMARY
-	self.descriptionLabel.BorderSizePixel = 0
-	self.descriptionLabel.Text = "Select a tool"
-	self.descriptionLabel.TextSize = 14
-	self.descriptionLabel.Font = Enum.Font.GothamBold
-	self.descriptionLabel.TextColor3 = COLORS.TEXT_DARK
-	self.descriptionLabel.TextWrapped = true
-	self.descriptionLabel.ZIndex = 4
-	self.descriptionLabel.Parent = self.gui
-	
-	-- Description corner - rounded
-	local descCorner = Instance.new("UICorner")
-	descCorner.CornerRadius = UDim.new(0, 8)
-	descCorner.Parent = self.descriptionLabel
-	
-	-- Add instruction label at top
-	local instructionLabel = Instance.new("TextLabel")
-	instructionLabel.Name = "Instructions"
-	instructionLabel.Size = UDim2.new(0, 320, 0, 28)
-	instructionLabel.Position = UDim2.new(0.5, -160, 0, 8)
-	instructionLabel.BackgroundColor3 = COLORS.BG_PRIMARY
-	instructionLabel.BorderSizePixel = 0
-	instructionLabel.Text = "⚒️ TOOL RING - Click a tool to equip"
-	instructionLabel.TextSize = 12
-	instructionLabel.Font = Enum.Font.GothamBold
-	instructionLabel.TextColor3 = COLORS.ACCENT_BROWN
-	instructionLabel.ZIndex = 4
-	instructionLabel.Parent = self.gui
-	
-	local instructCorner = Instance.new("UICorner")
-	instructCorner.CornerRadius = UDim.new(0, 8)
-	instructCorner.Parent = instructionLabel
-end
+-- Public API ----------------------------------------------------------------
 
 function ToolRingGUI:selectTool(index)
-	if index < 1 or index > #self.tools then return end
-	
-	-- Update previous selection - return to normal
-	if self.toolSlots[self.selectedSlot] then
-		local prevSlot = self.toolSlots[self.selectedSlot]
-		prevSlot.frame.BackgroundColor3 = COLORS.SLOT_NORMAL
-		
-		-- Animate back to normal size
-		local prevTween = TweenService:Create(prevSlot.frame,
-			TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)}
-		)
-		prevTween:Play()
-	end
-	
-	-- Update new selection - highlight it
-	self.selectedSlot = index
-	local newSlot = self.toolSlots[self.selectedSlot]
-	if newSlot then
-		newSlot.frame.BackgroundColor3 = COLORS.ITEM_GRABBED  -- Bright highlight
-		
-		-- Animate to larger size for emphasis
-		local newTween = TweenService:Create(newSlot.frame,
-			TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{Size = UDim2.new(0, TOOL_SLOT_SIZE + 8, 0, TOOL_SLOT_SIZE + 8)}
-		)
-		newTween:Play()
-	end
-	
-	-- Update center display with count
-	self:updateCenterDisplay()
-	
-	local selectedTool = self.tools[self.selectedSlot]
-	print("[ToolRing] ✅ Selected tool:", selectedTool.name, "(Slot " .. self.selectedSlot .. ")")
+    if index < 1 or index > SLOT_COUNT then
+        return
+    end
+
+    self.selectedSlot = index
+    self:updateCenterDisplay()
+    self:updateSelectionHighlight()
+
+    local selected = self.tools[index]
+    if selected and not selected.isEmpty then
+        print(string.format("[ToolRing] ✅ Selected tool: %s (slot %d)", selected.name, index))
+    end
 end
 
--- Equip a tool from the ring (sends to server via inventory remote)
 function ToolRingGUI:equipTool(index)
-	if not self.inventoryClient then
-		print("[ToolRing] ⚠️ No inventory client connected")
-		return
-	end
-	
-	if index < 1 or index > 8 then
-		print("[ToolRing] ⚠️ Invalid tool slot:", index)
-		return
-	end
-	
-	local tool = self.tools[index]
-	if not tool or tool.isEmpty then
-		print("[ToolRing] ⚠️ Slot", index, "is empty")
-		return
-	end
-	
-	if not tool.itemId then
-		print("[ToolRing] ⚠️ Tool has no itemId")
-		return
-	end
-	
-	-- Get the inventory remote from the inventory client
-	local inventoryRemote = self.inventoryClient.inventoryRemote
-	if not inventoryRemote then
-		print("[ToolRing] ❌ No inventory remote found")
-		return
-	end
-	
-	-- Fire equip event to server with item details
-	print("[ToolRing] ⚒️ Equipping tool:", tool.name, "from slot", index)
-	
-	local success, err = pcall(function()
-		inventoryRemote:FireServer("EquipItem", {
-			itemId = tool.itemId,
-			name = tool.name
-		})
-	end)
-	
-	if not success then
-		print("[ToolRing] ❌ Failed to send equip request:", err)
-	else
-		print("[ToolRing] ✅ Equip request sent to server")
-	end
+    if not self.inventoryClient then
+        warn("[ToolRing] ⚠️ Cannot equip without inventory client")
+        return
+    end
+
+    if index < 1 or index > SLOT_COUNT then
+        return
+    end
+
+    local tool = self.tools[index]
+    if not tool or tool.isEmpty or not tool.itemId then
+        return
+    end
+
+    local remote = self.inventoryClient.inventoryRemote
+    if not remote then
+        warn("[ToolRing] ⚠️ No inventory remote available")
+        return
+    end
+
+    self.equippedItemSlot = tool.slotIndex
+    self:updateSelectionHighlight()
+
+    remote:FireServer("EquipItem", {
+        itemId = tool.itemId,
+        slotIndex = tool.slotIndex,
+        name = tool.name,
+    })
+
+    print(string.format("[ToolRing] ⚒️ Equipping tool %s from slot %d", tool.name, tool.slotIndex or -1))
 end
 
 function ToolRingGUI:show()
-	if self.visible then return end
-	
-	self.visible = true
-	self.gui.Enabled = true
-	
-	-- Refresh tool list before showing
-	self:updateToolsFromInventory()
-	self:updateSlotUI()
-	
-	-- Fast pop-out animation - no staggering
-	for i, slotData in pairs(self.toolSlots) do
-		local slot = slotData.frame
-		slot.Size = UDim2.new(0, 0, 0, 0)
-		
-		local tween = TweenService:Create(slot,
-			TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{Size = UDim2.new(0, TOOL_SLOT_SIZE, 0, TOOL_SLOT_SIZE)}
-		)
-		tween:Play()
-	end
-	
-	-- Animate center with pop effect
-	self.centerLabel.Size = UDim2.new(0, 10, 0, 10)
-	local centerTween = TweenService:Create(self.centerLabel,
-		TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{Size = UDim2.new(0, CENTER_SIZE, 0, CENTER_SIZE)}
-	)
-	centerTween:Play()
-	
-	print("[ToolRing] 🎯 Tool ring OPENED - Tools available for equipping")
+    if self.visible then
+        return
+    end
+
+    self.visible = true
+    self.gui.Enabled = true
+
+    self:updateToolsFromInventory()
+
+    for _, slot in ipairs(self.toolSlots) do
+        if slot and slot.frame then
+            slot.frame.Size = UDim2.fromOffset(0, 0)
+            TweenService:Create(
+                slot.frame,
+                TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                { Size = UDim2.fromOffset(TOOL_SLOT_SIZE, TOOL_SLOT_SIZE) }
+            ):Play()
+        end
+    end
+
+    if self.centerLabel then
+        self.centerLabel.Size = UDim2.fromOffset(10, 10)
+        TweenService:Create(
+            self.centerLabel,
+            TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            { Size = UDim2.fromOffset(CENTER_SIZE, CENTER_SIZE) }
+        ):Play()
+    end
+
+    print("[ToolRing] 🎯 Tool ring OPENED")
 end
 
 function ToolRingGUI:hide()
-	if not self.visible then return end
-	
-	self.visible = false
-	
-	-- Fast animate out
-	for i, slotData in pairs(self.toolSlots) do
-		local slot = slotData.frame
-		local tween = TweenService:Create(slot,
-			TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.In),
-			{Size = UDim2.new(0, 0, 0, 0)}
-		)
-		tween:Play()
-	end
-	
-	-- Animate center out
-	local centerTween = TweenService:Create(self.centerLabel,
-		TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.In),
-		{Size = UDim2.new(0, 0, 0, 0)}
-	)
-	centerTween:Play()
-	
-	-- Hide GUI after animation (shorter wait)
-	task.wait(0.2)
-	self.gui.Enabled = false
-	
-	print("[ToolRing] 🎯 Tool ring CLOSED")
+    if not self.visible then
+        return
+    end
+
+    self.visible = false
+
+    for _, slot in ipairs(self.toolSlots) do
+        if slot and slot.frame then
+            TweenService:Create(
+                slot.frame,
+                TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+                { Size = UDim2.fromOffset(0, 0) }
+            ):Play()
+        end
+    end
+
+    if self.centerLabel then
+        TweenService:Create(
+            self.centerLabel,
+            TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            { Size = UDim2.fromOffset(0, 0) }
+        ):Play()
+    end
+
+    task.delay(0.22, function()
+        if not self.visible then
+            self.gui.Enabled = false
+        end
+    end)
+
+    print("[ToolRing] 🎯 Tool ring CLOSED")
 end
 
 function ToolRingGUI:toggle()
-	if self.visible then
-		self:hide()
-	else
-		self:show()
-	end
+    if self.visible then
+        self:hide()
+    else
+        self:show()
+    end
 end
 
 function ToolRingGUI:isVisible()
-	return self.visible
+    return self.visible
 end
 
 function ToolRingGUI:getSelectedTool()
-	return self.tools[self.selectedSlot]
+    return cloneToolEntry(self.tools[self.selectedSlot] or {})
 end
 
 function ToolRingGUI:destroy()
-	if self.gui then
-		self.gui:Destroy()
-		self.gui = nil
-	end
+    self:destroyInventoryConnections()
+
+    if self.gui then
+        self.gui:Destroy()
+        self.gui = nil
+    end
 end
 
--- Capitalized aliases for GUIManager compatibility
 ToolRingGUI.Show = ToolRingGUI.show
 ToolRingGUI.Hide = ToolRingGUI.hide
 ToolRingGUI.Toggle = ToolRingGUI.toggle
 
 return ToolRingGUI
+

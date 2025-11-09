@@ -89,6 +89,7 @@ function InventoryClient.new()
     self._isInitialLoad = false  -- Track if this is the first inventory load
 
     self.connections = {}
+    self.inventoryChanged = Instance.new("BindableEvent")
 
     return self
 end
@@ -105,6 +106,33 @@ end
 function InventoryClient:trackConnection(connection)
     if connection then
         table.insert(self.connections, connection)
+    end
+end
+
+function InventoryClient:onInventoryChanged(callback)
+    if not self.inventoryChanged then
+        return { Disconnect = function() end }
+    end
+
+    return self.inventoryChanged.Event:Connect(callback)
+end
+
+function InventoryClient:getInventorySnapshot()
+    local slots = {}
+    for index, state in pairs(self.slotState) do
+        slots[index] = cloneState(state)
+    end
+
+    return {
+        slots = slots,
+        maxSlots = self.maxSlots,
+        inventoryLevel = self.inventoryLevel,
+    }
+end
+
+function InventoryClient:_emitInventoryChanged()
+    if self.inventoryChanged then
+        self.inventoryChanged:Fire(self:getInventorySnapshot())
     end
 end
 
@@ -615,6 +643,7 @@ function InventoryClient:beginDrag(slotIndex)
 
     self.slotState[slotIndex] = nil
     self:refreshSlot(slotIndex)
+    self:_emitInventoryChanged()
 
     local ghost = self:createGhost(state)
     
@@ -724,6 +753,7 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
     if cancelled then
         self.slotState[dragState.originSlot] = cloneState(dragState.state)
         self:refreshSlot(dragState.originSlot)
+        self:_emitInventoryChanged()
         return
     end
 
@@ -734,6 +764,7 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
         -- World drop can be re-implemented here if desired.
         self.slotState[dragState.originSlot] = cloneState(dragState.state)
         self:refreshSlot(dragState.originSlot)
+        self:_emitInventoryChanged()
         -- Fire drop event
         self:dropItemToWorld(dragState, mousePos)
         return
@@ -742,6 +773,7 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
     if destinationIndex == dragState.originSlot then
         self.slotState[dragState.originSlot] = cloneState(dragState.state)
         self:refreshSlot(dragState.originSlot)
+        self:_emitInventoryChanged()
         return
     end
 
@@ -756,6 +788,7 @@ function InventoryClient:finishDrag(mousePos, cancelled, targetIndex)
 
     self:refreshSlot(dragState.originSlot)
     self:refreshSlot(destinationIndex)
+    self:_emitInventoryChanged()
 
     -- Play inventory sound on successful move
     playInventorySound()
@@ -844,6 +877,8 @@ function InventoryClient:populateFromServer(payload)
             slot.Visible = false
         end
     end
+
+    self:_emitInventoryChanged()
     
     -- Mark that initial load is done after first population (before sound check)
     local wasInitialLoad = not self._isInitialLoad

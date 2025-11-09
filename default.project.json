@@ -6,6 +6,9 @@
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
+      },
+      "AvatarKit": {
+        "$path": "src/ReplicatedStorage/AvatarKit"
       }
     },
 
