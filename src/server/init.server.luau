@@ -29,6 +29,7 @@ local DataStoreService = game:GetService("DataStoreService")
 
 -- Load CurrencyManager module (it's a child of this script)
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
+local FishingSystem = require(script:WaitForChild("FishingSystem"))
 
 -- Roblox types and enums
 local Instance = Instance
@@ -365,6 +366,120 @@ local function getMaxStackForItem(itemId, slot)
         return InventoryConstants.DEFAULT_MAX_STACK
 end
 
+local function cloneMetadataTable(metadata)
+        if typeof(metadata) ~= "table" then
+                return nil
+        end
+
+        local cloned = {}
+        for key, value in pairs(metadata) do
+                cloned[key] = value
+        end
+        return cloned
+end
+
+local function addItemToInventory(player, payload, count, maxStack, metadata)
+        if not player then
+                return false, "invalid-player"
+        end
+
+        local inventory = getInventoryForPlayer(player)
+        if not inventory then
+                return false, "inventory-unavailable"
+        end
+
+        local itemId
+        local options
+
+        if typeof(payload) == "table" then
+                options = payload
+                itemId = options.itemId
+                count = options.count
+                maxStack = options.maxStack
+                metadata = options.metadata
+        else
+                itemId = payload
+        end
+
+        if typeof(itemId) ~= "string" then
+                return false, "invalid-item"
+        end
+
+        local itemData = ItemDataFetcher.getItem(itemId)
+        if not itemData then
+                return false, "unknown-item"
+        end
+
+        count = math.max(1, math.floor(tonumber(count) or 1))
+        local resolvedMaxStack
+        if typeof(maxStack) == "number" then
+                resolvedMaxStack = math.max(1, math.floor(maxStack))
+        else
+                resolvedMaxStack = getMaxStackForItem(itemId)
+        end
+
+        local metadataTable = cloneMetadataTable(metadata)
+
+        local slots = inventory.slots
+        local remaining = count
+        local added = false
+
+        for index = 1, inventory.maxSlots or MAX_SLOTS do
+                local slot = slots[index]
+                if slot and slot.itemId == itemId then
+                        local slotMax = slot.maxStack or resolvedMaxStack
+                        local space = math.max(0, slotMax - slot.count)
+                        if space > 0 then
+                                local toAdd = math.min(space, remaining)
+                                slot.count = slot.count + toAdd
+                                slot.maxStack = slotMax
+                                if metadataTable then
+                                        slot.metadata = slot.metadata or {}
+                                        for key, value in pairs(metadataTable) do
+                                                slot.metadata[key] = value
+                                        end
+                                end
+                                remaining = remaining - toAdd
+                                added = true
+                                if remaining <= 0 then
+                                        break
+                                end
+                        end
+                end
+        end
+
+        if remaining > 0 then
+                for index = 1, inventory.maxSlots or MAX_SLOTS do
+                        if not slots[index] then
+                                local toAdd = math.min(resolvedMaxStack, remaining)
+                                local newSlot = {
+                                        itemId = itemId,
+                                        count = toAdd,
+                                        maxStack = resolvedMaxStack,
+                                }
+                                if metadataTable then
+                                        newSlot.metadata = cloneMetadataTable(metadataTable)
+                                end
+                                slots[index] = newSlot
+                                remaining = remaining - toAdd
+                                added = true
+                                if remaining <= 0 then
+                                        break
+                                end
+                        end
+                end
+        end
+
+        if not added or remaining > 0 then
+                return false, "inventory-full"
+        end
+
+        syncInventoryToClient(player)
+        savePlayerInventory(player)
+
+        return true
+end
+
 local function hasCraftingMaterials(player, materials, quantity)
         local inventory = getInventoryForPlayer(player)
         if not inventory then
@@ -527,6 +642,15 @@ CraftingSystem.configure({
         consumeMaterials = consumeCraftingMaterials,
         grantItems = grantCraftedItems,
 })
+
+FishingSystem.configure({
+        enqueueInventoryItem = function(player, payload)
+                return addItemToInventory(player, payload)
+        end,
+        defaultStack = InventoryConstants.DEFAULT_MAX_STACK,
+})
+
+FishingSystem.init()
 
 local function cleanupWorldItemConnections(connections)
 	if not connections then
@@ -1081,79 +1205,11 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 return
 
         elseif action == "add_item" and data then
-                -- Validate data format
-                local itemId = type(data) == "table" and data.itemId or data
-                local count = (type(data) == "table" and data.count) or 1
-                local maxStack = (type(data) == "table" and data.maxStack) or 99
-                
-                -- Check if item exists
-                local itemData = ItemDataFetcher.getItem(itemId)
-                if not itemData then
-                        warn("[Server] Debug: Item not found:", itemId)
-                        return
-                end
-                
-                -- Validate count
-                count = math.floor(count)
-                if count < 1 then
-                        warn("[Server] Invalid item count:", count)
-                        return
-                end
-                
-                -- Try to add to existing slot first
-                local slots = inventory.slots
-                local added = false
-                
-                for i = 1, inventory.maxSlots or MAX_SLOTS do
-                        local slot = slots[i]
-                        if slot and slot.itemId == itemId then
-                                -- Check stack limit
-                                if slot.count >= maxStack then
-                                        -- Try next slot if this one is full
-                                else
-                                        local spaceInStack = maxStack - slot.count
-                                        local addToStack = math.min(count, spaceInStack)
-                                        slot.count = slot.count + addToStack
-                                        count = count - addToStack
-                                        added = true
-                                        if count <= 0 then
-                                                break
-                                        end
-                                end
-                        end
-                end
-                
-                -- If not added to existing slot, find empty slot
-                -- Try to add remaining items to empty slots
-                if count > 0 then
-                        for i = 1, inventory.maxSlots or MAX_SLOTS do
-                                if not slots[i] then
-                                        local addToNewSlot = math.min(count, maxStack)
-                                        slots[i] = { 
-                                            itemId = itemId, 
-                                            count = addToNewSlot,
-                                            maxStack = maxStack  -- Store stack limit
-                                        }
-                                        count = count - addToNewSlot
-                                        added = true
-                                        if count <= 0 then
-                                            break
-                                        end
-                                end
-                        end
-                end
-                
-                if added then
-                        print("[Server] Debug: Added", itemId, "to", player.Name, "'s inventory")
-                        syncInventoryToClient(player)
-                        savePlayerInventory(player)
+                local success, err = addItemToInventory(player, data)
+                if success then
+                        print("[Server] Debug: Added", (type(data) == "table" and data.itemId) or data, "to", player.Name, "'s inventory")
                 else
-                        warn("[Server] Debug: Inventory full, cannot add", itemId)
-                end
-
-                -- Return remaining count that couldn't be added
-                if count > 0 then
-                        warn("[Server] Could not add all items - remaining:", count)
+                        warn("[Server] Debug: Failed to add item:", err)
                 end
 
         elseif action == "craft_item" and data then
@@ -1214,44 +1270,15 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 end
                 
                 -- Add crafted item
-                local _craftedData = { itemId = itemId, count = 1 }
-                -- Reuse the add_item logic
-                local itemData = ItemDataFetcher.getItem(itemId)
-                if itemData then
-                        local maxStack = 99  -- Default for crafted items
-                        local _count = 1
-                        local added = false
-                        
-                        -- Try to add to existing slot first
-                        for i = 1, inventory.maxSlots or MAX_SLOTS do
-                                local slot = slots[i]
-                                if slot and slot.itemId == itemId then
-                                        if slot.count < maxStack then
-                                                slot.count = slot.count + 1
-                                                added = true
-                                                break
-                                        end
-                                end
-                        end
-                        
-                        -- If not added, find empty slot
-                        if not added then
-                                for i = 1, inventory.maxSlots or MAX_SLOTS do
-                                        if not slots[i] then
-                                                slots[i] = { itemId = itemId, count = 1, maxStack = maxStack }
-                                                added = true
-                                                break
-                                        end
-                                end
-                        end
-                        
-                        if added then
-                                print("[Server] Crafted", itemId, "for", player.Name)
-                                syncInventoryToClient(player)
-                                savePlayerInventory(player)
-                        else
-                                warn("[Server] Craft failed: Inventory full for", itemId)
-                        end
+                local success, err = addItemToInventory(player, {
+                        itemId = itemId,
+                        count = 1,
+                })
+
+                if success then
+                        print("[Server] Crafted", itemId, "for", player.Name)
+                else
+                        warn("[Server] Craft failed: Inventory full for", itemId, err)
                 end
 
         elseif action == "GetWorldItems" then
