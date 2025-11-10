@@ -8,20 +8,30 @@ function ChibiCharacter.init()
         local humanoid = character:FindFirstChild("Humanoid")
         if not humanoid then return end
         
-        -- Use pcall in case properties don't exist
-        pcall(function()
+        -- First, scale the entire character to 1.5x (bigger!)
+        if character:IsA("Model") and character.PrimaryPart then
+            character:ScaleTo(1.5)
+            print("[ChibiCharacter] ✅ Scaled character to 1.5x")
+        end
+        
+        -- Then apply ACNH chibi proportions
+        local success, err = pcall(function()
             local desc = humanoid:GetAppliedDescription()
             
-            -- ACNH-style proportions
-            desc.HeadScale = 1.75         -- Much bigger head
-            desc.WidthScale = 1.1         -- Wider
-            desc.DepthScale = 1.1         -- Thicker  
-            desc.HeightScale = 0.7        -- Shorter
-            desc.BodyTypeScale = 0.1      -- Slightly round
+            -- ACNH-style chibi proportions (big head, short body)
+            desc.HeadScale = 1.0        -- Much bigger head for chibi look
+            desc.WidthScale = 3.0      -- Wider body
+            desc.DepthScale = 3.0        -- Thicker body  
+            desc.HeightScale = 0.8        -- Shorter torso/legs (chibi!)
+            desc.BodyTypeScale = 0        -- Round, soft body
             
             humanoid:ApplyDescription(desc)
-            print("[ChibiCharacter] ✅ Applied ACNH style")
+            print("[ChibiCharacter] ✅ Applied ACNH chibi proportions")
         end)
+        
+        if not success then
+            warn("[ChibiCharacter] ❌ Failed to apply proportions:", err)
+        end
     end
     
     local LocalPlayer = Players.LocalPlayer

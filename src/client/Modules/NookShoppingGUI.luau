@@ -29,6 +29,13 @@ function NookShoppingGUI.new()
     
     print("[NookShoppingGUI] ✅ Found NookShoppingGUI in PlayerGui")
     
+    -- Ensure it's a ScreenGui and set properties
+    if self.gui:IsA("ScreenGui") then
+        self.gui.DisplayOrder = 50  -- High enough to be on top
+        self.gui.ResetOnSpawn = false
+        self.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    end
+    
     -- Load dependencies
     local shared = ReplicatedStorage:WaitForChild("Shared")
     self.spriteConfig = require(shared:WaitForChild("SpriteConfig"))
@@ -47,7 +54,7 @@ function NookShoppingGUI.new()
         end
     end
     
-    -- Initially hide
+    -- Initially hide (will be shown via GUIManager)
     self.gui.Enabled = false
     
     -- Setup and populate
@@ -255,20 +262,36 @@ function NookShoppingGUI:connectToServer()
 end
 
 function NookShoppingGUI:show()
-    if not self.gui then return end
-    if self.visible then return end
+    if not self.gui then 
+        print("[NookShoppingGUI] ❌ Cannot show - gui is nil")
+        return 
+    end
     
     self.visible = true
     self.gui.Enabled = true
-    print("[NookShoppingGUI] 🛒 NookShopping opened")
+    
+    -- Find and show the main frame (try both names)
+    local mainFrame = self.gui:FindFirstChild("NookShoppingFrame") or self.gui:FindFirstChild("ShopContainer")
+    if mainFrame then
+        mainFrame.Visible = true
+        print("[NookShoppingGUI] 🛒 NookShopping opened - MainFrame visible: true")
+    else
+        print("[NookShoppingGUI] ⚠️ Main frame not found (tried NookShoppingFrame and ShopContainer)")
+    end
 end
 
 function NookShoppingGUI:hide()
     if not self.gui then return end
-    if not self.visible then return end
     
     self.visible = false
     self.gui.Enabled = false
+    
+    -- Hide the main frame
+    local mainFrame = self.gui:FindFirstChild("NookShoppingFrame") or self.gui:FindFirstChild("ShopContainer")
+    if mainFrame then
+        mainFrame.Visible = false
+    end
+    
     print("[NookShoppingGUI] 🛒 NookShopping closed")
 end
 

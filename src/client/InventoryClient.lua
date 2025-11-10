@@ -6,7 +6,7 @@ local SoundService = game:GetService("SoundService")
 
 local InventoryClient = {}
 InventoryClient.__index = InventoryClient
-InventoryClient.MAX_SLOTS = 20  -- Constant for maximum inventory slots
+InventoryClient.MAX_SLOTS = 10  -- Always show 10 slots (1 row)
 
 -- Create reusable sound for inventory operations
 local function createInventorySound()
@@ -226,11 +226,19 @@ function InventoryClient:updateSlotAppearance(slot, state)
             nameLabel.Visible = false  -- Start hidden, will show on hover
         end
     else
+        -- Empty slot - show placeholder
         if icon then
             icon.Image = ""
             icon.ImageRectOffset = Vector2.new(0, 0)
             icon.ImageRectSize = Vector2.new(0, 0)
         end
+        
+        -- Make empty slot visible with light background
+        if slot then
+            slot.BackgroundTransparency = 0.3  -- Semi-transparent to show it's empty
+            slot.BackgroundColor3 = Color3.fromRGB(240, 240, 240)  -- Light gray
+        end
+        
         if countLabel then
             countLabel.Text = ""
             countLabel.Visible = false
@@ -526,12 +534,17 @@ end
 function InventoryClient:refreshSlot(slotIndex)
     local slot = self:ensureSlot(slotIndex)
     if not slot then
+        warn("[InventoryClient] ❌ Failed to create slot", slotIndex)
         return
     end
 
     -- Always ensure LayoutOrder matches slotIndex to maintain position
     slot.LayoutOrder = slotIndex
-    slot.Visible = slotIndex <= self.maxSlots
+    
+    -- Show slots up to maxSlots OR minimum 10 slots (whichever is higher)
+    local MINIMUM_SLOTS = 10
+    local slotsToShow = math.max(self.maxSlots or 10, MINIMUM_SLOTS)
+    slot.Visible = slotIndex <= slotsToShow
     
     -- Update Selectable state for empty slots (prevents cursor but allows drops)
     local hasItem = self.slotState[slotIndex] ~= nil
@@ -855,26 +868,20 @@ function InventoryClient:populateFromServer(payload)
     
     self.slotState = newState
 
+    -- ALWAYS ensure we have 10 slots visible (even if empty!)
+    local MINIMUM_SLOTS = 10
+    local slotsToShow = math.max(self.maxSlots, MINIMUM_SLOTS)
+    
     -- Refresh ALL slots to ensure proper state (drag-and-drop needs this)
-    for i = 1, self.maxSlots do
+    for i = 1, slotsToShow do
         self:refreshSlot(i)
     end
     
-    -- If no slots changed but maxSlots changed, refresh visibility
-    if not next(slotsToRefresh) and (not self._lastMaxSlots or self._lastMaxSlots ~= maxSlots) then
-        for i = 1, math.max(maxSlots, self._lastMaxSlots or 0) do
-            local slot = self.slotsByIndex[i]
-            if slot then
-                slot.Visible = i <= maxSlots
-            end
-        end
-    end
-    self._lastMaxSlots = maxSlots
-
-    -- Hide slots that are no longer in use
-    for index, slot in pairs(self.slotsByIndex) do
-        if index > self.maxSlots then
-            slot.Visible = false
+    -- Make sure all slots up to MINIMUM_SLOTS are visible
+    for i = 1, slotsToShow do
+        local slot = self.slotsByIndex[i]
+        if slot then
+            slot.Visible = true  -- Always show first 10 slots
         end
     end
 

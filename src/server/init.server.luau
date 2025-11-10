@@ -31,6 +31,9 @@ local DataStoreService = game:GetService("DataStoreService")
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
 local BalloonSpawner = require(script:WaitForChild("BalloonSpawner"))
+local ChibiCharacterServer = require(script:WaitForChild("ChibiCharacterServer"))
+local HoleSpawner = require(script:WaitForChild("HoleSpawner"))
+local ShovelSystem = require(script:WaitForChild("ShovelSystem"))
 
 -- Roblox types and enums
 local Instance = Instance
@@ -48,6 +51,15 @@ print("✅ Animal Crossing server systems ready!")
 print("📊 ServerScriptService scripts will run automatically")
 
 print("[Server] 🚀 Starting inventory system...")
+
+-- Initialize chibi character system
+ChibiCharacterServer.init()
+
+-- Initialize hole spawner system
+HoleSpawner.init()
+
+-- Initialize shovel system
+ShovelSystem.init()
 
 -- Create RemoteEvent
 local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent") or Instance.new("RemoteEvent")
@@ -397,6 +409,10 @@ local function cloneMetadataTable(metadata)
         return cloned
 end
 
+-- Forward declarations
+local syncInventoryToClient
+local savePlayerInventory
+
 local function addItemToInventory(player, payload, count, maxStack, metadata)
         if not player then
                 return false, "invalid-player"
@@ -518,7 +534,7 @@ local function hasCraftingMaterials(player, materials, quantity)
 end
 
 -- Save player inventory to DataStore
-local function savePlayerInventory(player)
+function savePlayerInventory(player)
 	local userId = player.UserId
 	local inventory = playerInventories[userId]
 	if not inventory then
@@ -568,7 +584,7 @@ local function loadPlayerInventory(player)
 	return data
 end
 
-local function syncInventoryToClient(player)
+function syncInventoryToClient(player)
         local inventory = playerInventories[player.UserId]
         if not inventory then return end
 

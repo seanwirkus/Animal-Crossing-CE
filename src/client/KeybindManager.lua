@@ -28,6 +28,7 @@ KeybindManager.KEYBINDS = {
 	DEBUG_GUI = Enum.KeyCode.G,         -- G for Debug Manager  
 	ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
 	DEBUG_DELETE = Enum.KeyCode.X,      -- X for Debug Delete (testing)
+	TEST_PLANE = Enum.KeyCode.F9,       -- F9 to test NookPlane cutscene
 	QUEST_BOARD = Enum.KeyCode.Q,       -- Q for Quest Board (if needed later)
 	START_ONBOARDING = Enum.KeyCode.N,  -- N for Onboarding/New island debug
 	

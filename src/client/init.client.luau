@@ -33,6 +33,11 @@ print("[Client] Loading chibi character system...")
 ChibiCharacter.init() -- Initialize the chibi character system
 print("[Client] ✅ Chibi character system loaded")
 
+local ACNHAnimations = require(script.Modules.ACNHAnimations)
+print("[Client] Loading ACNH animations...")
+ACNHAnimations.init() -- Initialize running animations
+print("[Client] ✅ ACNH animations loaded")
+
 local InventoryGuiSetup = require(script.Modules.InventoryGuiSetup)
 print("[Client] ✅ InventoryGuiSetup loaded")
 
@@ -76,6 +81,25 @@ print("[Client] ✅ SlingshotController module loaded")
 -- WaterEffects DISABLED - was causing material rendering issues in Studio
 -- local WaterEffectsModule = require(script.Modules.WaterEffects)
 -- print("[Client] ✅ WaterEffects module loaded")
+
+-- Visual Effects system - Beautiful blur, shaders, and post-processing
+local VisualEffectsModule = require(script.Modules.VisualEffects)
+print("[Client] ✅ VisualEffects module loaded")
+
+local ParticleEffectsModule = require(script.Modules.ParticleEffects)
+print("[Client] ✅ ParticleEffects module loaded")
+
+-- Loading Screen - Initial load with character preview
+local LoadingScreenModule = require(script.Modules.LoadingScreen)
+print("[Client] ✅ LoadingScreen module loaded")
+
+-- Camera System - Animal Crossing style camera
+local ACNHCameraModule = require(script.Modules.ACNHCamera)
+print("[Client] ✅ ACNHCamera module loaded")
+
+-- NookPlane - Cutscene system for flying
+local NookPlaneModule = require(script.Modules.NookPlane)
+print("[Client] ✅ NookPlane module loaded")
 
 -- Initialize HUD system
 local _HUD = nil
@@ -147,7 +171,7 @@ fishingController:init()
 print("[Client] ✅ FishingController initialized")
 
 -- Initialize slingshot controller
-local slingshotController = SlingshotControllerModule.new()
+local _slingshotController = SlingshotControllerModule.new()
 print("[Client] ✅ SlingshotController initialized")
 
 -- Create GUIManager for exclusive GUI visibility
@@ -155,10 +179,37 @@ local GUIManager = require(script.Modules.GUIManager)
 local guiManager = GUIManager.new()
 print("[Client] ✅ GUIManager loaded successfully")
 
+-- Initialize Visual Effects for beautiful graphics
+local localPlayer = _Players.LocalPlayer
+
+-- Show loading screen first
+print("[Client] 🎬 Showing loading screen...")
+LoadingScreenModule.init()
+
+-- Wait for loading to complete in a non-blocking way
+task.spawn(function()
+	while LoadingScreenModule.isLoading do
+		task.wait(0.1)
+	end
+	
+	-- Initialize camera after loading completes
+	ACNHCameraModule.init()
+	print("[Client] 🎥 Animal Crossing camera initialized")
+end)
+
+-- Expose NookPlane for cutscenes (can be called from scripts)
+_G.NookPlane = NookPlaneModule
+print("[Client] ✈️ NookPlane exposed to _G for cutscenes")
+
+-- Initialize visual effects immediately (they load fast)
+VisualEffectsModule.initialize(localPlayer)
+ParticleEffectsModule.initialize()
+print("[Client] ✨ Visual effects initialized (bloom, blur, DOF, atmosphere, particles)")
+
 -- Find or create ScreenGui for Recipes Inventory
 local playerGui = _Players.LocalPlayer:WaitForChild("PlayerGui")
 
-local currencyDisplay = CurrencyDisplay.new()
+local _currencyDisplay = CurrencyDisplay.new()
 print("[Client] ✅ Currency HUD initialized")
 
 local recipesScreenGui = playerGui:FindFirstChild("RecipesInventoryGUI")
@@ -197,6 +248,8 @@ print("[Client] ✅ DebugInventoryGrid initialized standalone")
 -- Register ITEM_BROWSER keybind (B key)  
 keybindManager:registerBind("ITEM_BROWSER", function(inputState)
 	if inputState == "began" then
+		guiManager:hideGUI("nookPhone")
+		guiManager:hideGUI("nookShopping")
 		guiManager:toggleGUI("itemBrowser")
 	end
 end)
@@ -213,6 +266,11 @@ print("[Client] ✅ ToolRingGUI initialized")
 keybindManager:registerBind("TOOL_WHEEL", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] Tool wheel triggered (T key)")
+		
+		-- Close NookPhone/Shopping when opening tool wheel
+		guiManager:hideGUI("nookPhone")
+		guiManager:hideGUI("nookShopping")
+		
 		guiManager:toggleGUI("toolRing")
 	end
 end)
@@ -267,6 +325,10 @@ print("[Client] ✅ DebugCraftingMenu initialized standalone")
 keybindManager:registerBind("INVENTORY", function(inputState)
     if inputState == "began" then
         print("[Keybind] E key pressed - toggling inventory...")
+        
+        -- Close NookPhone/Shopping when opening inventory
+        guiManager:hideGUI("nookPhone")
+        guiManager:hideGUI("nookShopping")
         
         -- Try to attach GUI if not already attached
         if not inventoryClient.inventoryFrame or not inventoryClient.inventoryGui then
@@ -362,6 +424,11 @@ end
 keybindManager:registerBind("DEBUG_GUI", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] G key pressed - toggling debug GUI...")
+		
+		-- Close NookPhone/Shopping when opening debug GUI
+		guiManager:hideGUI("nookPhone")
+		guiManager:hideGUI("nookShopping")
+		
 		guiManager:toggleGUI("debug")
 		print("[Keybind] ✅ Debug GUI toggled")
     end
@@ -371,6 +438,11 @@ end)
 keybindManager:registerBind("CRAFTING", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] C key pressed - toggling Crafting Menu...")
+		
+		-- Close NookPhone/Shopping when opening crafting
+		guiManager:hideGUI("nookPhone")
+		guiManager:hideGUI("nookShopping")
+		
 		guiManager:toggleGUI("crafting")
 		print("[Keybind] ✅ Crafting Menu toggled")
 	end

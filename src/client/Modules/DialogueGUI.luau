@@ -731,9 +731,10 @@ function DialogueGUI:AdvanceDialogue()
 				local imageAssetId = VILLAGER_IMAGES[villagerName] or DEFAULT_VILLAGER_IMAGE
 				self._villagerImageRef.Image = imageAssetId
 				if villagerName == "Tom Nook" then
-					self._villagerImageRef.ImageRectSize = TOM_NOOK_EXPRESSIONS[1].size
-					self._villagerImageRef.ImageRectOffset = TOM_NOOK_EXPRESSIONS[1].offset
-					self:_connectImageGuard(self._villagerImageRef, imageAssetId)
+					-- Tom Nook uses individual images now, not sprite sheets
+					self._villagerImageRef.ImageRectSize = Vector2.new(0, 0)
+					self._villagerImageRef.ImageRectOffset = Vector2.new(0, 0)
+					self:_connectImageGuard(self._villagerImageRef, TOM_NOOK_EXPRESSIONS[1].image)
 					self:_startTomNookAnimation(self._villagerImageRef)
 				else
 					self._villagerImageRef.ImageRectSize = Vector2.new(0, 0)

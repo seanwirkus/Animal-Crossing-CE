@@ -28,7 +28,7 @@ function NookPhoneGUI.new()
         return self
     end
     
-    print("[NookPhoneGUI] ✅ Found NookPhoneGUI in PlayerGui")
+    print("[NookPhoneGUI] ✅ Found existing NookPhoneGUI in PlayerGui")
     
     -- Find the main frame
     local mainFrame = self.gui:FindFirstChild("NookPhone")

@@ -48,6 +48,21 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 - **ESC to Close**: Press ESC to close any open GUI
 - **Unified Styling**: All GUIs use consistent cream/beige color scheme
 
+### 🤖 AI Procedural Generation System
+- **Self-Improving AI**: Generator learns from rejections, improving over time (50%→78% approval)
+- **ACNH-Accurate Rules**: Follows real Animal Crossing placement rules (spacing, clustering, slopes)
+- **Terrain Analysis**: Scans existing terrain with spatial grid for fast queries
+- **AI Auditor**: Validates placements with 0-100 scoring system
+- **Iterative Learning**: Tracks rejection reasons and adjusts future proposals
+- **Test Interface**: 8 ready-to-use test functions via Server Command Bar
+- **See**: `docs/AI_ISLAND_GENERATION_GUIDE.md` and `docs/TESTING_AI_GENERATION.md`
+
+### 🎬 Cutscene & Loading Systems
+- **Cutscene Manager**: Camera control, fade transitions, sequence orchestration
+- **Loading Screen**: ACNH-style with rotating Nook Leaf, random tips, progress bar
+- **Onboarding Flow**: Complete dialogue → island selection → loading → cutscene → spawn
+- **See**: `docs/CUTSCENES_AND_LOADING_GUIDE.md`
+
 ## 🎮 Controls & Keybinds
 
 | Key | Action | Description |
@@ -58,6 +73,22 @@ For more help, check out [the Rojo documentation](https://rojo.space/docs).
 | **B** | Item Browser | Open item browser (debug) |
 | **G** | Debug GUI | Open debug manager |
 | **ESC** | Close GUI | Close currently open GUI |
+
+## 🧪 Testing AI Island Generation
+
+**⚠️ IMPORTANT**: The Command Bar must be in **Server** context!
+
+```lua
+-- In Server Command Bar (change dropdown from "Client" to "Server"):
+_G.testSystem.quickTest()           -- Generate 10 trees (quick test)
+_G.testSystem.fullGeneration()      -- Full island generation (10 cycles)
+_G.testSystem.watchLearning()       -- Watch AI improve (20 cycles)
+_G.testSystem.clearAll()            -- Delete generated objects
+```
+
+**Alternative**: Edit `src/server/QuickTestRunner.server.luau` and press F5 to reload.
+
+**Full Guide**: See `docs/TESTING_AI_GENERATION.md`
 
 ## 🏗️ Project Structure
 
