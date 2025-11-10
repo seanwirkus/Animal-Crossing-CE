@@ -30,6 +30,7 @@ local DataStoreService = game:GetService("DataStoreService")
 -- Load CurrencyManager module (it's a child of this script)
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
+local BalloonSpawner = require(script:WaitForChild("BalloonSpawner"))
 
 -- Roblox types and enums
 local Instance = Instance
@@ -53,11 +54,29 @@ local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent") or In
 inventoryRemote.Name = "InventoryEvent"
 inventoryRemote.Parent = ReplicatedStorage
 
+-- Create BalloonHit RemoteEvent for balloon popping
+local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+if not remoteEventsFolder then
+	remoteEventsFolder = Instance.new("Folder")
+	remoteEventsFolder.Name = "RemoteEvents"
+	remoteEventsFolder.Parent = ReplicatedStorage
+end
+
+local balloonHitRemote = remoteEventsFolder:FindFirstChild("BalloonHit") or Instance.new("RemoteEvent")
+balloonHitRemote.Name = "BalloonHit"
+balloonHitRemote.Parent = remoteEventsFolder
+
+-- Create BindableEvent for balloon present drops
+local balloonPresentDropped = Instance.new("BindableEvent")
+balloonPresentDropped.Name = "BalloonPresentDropped"
+balloonPresentDropped.Parent = ReplicatedStorage
+
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
+local ToolObjects = require(sharedFolder:WaitForChild("ToolObjects"))
 
 local InventoryConstants = InventoryDomain.Constants
 local InventorySchemas = InventoryDomain.Schemas
@@ -643,14 +662,7 @@ CraftingSystem.configure({
         grantItems = grantCraftedItems,
 })
 
-FishingSystem.configure({
-        enqueueInventoryItem = function(player, payload)
-                return addItemToInventory(player, payload)
-        end,
-        defaultStack = InventoryConstants.DEFAULT_MAX_STACK,
-})
-
-FishingSystem.init()
+-- FishingSystem is ready to use (no init needed)
 
 local function cleanupWorldItemConnections(connections)
 	if not connections then
@@ -723,55 +735,87 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         pivot.AssemblyLinearVelocity = Vector3.new(0, -8, 0) -- Drop down
         pivot.Parent = model
 
-        -- Simple flat banner sprite (make it anchored initially so it shows)
-        local banner = Instance.new("Part")
-        banner.Name = "Banner"
-        banner.Size = Vector3.new(4, 6, 0.1) -- Banner proportions (4 studs wide, 6 studs tall)
-        banner.Material = Enum.Material.Neon
-        banner.Transparency = 1
-        banner.CanCollide = false
-        banner.Anchored = true  -- Start anchored so it's visible
-        banner.CFrame = CFrame.new(worldPosition + Vector3.new(0, 4.5, 0)) * CFrame.Angles(0, 0, 0) -- Start higher and upright
-        banner.CastShadow = true
-        banner.Parent = model
+        -- Check if this item has a 3D model (tools, etc.)
+        local has3DModel = ToolObjects.hasToolModel(itemId)
+        local displayModel
         
-        -- Don't weld banner to pivot - we'll control it manually for billboard effect
-        -- local weld = Instance.new("WeldConstraint")
-        -- weld.Part0 = pivot
-        -- weld.Part1 = banner
-        -- weld.Parent = pivot
+        if has3DModel then
+            print("[Server] 🎨 Using 3D model for:", itemId)
+            displayModel = ToolObjects.getGroundDisplayModel(itemId)
+            if displayModel then
+                -- Position the 3D model
+                displayModel.Name = "Display3D"
+                displayModel.Parent = model
+                
+                -- Find primary part or first BasePart for positioning
+                local displayPart = displayModel.PrimaryPart or displayModel:FindFirstChildWhichIsA("BasePart")
+                if displayPart then
+                    displayPart.CFrame = CFrame.new(worldPosition + Vector3.new(0, 2, 0))
+                    displayPart.Anchored = true
+                    displayPart.CanCollide = false
+                    
+                    -- Set all parts to non-collidable
+                    for _, part in ipairs(displayModel:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                            part.Anchored = true
+                        end
+                    end
+                end
+            else
+                has3DModel = false -- Fallback to sprite if model failed to load
+            end
+        end
+        
+        -- If no 3D model, use sprite banner as fallback
+        local banner
+        if not has3DModel then
+            print("[Server] 🖼️ Using sprite banner for:", itemId)
+            -- Simple flat banner sprite (make it anchored initially so it shows)
+            banner = Instance.new("Part")
+            banner.Name = "Banner"
+            banner.Size = Vector3.new(4, 6, 0.1) -- Banner proportions (4 studs wide, 6 studs tall)
+            banner.Material = Enum.Material.Neon
+            banner.Transparency = 1
+            banner.CanCollide = false
+            banner.Anchored = true  -- Start anchored so it's visible
+            banner.CFrame = CFrame.new(worldPosition + Vector3.new(0, 4.5, 0)) * CFrame.Angles(0, 0, 0) -- Start higher and upright
+            banner.CastShadow = true
+            banner.Parent = model
 
-        -- Banner sprite
-        local bannerGui = Instance.new("SurfaceGui")
-        bannerGui.Face = Enum.NormalId.Front
-        bannerGui.Parent = banner
+            -- Banner sprite
+            local bannerGui = Instance.new("SurfaceGui")
+            bannerGui.Face = Enum.NormalId.Front
+            bannerGui.Parent = banner
 
-        local bannerImage = Instance.new("ImageLabel")
-        bannerImage.Size = UDim2.new(1, 0, 1, 0)
-        bannerImage.BackgroundTransparency = 1
-        bannerImage.Image = SpriteConfig.SHEET_ASSET
-        bannerImage.ImageTransparency = 0
-        bannerImage.ScaleType = Enum.ScaleType.Fit -- Keep aspect ratio
-        bannerImage.Parent = bannerGui
+            local bannerImage = Instance.new("ImageLabel")
+            bannerImage.Size = UDim2.new(1, 0, 1, 0)
+            bannerImage.BackgroundTransparency = 1
+            bannerImage.Image = SpriteConfig.SHEET_ASSET
+            bannerImage.ImageTransparency = 0
+            bannerImage.ScaleType = Enum.ScaleType.Fit -- Keep aspect ratio
+            bannerImage.Parent = bannerGui
 
-        -- Calculate sprite rect for this item
-        local spriteOffset, spriteSize = SpriteConfig.getSpriteRect(item.index)
-        if not spriteOffset or not spriteSize then
-                spriteOffset = Vector2.new(0, 0)
-                spriteSize = SpriteConfig.DEFAULT_IMAGE_RECT_SIZE
+            -- Calculate sprite rect for this item
+            local spriteOffset, spriteSize = SpriteConfig.getSpriteRect(item.index)
+            if not spriteOffset or not spriteSize then
+                    spriteOffset = Vector2.new(0, 0)
+                    spriteSize = SpriteConfig.DEFAULT_IMAGE_RECT_SIZE
+            end
+
+            bannerImage.ImageRectOffset = spriteOffset
+            bannerImage.ImageRectSize = spriteSize
         end
 
-        bannerImage.ImageRectOffset = spriteOffset
-        bannerImage.ImageRectSize = spriteSize
-
-	-- Subtle glow
+	-- Subtle glow (attach to banner or display model)
+	local glowPart = banner or (displayModel and displayModel:FindFirstChildWhichIsA("BasePart")) or pivot
 	local pointLight = Instance.new("PointLight")
-	pointLight.Name = "BannerGlow"
+	pointLight.Name = "ItemGlow"
 	pointLight.Range = 5
 	pointLight.Brightness = 0.8
 	pointLight.Color = Color3.fromRGB(255, 250, 240)
 	pointLight.Shadows = false
-	pointLight.Parent = banner
+	pointLight.Parent = glowPart
 
 	model.PrimaryPart = pivot
 
@@ -790,64 +834,97 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         local pickupCooldown = 1 -- 1 second cooldown
         local lastPickupAttempt = tick()
         
-        -- Make banner always face camera (billboard effect)
+        -- Make banner always face camera (billboard effect) - only for sprite banners, not 3D models
         local billboardConnection
         local hasLandedBillboard = false
-        billboardConnection = RunService.Heartbeat:Connect(function()
-                if not model.Parent or not pivot.Parent then
-                        if billboardConnection then
-                                billboardConnection:Disconnect()
-                                billboardConnection = nil
-                        end
-                        return
-                end
-                
-                -- Check if banner has landed
-                if not hasLandedBillboard and pivot.AssemblyLinearVelocity.Magnitude < 0.1 then
-                        hasLandedBillboard = true
-                end
-                
-                -- Only apply billboard after landing
-                if not hasLandedBillboard then
-                        return
-                end
-                
-                -- Find nearest player's camera
-                local nearestPlayer = nil
-                local nearestDistance = math.huge
-                for _, otherPlayer in ipairs(Players:GetPlayers()) do
-                        local character = otherPlayer.Character
-                        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-                        if humanoidRootPart then
-                                local distance = (humanoidRootPart.Position - pivot.Position).Magnitude
-                                if distance < nearestDistance then
-                                        nearestDistance = distance
-                                        nearestPlayer = otherPlayer
-                                end
-                        end
-                end
-                
-                if nearestPlayer then
-                        local character = nearestPlayer.Character
-                        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-                        if humanoidRootPart then
-                                -- Get float height from worldItems
-                                local floatHeight = worldItems[worldItemId].floatHeight or 1.5
-                                
-                                -- Position banner above pivot with billboard rotation (facing player upright)
-                                local bannerPosition = pivot.Position + Vector3.new(0, floatHeight, 0)
-                                local lookVector = (humanoidRootPart.Position - bannerPosition).Unit
-                                -- Rotate to face player, and angle up 90 degrees so it's upright
-                                banner.CFrame = CFrame.lookAt(bannerPosition, bannerPosition + lookVector) * CFrame.Angles(0, 0, math.rad(90))
-                                
-                                -- Ensure banner is anchored for stability
-                                if not banner.Anchored then
-                                        banner.Anchored = true
-                                end
-                        end
-                end
-        end)
-        trackConnection(billboardConnection)
+        if banner then  -- Only apply billboard effect to sprite banners
+            billboardConnection = RunService.Heartbeat:Connect(function()
+                    if not model.Parent or not pivot.Parent or not banner.Parent then
+                            if billboardConnection then
+                                    billboardConnection:Disconnect()
+                                    billboardConnection = nil
+                            end
+                            return
+                    end
+                    
+                    -- Check if banner has landed
+                    if not hasLandedBillboard and pivot.AssemblyLinearVelocity.Magnitude < 0.1 then
+                            hasLandedBillboard = true
+                    end
+                    
+                    -- Only apply billboard after landing
+                    if not hasLandedBillboard then
+                            return
+                    end
+                    
+                    -- Find nearest player's camera
+                    local nearestPlayer = nil
+                    local nearestDistance = math.huge
+                    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+                            local character = otherPlayer.Character
+                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                            if humanoidRootPart then
+                                    local distance = (humanoidRootPart.Position - pivot.Position).Magnitude
+                                    if distance < nearestDistance then
+                                            nearestDistance = distance
+                                            nearestPlayer = otherPlayer
+                                    end
+                            end
+                    end
+                    
+                    if nearestPlayer then
+                            local character = nearestPlayer.Character
+                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+                            if humanoidRootPart then
+                                    -- Get float height from worldItems
+                                    local floatHeight = worldItems[worldItemId].floatHeight or 1.5
+                                    
+                                    -- Position banner above pivot with billboard rotation (facing player upright)
+                                    local bannerPosition = pivot.Position + Vector3.new(0, floatHeight, 0)
+                                    local lookVector = (humanoidRootPart.Position - bannerPosition).Unit
+                                    -- Rotate to face player, and angle up 90 degrees so it's upright
+                                    banner.CFrame = CFrame.lookAt(bannerPosition, bannerPosition + lookVector) * CFrame.Angles(0, 0, math.rad(90))
+                                    
+                                    -- Ensure banner is anchored for stability
+                                    if not banner.Anchored then
+                                            banner.Anchored = true
+                                    end
+                            end
+                    end
+            end)
+            trackConnection(billboardConnection)
+        elseif displayModel then
+            -- For 3D models, apply floating effect to all parts
+            billboardConnection = RunService.Heartbeat:Connect(function()
+                    if not model.Parent or not pivot.Parent or not displayModel.Parent then
+                            if billboardConnection then
+                                    billboardConnection:Disconnect()
+                                    billboardConnection = nil
+                            end
+                            return
+                    end
+                    
+                    -- Check if model has landed
+                    if not hasLandedBillboard and pivot.AssemblyLinearVelocity.Magnitude < 0.1 then
+                            hasLandedBillboard = true
+                    end
+                    
+                    if hasLandedBillboard then
+                            -- Get float height from worldItems
+                            local floatHeight = worldItems[worldItemId].floatHeight or 1.5
+                            
+                            -- Position 3D model above pivot
+                            local displayPart = displayModel.PrimaryPart or displayModel:FindFirstChildWhichIsA("BasePart")
+                            if displayPart then
+                                    local modelPosition = pivot.Position + Vector3.new(0, floatHeight, 0)
+                                    -- Slowly rotate the 3D model for visual interest
+                                    local rotation = tick() * 30 -- 30 degrees per second
+                                    displayPart.CFrame = CFrame.new(modelPosition) * CFrame.Angles(0, math.rad(rotation), 0)
+                            end
+                    end
+            end)
+            trackConnection(billboardConnection)
+        end
 
         local function pickupItem(pickingPlayer)
                 if not worldItems[worldItemId] then
@@ -871,19 +948,33 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 -- Anchor the pivot for smooth animation
                 pivot.Anchored = true
                 
-                -- Create simple pickup animation
+                -- Create simple pickup animation for pivot
                 local pickupTween = TweenService:Create(pivot, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                         CFrame = CFrame.new(targetPosition + Vector3.new(0, 2, 0))
                 })
                 
-                -- Scale down for pickup effect
-                local scaleDownTween = TweenService:Create(banner, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                        Size = Vector3.new(0.1, 0.1, 0.1)
-                })
+                -- Scale down effect - handle both banner and 3D model
+                local scaleDownTween
+                if banner then
+                    scaleDownTween = TweenService:Create(banner, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                            Size = Vector3.new(0.1, 0.1, 0.1)
+                    })
+                elseif displayModel then
+                    -- For 3D models, tween the primary part's size
+                    local displayPart = displayModel.PrimaryPart or displayModel:FindFirstChildWhichIsA("BasePart")
+                    if displayPart then
+                        scaleDownTween = TweenService:Create(displayPart, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                                Size = displayPart.Size * 0.1,
+                                Transparency = 1
+                        })
+                    end
+                end
 
                 -- Start animations
                 pickupTween:Play()
-                scaleDownTween:Play()
+                if scaleDownTween then
+                    scaleDownTween:Play()
+                end
 
                 -- Wait for animation to complete before adding to inventory
                 pickupTween.Completed:Connect(function()
@@ -932,12 +1023,14 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         clickDetector.Parent = pivot
         clickDetector.MouseClick:Connect(pickupItem)
 
-	-- Add floating effect to banner after landing
+	-- Add floating effect after landing
 	local floatConnection
 	local floatTime = 0
 	local hasLanded = false
+	local displayPart = banner or (displayModel and (displayModel.PrimaryPart or displayModel:FindFirstChildWhichIsA("BasePart")))
+	
 	floatConnection = RunService.Heartbeat:Connect(function(deltaTime)
-		if not model.Parent or not pivot.Parent or not banner.Parent then
+		if not model.Parent or not pivot.Parent or not displayPart or not displayPart.Parent then
 			if floatConnection then
 				floatConnection:Disconnect()
 				floatConnection = nil
@@ -945,13 +1038,13 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 			return
 		end
 		
-		-- Check if banner has landed (use velocity to detect)
+		-- Check if item has landed (use velocity to detect)
 		if not hasLanded and pivot.AssemblyLinearVelocity.Magnitude < 0.1 then
 			hasLanded = true
 		end
 		
 		if hasLanded then
-			-- Banner has landed, add floating effect
+			-- Item has landed, add floating effect
 			floatTime = floatTime + deltaTime
 			local floatAmount = math.sin(floatTime * 2) * 0.5 -- Gentle 0.5 stud float
 			worldItems[worldItemId].floatHeight = 1.5 + floatAmount
@@ -1033,10 +1126,22 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 local itemId = data.itemId
                 local count = data.count or 1
                 local slotIndex = data.slotIndex
-                local worldPosition = data.worldPosition or Vector3.new(0, 10, 0)
+                
+                -- Calculate position next to player instead of using worldPosition
+                local character = player.Character
+                local dropPosition = Vector3.new(0, 5, 0)  -- Default fallback
+                
+                if character then
+                    local rootPart = character:FindFirstChild("HumanoidRootPart")
+                    if rootPart then
+                        -- Drop item 3 studs in front of player
+                        local lookDirection = rootPart.CFrame.LookVector
+                        dropPosition = rootPart.Position + lookDirection * 3 + Vector3.new(0, 2, 0)
+                    end
+                end
 
         local display = DisplayItems[itemId]
-        print("[Server]", player.Name, "dropped", count, "x", display and display.name or itemId, "at world position", worldPosition)
+        print("[Server]", player.Name, "dropped", count, "x", display and display.name or itemId, "next to player at", dropPosition)
 
                 local slots = inventory.slots
                 local function removeFromSlot(index)
@@ -1066,7 +1171,7 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
                 end
 
                 if removed then
-                        createDroppedItem(player, itemId, count, worldPosition)
+                        createDroppedItem(player, itemId, count, dropPosition)
                         syncInventoryToClient(player)
                         savePlayerInventory(player)
                         return
@@ -1292,6 +1397,45 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
 	end
 end)
 
+-- Handle fishing requests
+local fishingRemote = ReplicatedStorage:FindFirstChild("FishingEvent")
+if not fishingRemote then
+	fishingRemote = Instance.new("RemoteEvent")
+	fishingRemote.Name = "FishingEvent"
+	fishingRemote.Parent = ReplicatedStorage
+end
+
+fishingRemote.OnServerEvent:Connect(function(player, action, data)
+	print("[FishingSystem Server] Received", action, "from", player.Name)
+	
+	if action == "StartCast" and data and data.position then
+		local success = FishingSystem.startCast(player, data.position)
+		if not success then
+			fishingRemote:FireClient(player, "CastFailed", {message = "Not in water!"})
+		end
+		
+	elseif action == "AttemptCatch" then
+		-- Get the fish data BEFORE attempting catch (since attemptCatch clears it)
+		local castData = FishingSystem.activeCasts[player.UserId]
+		local success = FishingSystem.attemptCatch(player)
+		
+		if success and castData and castData.fishData then
+			-- Add fish to inventory
+			local fishItem = {
+				itemId = castData.fishData.id,
+				count = 1
+			}
+			local addSuccess = addItemToInventory(player, fishItem)
+			
+			if addSuccess then
+				print("[FishingSystem Server] ✅ Added", castData.fishData.name, "to inventory!")
+			else
+				warn("[FishingSystem Server] ⚠️ Failed to add fish to inventory")
+			end
+		end
+	end
+end)
+
 -- Player events
 Players.PlayerAdded:Connect(function(player)
         print("[Server] Player added:", player.Name)
@@ -1488,3 +1632,36 @@ testItemEvent.OnServerEvent:Connect(function(player, x, y)
     
     print("[Debug] Test item created at " .. worldPosition .. " with sprite " .. x .. ", " .. y)
 end)
+
+-- Connect balloon present drop event
+balloonPresentDropped.Event:Connect(function(itemId, count, position)
+	print("[Server] 🎁 Balloon present dropped:", count, "x", itemId, "at", position)
+	
+	-- Create the dropped item at the present's position
+	-- We need to find the nearest player or just spawn it for anyone to pick up
+	-- For now, create it without a specific player (anyone can pick it up)
+	createDroppedItem(nil, itemId, count, position)
+end)
+
+-- Start balloon spawner system
+print("[Server] 🎈 Starting balloon spawner system...")
+task.spawn(function()
+	BalloonSpawner.start()
+end)
+
+-- Handle balloon hit events from client
+balloonHitRemote.OnServerEvent:Connect(function(player, balloonName)
+	print("[Server] 🎈 Received balloon hit for:", balloonName)
+	
+	-- Extract balloon ID from name (e.g., "Balloon_5" -> 5)
+	local balloonId = tonumber(string.match(balloonName, "%d+"))
+	if balloonId then
+		-- Call the balloon hit handler
+		BalloonSpawner.onBalloonHit(balloonId, nil)
+		print("[Server] ✅ Balloon", balloonId, "popped!")
+	else
+		warn("[Server] ⚠️ Invalid balloon name:", balloonName)
+	end
+end)
+
+print("[Server] ✅ All systems initialized!")

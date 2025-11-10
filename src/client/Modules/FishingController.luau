@@ -6,6 +6,10 @@ local TweenService = game:GetService("TweenService")
 local CollectionService = game:GetService("CollectionService")
 local Workspace = game:GetService("Workspace")
 
+-- Get ToolObjects module
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local ToolObjects = require(Shared:WaitForChild("ToolObjects"))
+
 local FishingController = {}
 FishingController.__index = FishingController
 
@@ -121,10 +125,65 @@ function FishingController:connectRemote()
     end
 
     self.remoteConnection = self.fishingRemote.OnClientEvent:Connect(function(action, payload)
-        if action == "CatchResult" then
+        if action == "Bite" then
+            self:onBite(payload)
+        elseif action == "CatchResult" then
             self:handleCatchResult(payload)
+        elseif action == "CastFailed" then
+            self:showMessage(payload.message or "Cast failed!", 2)
+            self.isFishing = false
         end
     end)
+end
+
+function FishingController:onBite(data)
+    print("[FishingController] 🐟 BITE!", data.fishName)
+    self.hasBite = true
+    
+    -- Show prompt
+    if self.promptLabel then
+        self.promptLabel.Visible = true
+        self.promptLabel.Text = "Press E!"
+    end
+    
+    -- Listen for E key
+    if self.promptConnection then
+        self.promptConnection:Disconnect()
+    end
+    
+    self.promptConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.E and self.hasBite then
+            self:attemptCatch()
+        end
+    end)
+    
+    -- Auto-hide after 3 seconds
+    task.delay(3, function()
+        if self.promptLabel then
+            self.promptLabel.Visible = false
+        end
+        if self.promptConnection then
+            self.promptConnection:Disconnect()
+        end
+        self.hasBite = false
+        self.isFishing = false
+    end)
+end
+
+function FishingController:attemptCatch()
+    print("[FishingController] Attempting catch...")
+    self.fishingRemote:FireServer("AttemptCatch")
+    
+    if self.promptLabel then
+        self.promptLabel.Visible = false
+    end
+    if self.promptConnection then
+        self.promptConnection:Disconnect()
+    end
+    
+    self.hasBite = false
+    self.isFishing = false
 end
 
 function FishingController:setupCharacterListeners()
@@ -192,6 +251,27 @@ function FishingController:connectMouse()
     self.mouseConnection = self.mouse.Button1Down:Connect(function()
         self:onCastRequested()
     end)
+    
+    -- Also listen for tool activation (clicking with tool equipped)
+    local character = self.player.Character
+    if character then
+        character.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") and isFishingTool(child) then
+                child.Activated:Connect(function()
+                    self:onCastRequested()
+                end)
+            end
+        end)
+        
+        -- Connect to existing tools
+        for _, child in ipairs(character:GetChildren()) do
+            if child:IsA("Tool") and isFishingTool(child) then
+                child.Activated:Connect(function()
+                    self:onCastRequested()
+                end)
+            end
+        end
+    end
 end
 
 function FishingController:isToolReady(): boolean
@@ -227,22 +307,26 @@ function FishingController:onCastRequested()
     if UserInputService:GetFocusedTextBox() then
         return
     end
-
-    local target = self.mouse.Target
-    local hit = self.mouse.Hit
-    local hitPosition = hit and hit.Position or nil
-
-    if not hitPosition then
-        return
+    
+    -- Use ToolObjects to cast the fishing rod
+    local character = self.player.Character
+    if character and self.equippedTool then
+        local success, result = ToolObjects.castFishingRod(self.equippedTool, character, 50)
+        if success and result then
+            print("[FishingController] 🎣 Cast successful!")
+            self.isFishing = true
+            self.castPosition = result
+            
+            -- Notify server to start fishing session
+            self.fishingRemote:FireServer("StartCast", {position = result})
+            
+            return
+        elseif not success and result then
+            -- Show error message
+            self:showMessage(result, 2)
+            return
+        end
     end
-
-    local waterPosition, locationType = self:isWater(target, hitPosition)
-    if not waterPosition then
-        self:showMessage("You need to cast into water!", 2)
-        return
-    end
-
-    self:cast(waterPosition, locationType)
 end
 
 function FishingController:isWater(target: Instance?, position: Vector3)

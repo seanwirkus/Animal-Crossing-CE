@@ -18,6 +18,9 @@ KeybindManager.KEYBINDS = {
 	CRAFTING = Enum.KeyCode.C,  -- Changed from Tab to C for DebugCraftingMenu
 	TOOL_WHEEL = Enum.KeyCode.T,
 	
+	-- NookPhone
+	NOOK_PHONE = Enum.KeyCode.P,  -- P for NookPhone
+	
 	-- Navigation
 	MAP = Enum.KeyCode.M,
 	

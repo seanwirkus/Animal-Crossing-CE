@@ -1,9 +1,13 @@
 --[[
     CurrencyDisplay.luau
-    Client-side currency display using existing HudGUI StatsBar
+    Client-side currency display for Bells and Nook Miles
     
-    Uses existing GUI structure:
-    HudGUI > StatsBar > BellsCount, MilesCount
+    Searches for BellsLabel and MilesLabel TextLabels anywhere in PlayerGui hierarchy.
+    This works with any GUI layout:
+    - New embedded: InventoryGUI > InventoryFrame > BellsCount > BellsLabel
+    - Old StatsBar: HudGUI > StatsBar > BellsCount > BellsLabel
+    
+    If StatsBar is re-added and made visible, updates will automatically apply to those labels too.
     
     DEPENDS ON: CurrencyManager.luau (server)
     USED BY: init.client.luau
@@ -55,55 +59,42 @@ end
 function CurrencyDisplay:findGUI()
 	local playerGui = self.player:WaitForChild("PlayerGui")
 	
-	-- Find existing HudGUI
-	self.hudGui = playerGui:WaitForChild("HudGUI", 5)
-	if not self.hudGui then
-		warn("[CurrencyDisplay] ❌ HudGUI not found!")
-		return
-	end
-	print("[CurrencyDisplay] ✅ Found HudGUI")
+	print("[CurrencyDisplay] 🔍 Searching for currency displays...")
 	
-	-- Find StatsBar
-	self.statsBar = self.hudGui:FindFirstChild("StatsBar")
-	if not self.statsBar then
-		warn("[CurrencyDisplay] ❌ StatsBar not found in HudGUI!")
-		print("[CurrencyDisplay] HudGUI children:", self.hudGui:GetChildren())
-		return
-	end
-	print("[CurrencyDisplay] ✅ Found StatsBar")
-	
-	-- Find BellsCount Frame and BellsLabel inside it
-	local bellsFrame = self.statsBar:FindFirstChild("BellsCount")
-	if bellsFrame then
-		self.bellsCount = bellsFrame:FindFirstChild("BellsLabel")
-		if self.bellsCount then
-			print("[CurrencyDisplay] ✅ Found BellsCount > BellsLabel")
-		else
-			warn("[CurrencyDisplay] ⚠️ BellsLabel not found inside BellsCount!")
-			print("[CurrencyDisplay] BellsCount children:", bellsFrame:GetChildren())
+	-- Strategy 1: Look for BellsCount and MilesCount directly anywhere in PlayerGui
+	-- This handles the new embedded layout in InventoryFrame
+	local function findLabelRecursive(parent, labelName)
+		for _, child in ipairs(parent:GetDescendants()) do
+			if child.Name == labelName and child:IsA("TextLabel") then
+				return child
+			end
 		end
-	else
-		warn("[CurrencyDisplay] ⚠️ BellsCount frame not found in StatsBar!")
-		print("[CurrencyDisplay] StatsBar children:", self.statsBar:GetChildren())
+		return nil
 	end
 	
-	-- Find MilesCount Frame and MilesLabel inside it
-	local milesFrame = self.statsBar:FindFirstChild("MilesCount")
-	if milesFrame then
-		self.milesCount = milesFrame:FindFirstChild("MilesLabel")
-		if self.milesCount then
-			print("[CurrencyDisplay] ✅ Found MilesCount > MilesLabel")
-		else
-			warn("[CurrencyDisplay] ⚠️ MilesLabel not found inside MilesCount!")
-			print("[CurrencyDisplay] MilesCount children:", milesFrame:GetChildren())
-		end
+	-- Search for BellsLabel first
+	self.bellsCount = findLabelRecursive(playerGui, "BellsLabel")
+	if self.bellsCount then
+		print("[CurrencyDisplay] ✅ Found BellsLabel at:", self.bellsCount:GetFullName())
 	else
-		warn("[CurrencyDisplay] ⚠️ MilesCount frame not found in StatsBar!")
-		print("[CurrencyDisplay] StatsBar children:", self.statsBar:GetChildren())
+		warn("[CurrencyDisplay] ❌ BellsLabel not found in PlayerGui hierarchy!")
+		print("[CurrencyDisplay] PlayerGui children:", playerGui:GetChildren())
+	end
+	
+	-- Search for MilesLabel
+	self.milesCount = findLabelRecursive(playerGui, "MilesLabel")
+	if self.milesCount then
+		print("[CurrencyDisplay] ✅ Found MilesLabel at:", self.milesCount:GetFullName())
+	else
+		warn("[CurrencyDisplay] ❌ MilesLabel not found in PlayerGui hierarchy!")
 	end
 	
 	if self.bellsCount and self.milesCount then
-		print("[CurrencyDisplay] ✅ Both labels found - ready to update!")
+		print("[CurrencyDisplay] ✅ Both currency labels found - ready to update!")
+	else
+		print("[CurrencyDisplay] ⚠️ One or both currency labels not found")
+		print("[CurrencyDisplay] bellsCount:", self.bellsCount)
+		print("[CurrencyDisplay] milesCount:", self.milesCount)
 	end
 end
 
@@ -112,6 +103,7 @@ function CurrencyDisplay:updateBells(amount: number)
 	
 	if self.bellsCount then
 		self.bellsCount.Text = formatNumber(amount)
+		print("[CurrencyDisplay] ✅ Bells label updated to:", formatNumber(amount))
 		
 		-- Pulse animation
 		if self.bellsCount:FindFirstChildOfClass("UIScale") then
@@ -127,6 +119,8 @@ function CurrencyDisplay:updateBells(amount: number)
 				shrink:Play()
 			end)
 		end
+	else
+		warn("[CurrencyDisplay] ⚠️ Bells label not found! Cannot update to:", amount)
 	end
 end
 
@@ -135,6 +129,7 @@ function CurrencyDisplay:updateMiles(amount: number)
 	
 	if self.milesCount then
 		self.milesCount.Text = formatNumber(amount)
+		print("[CurrencyDisplay] ✅ Miles label updated to:", formatNumber(amount))
 		
 		-- Pulse animation
 		if self.milesCount:FindFirstChildOfClass("UIScale") then
@@ -150,6 +145,8 @@ function CurrencyDisplay:updateMiles(amount: number)
 				shrink:Play()
 			end)
 		end
+	else
+		warn("[CurrencyDisplay] ⚠️ Miles label not found! Cannot update to:", amount)
 	end
 end
 

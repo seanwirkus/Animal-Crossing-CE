@@ -28,6 +28,11 @@ print("[Client] Script children:", script:GetChildren())
 local InventoryClient = require(script.InventoryClient)
 print("[Client] ✅ InventoryClient loaded")
 
+local ChibiCharacter = require(script.Modules.ChibiCharacter)
+print("[Client] Loading chibi character system...")
+ChibiCharacter.init() -- Initialize the chibi character system
+print("[Client] ✅ Chibi character system loaded")
+
 local InventoryGuiSetup = require(script.Modules.InventoryGuiSetup)
 print("[Client] ✅ InventoryGuiSetup loaded")
 
@@ -52,11 +57,21 @@ print("[Client] ✅ DebugManager module loaded")
 local ToolRingGUIModule = require(script.Modules.ToolRingGUI)
 print("[Client] ✅ ToolRingGUI module loaded")
 
-local FishingControllerModule = require(script.Modules.FishingController)
-print("[Client] ✅ FishingController module loaded")
+local ShopGUIModule = require(script.Modules.ShopGUI)
+print("[Client] ✅ ShopGUI module loaded")
 
-local ChibiCharacter = require(script.Modules.ChibiCharacter)
-print("[Client] ✅ ChibiCharacter module loaded")
+local NookPhoneGUIModule = require(script.Modules.NookPhoneGUI)
+print("[Client] ✅ NookPhoneGUI module loaded")
+
+local NookShoppingGUIModule = require(script.Modules.NookShoppingGUI)
+print("[Client] ✅ NookShoppingGUI module loaded")
+
+local FishingControllerModule = require(script.Modules.FishingController)
+local SlingshotControllerModule = require(script.Modules.SlingshotController)
+print("[Client] ✅ SlingshotController module loaded")
+
+-- local ChibiCharacter = require(script.Modules.ChibiCharacter)
+-- print("[Client] ✅ ChibiCharacter module loaded")
 
 -- WaterEffects DISABLED - was causing material rendering issues in Studio
 -- local WaterEffectsModule = require(script.Modules.WaterEffects)
@@ -131,6 +146,10 @@ local fishingController = FishingControllerModule.new()
 fishingController:init()
 print("[Client] ✅ FishingController initialized")
 
+-- Initialize slingshot controller
+local slingshotController = SlingshotControllerModule.new()
+print("[Client] ✅ SlingshotController initialized")
+
 -- Create GUIManager for exclusive GUI visibility
 local GUIManager = require(script.Modules.GUIManager)
 local guiManager = GUIManager.new()
@@ -198,6 +217,31 @@ keybindManager:registerBind("TOOL_WHEEL", function(inputState)
 	end
 end)
 print("[Client] ✅ Tool Ring keybind registered (T key)")
+
+-- Initialize ShopGUI
+local shopGUI = ShopGUIModule.new()
+guiManager:registerGUI("shop", shopGUI)
+print("[Client] ✅ ShopGUI initialized")
+
+-- Initialize NookShoppingGUI first
+local nookShoppingGUI = NookShoppingGUIModule.new()
+guiManager:registerGUI("nookShopping", nookShoppingGUI)
+print("[Client] ✅ NookShoppingGUI initialized")
+
+-- Initialize NookPhoneGUI and connect it to NookShoppingGUI
+local nookPhoneGUI = NookPhoneGUIModule.new()
+nookPhoneGUI:setShopGUI(nookShoppingGUI)
+guiManager:registerGUI("nookPhone", nookPhoneGUI)
+print("[Client] ✅ NookPhoneGUI initialized")
+
+-- Register NOOK_PHONE keybind (P key)
+keybindManager:registerBind("NOOK_PHONE", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] NookPhone triggered (P key)")
+		guiManager:toggleGUI("nookPhone")
+	end
+end)
+print("[Client] ✅ NookPhone keybind registered (P key)")
 
 -- DebugManager is no longer needed (can be removed later if unused)
 print("[Client] ✅ Debug systems initialized")
@@ -469,9 +513,7 @@ _G.GUIManager = guiManager  -- Store for debugging
 -- waterEffects:Start()
 print("[Client] ℹ️ Water visual effects DISABLED (use Studio lighting instead)")
 
--- Initialize Chibi Character System (cute Animal Crossing style!)
-local chibiCharacter = ChibiCharacter.new()
-print("[Client] ✨ Chibi character mode enabled!")
+print("[Client] ✅ SlingshotController initialized")
 
 print("[Client] ✅ All systems ready!")
 
