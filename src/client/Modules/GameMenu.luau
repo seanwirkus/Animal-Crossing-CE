@@ -79,10 +79,10 @@ local DEBUG_KEYBIND_ORDER = {
 }
 
 local function createGUI()
-	local playerGui = LOCAL_PLAYER:WaitForChild("PlayerGui")
-	
-	-- Main ScreenGui
-	_screenGui = Instance.new("ScreenGui")
+        local playerGui = LOCAL_PLAYER:WaitForChild("PlayerGui")
+
+        -- Main ScreenGui
+        _screenGui = Instance.new("ScreenGui")
 	_screenGui.Name = "GameMenuGUI"
 	_screenGui.ResetOnSpawn = false
 	_screenGui.Enabled = false
@@ -98,32 +98,40 @@ local function createGUI()
 	darkener.BackgroundTransparency = 0.3
 	darkener.BorderSizePixel = 0
 	darkener.Parent = _screenGui
-	
-	-- Main container
-	_mainFrame = Instance.new("Frame")
-	_mainFrame.Name = "MainFrame"
-	_mainFrame.Size = UDim2.new(0, 900, 0, 600)
-	_mainFrame.Position = UDim2.new(0.5, -450, 0.5, -300)
-	_mainFrame.BackgroundColor3 = COLORS.background
-	_mainFrame.BorderSizePixel = 0
-	_mainFrame.Parent = darkener
-	
-	local mainCorner = Instance.new("UICorner")
-	mainCorner.CornerRadius = UDim.new(0, 12)
-	mainCorner.Parent = _mainFrame
-	
+
+        -- Main container
+        _mainFrame = Instance.new("Frame")
+        _mainFrame.Name = "MainFrame"
+        _mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        _mainFrame.Size = UDim2.fromScale(0.85, 0.8)
+        _mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+        _mainFrame.BackgroundColor3 = COLORS.background
+        _mainFrame.BorderSizePixel = 0
+        _mainFrame.Parent = darkener
+
+        local sizeConstraint = Instance.new("UISizeConstraint")
+        sizeConstraint.MinSize = Vector2.new(640, 420)
+        sizeConstraint.MaxSize = Vector2.new(1024, 720)
+        sizeConstraint.Parent = _mainFrame
+
+        local mainCorner = Instance.new("UICorner")
+        mainCorner.CornerRadius = UDim.new(0, 12)
+        mainCorner.Parent = _mainFrame
+
 	local mainStroke = Instance.new("UIStroke")
 	mainStroke.Color = COLORS.accent
 	mainStroke.Thickness = 2
 	mainStroke.Parent = _mainFrame
 	
 	-- Title bar
-	local titleBar = Instance.new("Frame")
-	titleBar.Name = "TitleBar"
-	titleBar.Size = UDim2.new(1, 0, 0, 50)
-	titleBar.BackgroundColor3 = COLORS.accent
-	titleBar.BorderSizePixel = 0
-	titleBar.Parent = _mainFrame
+        local titleHeight = 56
+
+        local titleBar = Instance.new("Frame")
+        titleBar.Name = "TitleBar"
+        titleBar.Size = UDim2.new(1, 0, 0, titleHeight)
+        titleBar.BackgroundColor3 = COLORS.accent
+        titleBar.BorderSizePixel = 0
+        titleBar.Parent = _mainFrame
 	
 	local titleCorner = Instance.new("UICorner")
 	titleCorner.CornerRadius = UDim.new(0, 12)
@@ -163,32 +171,57 @@ local function createGUI()
 	
 	local closeCorner = Instance.new("UICorner")
 	closeCorner.CornerRadius = UDim.new(0, 8)
-	closeCorner.Parent = closeButton
-	
-	-- Sidebar for tabs
-	_sidebarFrame = Instance.new("Frame")
-	_sidebarFrame.Name = "Sidebar"
-	_sidebarFrame.Size = UDim2.new(0, 200, 1, -50)
-	_sidebarFrame.Position = UDim2.new(0, 0, 0, 50)
-	_sidebarFrame.BackgroundColor3 = COLORS.sidebar
-	_sidebarFrame.BorderSizePixel = 0
-	_sidebarFrame.Parent = _mainFrame
-	
-	local sidebarCorner = Instance.new("UICorner")
-	sidebarCorner.CornerRadius = UDim.new(0, 0)
-	sidebarCorner.Parent = _sidebarFrame
-	
-	-- Content area
-	_contentFrame = Instance.new("ScrollingFrame")
-	_contentFrame.Name = "Content"
-	_contentFrame.Size = UDim2.new(1, -200, 1, -50)
-	_contentFrame.Position = UDim2.new(0, 200, 0, 50)
-	_contentFrame.BackgroundTransparency = 1
-	_contentFrame.BorderSizePixel = 0
-	_contentFrame.ScrollBarThickness = 8
-	_contentFrame.ScrollBarImageColor3 = COLORS.accent
-	_contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-	_contentFrame.Parent = _mainFrame
+        closeCorner.Parent = closeButton
+
+        -- Body container for sidebar + content
+        local bodyFrame = Instance.new("Frame")
+        bodyFrame.Name = "Body"
+        bodyFrame.BackgroundTransparency = 1
+        bodyFrame.Size = UDim2.new(1, 0, 1, -titleHeight)
+        bodyFrame.Position = UDim2.new(0, 0, 0, titleHeight)
+        bodyFrame.Parent = _mainFrame
+
+        local bodyPadding = Instance.new("UIPadding")
+        bodyPadding.PaddingTop = UDim.new(0, 16)
+        bodyPadding.PaddingBottom = UDim.new(0, 16)
+        bodyPadding.PaddingLeft = UDim.new(0, 16)
+        bodyPadding.PaddingRight = UDim.new(0, 16)
+        bodyPadding.Parent = bodyFrame
+
+        local bodyLayout = Instance.new("UIListLayout")
+        bodyLayout.FillDirection = Enum.FillDirection.Horizontal
+        bodyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        bodyLayout.VerticalAlignment = Enum.VerticalAlignment.Stretch
+        bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        bodyLayout.Padding = UDim.new(0, 16)
+        bodyLayout.Parent = bodyFrame
+
+        -- Sidebar for tabs
+        _sidebarFrame = Instance.new("Frame")
+        _sidebarFrame.Name = "Sidebar"
+        _sidebarFrame.Size = UDim2.new(0.3, 0, 1, 0)
+        _sidebarFrame.BackgroundColor3 = COLORS.sidebar
+        _sidebarFrame.BorderSizePixel = 0
+        _sidebarFrame.LayoutOrder = 1
+        _sidebarFrame.Parent = bodyFrame
+
+        local sidebarCorner = Instance.new("UICorner")
+        sidebarCorner.CornerRadius = UDim.new(0, 0)
+        sidebarCorner.Parent = _sidebarFrame
+
+        -- Content area
+        _contentFrame = Instance.new("ScrollingFrame")
+        _contentFrame.Name = "Content"
+        _contentFrame.Size = UDim2.new(0.7, -16, 1, 0)
+        _contentFrame.BackgroundTransparency = 1
+        _contentFrame.BorderSizePixel = 0
+        _contentFrame.ScrollBarThickness = 8
+        _contentFrame.ScrollBarImageColor3 = COLORS.accent
+        _contentFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+        _contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        _contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+        _contentFrame.LayoutOrder = 2
+        _contentFrame.Parent = bodyFrame
 	
 	-- Close button functionality
 	closeButton.MouseButton1Click:Connect(function()
@@ -315,20 +348,25 @@ local function createTabButtons()
 end
 
 local function createInventoryContent()
-	_contentFrame:ClearAllChildren()
-	
-	local padding = Instance.new("UIPadding")
-	padding.PaddingAll = UDim.new(0, 10)
-	padding.Parent = _contentFrame
-	
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 10)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = _contentFrame
-	
-	-- Title
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.new(1, 0, 0, 40)
+        _contentFrame:ClearAllChildren()
+        _contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+        local padding = Instance.new("UIPadding")
+        padding.PaddingTop = UDim.new(0, 12)
+        padding.PaddingBottom = UDim.new(0, 12)
+        padding.PaddingLeft = UDim.new(0, 12)
+        padding.PaddingRight = UDim.new(0, 12)
+        padding.Parent = _contentFrame
+
+        local layout = Instance.new("UIListLayout")
+        layout.Padding = UDim.new(0, 12)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.HorizontalAlignment = Enum.HorizontalAlignment.Stretch
+        layout.Parent = _contentFrame
+
+        -- Title
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(1, 0, 0, 40)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = "🎒 Inventory"
 	titleLabel.Font = Enum.Font.GothamBold
@@ -338,31 +376,33 @@ local function createInventoryContent()
 	titleLabel.LayoutOrder = 1
 	titleLabel.Parent = _contentFrame
 	
-	-- Inventory grid container
-	local gridContainer = Instance.new("Frame")
-	gridContainer.Name = "InventoryGrid"
-	gridContainer.Size = UDim2.new(1, 0, 0, 0) -- Auto-size
-	gridContainer.BackgroundTransparency = 1
-	gridContainer.LayoutOrder = 2
-	gridContainer.Parent = _contentFrame
-	
-	local gridLayout = Instance.new("UIGridLayout")
-	gridLayout.CellSize = UDim2.new(0, 80, 0, 80)
-	gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
-	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	gridLayout.Parent = gridContainer
-	
-	-- Create inventory slots
-	local function createInventorySlot(slotIndex, itemData)
-		local slot = Instance.new("Frame")
-		slot.Name = "Slot_" .. slotIndex
-		slot.Size = UDim2.new(0, 80, 0, 80)
-		slot.BackgroundColor3 = itemData and Color3.fromRGB(240, 235, 215) or Color3.fromRGB(220, 210, 190)
-		slot.BorderSizePixel = 0
-		slot.LayoutOrder = slotIndex
-		slot.Parent = gridContainer
+        -- Inventory grid container
+        local gridContainer = Instance.new("Frame")
+        gridContainer.Name = "InventoryGrid"
+        gridContainer.Size = UDim2.new(1, 0, 0, 0)
+        gridContainer.AutomaticSize = Enum.AutomaticSize.Y
+        gridContainer.BackgroundTransparency = 1
+        gridContainer.LayoutOrder = 2
+        gridContainer.Parent = _contentFrame
+
+        local gridLayout = Instance.new("UIGridLayout")
+        gridLayout.CellSize = UDim2.new(0, 96, 0, 96)
+        gridLayout.CellPadding = UDim2.new(0, 12, 0, 12)
+        gridLayout.FillDirectionMaxCells = 5
+        gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+        gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        gridLayout.Parent = gridContainer
+
+        -- Create inventory slots
+        local function createInventorySlot(slotIndex, itemData)
+                local slot = Instance.new("Frame")
+                slot.Name = "Slot_" .. slotIndex
+                slot.Size = UDim2.new(0, 96, 0, 96)
+                slot.BackgroundColor3 = itemData and Color3.fromRGB(240, 235, 215) or Color3.fromRGB(220, 210, 190)
+                slot.BorderSizePixel = 0
+                slot.LayoutOrder = slotIndex
+                slot.Parent = gridContainer
 		
 		local slotCorner = Instance.new("UICorner")
 		slotCorner.CornerRadius = UDim.new(0, 8)
@@ -374,33 +414,43 @@ local function createInventoryContent()
 		slotStroke.Transparency = itemData and 0 or 0.5
 		slotStroke.Parent = slot
 		
-		if itemData then
-			-- Item icon (using sprite if available)
-			local icon = Instance.new("ImageLabel")
-			icon.Name = "Icon"
-			icon.Size = UDim2.new(0.8, 0, 0.8, 0)
-			icon.Position = UDim2.new(0.1, 0, 0.1, 0)
-			icon.BackgroundTransparency = 1
-			icon.Parent = slot
-			
-			-- Try to get sprite
-			if _inventoryClient and _inventoryClient.spriteConfig then
-				local spriteInfo = _inventoryClient.spriteConfig.getItemSprite(itemData.itemId)
-				if spriteInfo then
-					icon.Image = spriteInfo.image
-					icon.ImageRectOffset = spriteInfo.offset
-					icon.ImageRectSize = spriteInfo.size
-				else
-					icon.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-				end
-			else
-				icon.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-			end
-			
-			-- Item count
-			if itemData.count > 1 then
-				local countLabel = Instance.new("TextLabel")
-				countLabel.Size = UDim2.new(0, 30, 0, 20)
+                if itemData then
+                        -- Item icon (using sprite if available)
+                        local icon = Instance.new("ImageLabel")
+                        icon.Name = "Icon"
+                        icon.Size = UDim2.new(0.8, 0, 0.8, 0)
+                        icon.Position = UDim2.new(0.1, 0, 0.1, 0)
+                        icon.ScaleType = Enum.ScaleType.Fit
+                        icon.BackgroundTransparency = 1
+                        icon.Parent = slot
+
+                        -- Try to get sprite from item definition
+                        local itemDefinition = nil
+                        if _inventoryClient then
+                                if _inventoryClient.itemDataFetcher and _inventoryClient.itemDataFetcher.getItemData then
+                                        itemDefinition = _inventoryClient.itemDataFetcher.getItemData(itemData.itemId)
+                                elseif typeof(_inventoryClient.getItemDefinition) == "function" then
+                                        itemDefinition = _inventoryClient:getItemDefinition(itemData.itemId)
+                                end
+                        end
+
+                        local spriteApplied = false
+                        if itemDefinition and itemDefinition.spriteIndex and _inventoryClient and _inventoryClient.spriteConfig then
+                                spriteApplied = _inventoryClient.spriteConfig.applySprite(icon, itemDefinition.spriteIndex)
+                        elseif itemData.spriteIndex and _inventoryClient and _inventoryClient.spriteConfig then
+                                spriteApplied = _inventoryClient.spriteConfig.applySprite(icon, itemData.spriteIndex)
+                        end
+
+                        if not spriteApplied then
+                                icon.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+                                icon.ImageRectOffset = Vector2.new()
+                                icon.ImageRectSize = Vector2.new()
+                        end
+
+                        -- Item count
+                        if itemData.count > 1 then
+                                local countLabel = Instance.new("TextLabel")
+                                countLabel.Size = UDim2.new(0, 30, 0, 20)
 				countLabel.Position = UDim2.new(1, -35, 1, -25)
 				countLabel.BackgroundColor3 = COLORS.selected
 				countLabel.Text = tostring(itemData.count)
@@ -414,19 +464,16 @@ local function createInventoryContent()
 				countCorner.CornerRadius = UDim.new(0, 4)
 				countCorner.Parent = countLabel
 			end
-			
-			-- Item name tooltip
-			local itemName = itemData.itemId
-			if _inventoryClient and _inventoryClient.itemDataFetcher then
-				local itemInfo = _inventoryClient.itemDataFetcher.getItemData(itemData.itemId)
-				if itemInfo then
-					itemName = itemInfo.name or itemData.itemId
-				end
-			end
-			
-			slot:SetAttribute("ItemName", itemName)
-			slot:SetAttribute("ItemId", itemData.itemId)
-			slot:SetAttribute("Count", itemData.count)
+
+                        -- Item name tooltip
+                        local itemName = itemData.itemId
+                        if itemDefinition then
+                                itemName = itemDefinition.name or itemData.itemId
+                        end
+
+                        slot:SetAttribute("ItemName", itemName)
+                        slot:SetAttribute("ItemId", itemData.itemId)
+                        slot:SetAttribute("Count", itemData.count)
 		else
 			-- Empty slot indicator
 			local emptyLabel = Instance.new("TextLabel")
@@ -463,41 +510,23 @@ local function createInventoryContent()
 		statsLabel.Font = Enum.Font.GothamBold -- Replace unavailable GothamSemibold
 		statsLabel.TextSize = 16
 		statsLabel.TextColor3 = COLORS.text
-		statsLabel.TextXAlignment = Enum.TextXAlignment.Left
-		statsLabel.LayoutOrder = 3
-		statsLabel.Parent = _contentFrame
-		
-		-- Update canvas size when layout changes
-		local function updateCanvasSize()
-			local gridHeight = gridLayout.AbsoluteContentSize.Y > 0 and gridLayout.AbsoluteContentSize.Y or (math.ceil(maxSlots / 5) * 90)
-			gridContainer.Size = UDim2.new(1, 0, 0, gridHeight)
-			local totalHeight = 40 + gridHeight + 40
-			_contentFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-		end
-		
-		gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize)
-		
-		-- Initial size calculation (spawn to avoid blocking)
-		task.spawn(function()
-			task.wait(0.1) -- Wait for layout to calculate
-			updateCanvasSize()
-		end)
-	else
-		-- Fallback if inventory client not available
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1, -20, 0, 100)
-		label.BackgroundTransparency = 1
-		label.Text = "🎒 Inventory System\n\nPress E to open your inventory.\n\nYour items, tools, and resources are managed through the inventory system."
-		label.Font = Enum.Font.Gotham
-		label.TextSize = 16
-		label.TextColor3 = COLORS.text
-		label.TextWrapped = true
-		label.TextYAlignment = Enum.TextYAlignment.Top
-		label.LayoutOrder = 2
-		label.Parent = _contentFrame
-		
-		_contentFrame.CanvasSize = UDim2.new(0, 0, 0, 150)
-	end
+                statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+                statsLabel.LayoutOrder = 3
+                statsLabel.Parent = _contentFrame
+        else
+                -- Fallback if inventory client not available
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(1, 0, 0, 120)
+                label.BackgroundTransparency = 1
+                label.Text = "🎒 Inventory System\n\nPress E to open your inventory.\n\nYour items, tools, and resources are managed through the inventory system."
+                label.Font = Enum.Font.Gotham
+                label.TextSize = 16
+                label.TextColor3 = COLORS.text
+                label.TextWrapped = true
+                label.TextYAlignment = Enum.TextYAlignment.Top
+                label.LayoutOrder = 2
+                label.Parent = _contentFrame
+        end
 end
 
 local function createSettingsContent()
