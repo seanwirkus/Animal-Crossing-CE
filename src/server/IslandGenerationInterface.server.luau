@@ -141,19 +141,20 @@ local function generateIsland(player: Player)
 		updateProgress(player, "Analyzing new island...", 20, {trees = 0, rocks = 0, flowers = 0})
 		
 		local system = ProceduralIslandSystem.new()
-		
+
 		-- Override analyzer bounds to only scan NEW island area
 		local customBounds = Region3.new(
 			NEW_ISLAND_CENTER - ISLAND_SIZE,
 			NEW_ISLAND_CENTER + ISLAND_SIZE
 		)
-		
+
+		-- Custom initialization replicating ProceduralIslandSystem:initialize but with custom bounds
 		system.analyzer = require(ReplicatedStorage.Shared.IslandAnalyzer).new(terrain, customBounds)
 		system.analyzer:analyzeIsland()
-		
 		system.generator = require(ReplicatedStorage.Shared.IslandGenerator).new(system.analyzer)
 		system.auditor = require(ReplicatedStorage.Shared.IslandAuditor).new(system.analyzer)
-		
+		system.initialized = true -- mark initialized to silence warnings
+
 		playerGenerationStates[userId].system = system
 		
 		updateProgress(player, "Analysis complete!", 30, {trees = 0, rocks = 0, flowers = 0})

@@ -4795,6 +4795,81 @@
       "source": [
         "Basic Cooking Recipes"
       ]
+    },
+    {
+      "id": "red-marker",
+      "itemId": "red-marker",
+      "name": "Red Marker",
+      "category": "Tools",
+      "sell": 50,
+      "buy": 200,
+      "source": [
+        "Whiteboard Markers"
+      ],
+      "themes": [
+        "School",
+        "Office"
+      ]
+    },
+    {
+      "id": "blue-marker",
+      "itemId": "blue-marker",
+      "name": "Blue Marker",
+      "category": "Tools",
+      "sell": 50,
+      "buy": 200,
+      "source": [
+        "Whiteboard Markers"
+      ],
+      "themes": [
+        "School",
+        "Office"
+      ]
+    },
+    {
+      "id": "yellow-marker",
+      "itemId": "yellow-marker",
+      "name": "Yellow Marker",
+      "category": "Tools",
+      "sell": 50,
+      "buy": 200,
+      "source": [
+        "Whiteboard Markers"
+      ],
+      "themes": [
+        "School",
+        "Office"
+      ]
+    },
+    {
+      "id": "green-marker",
+      "itemId": "green-marker",
+      "name": "Green Marker",
+      "category": "Tools",
+      "sell": 50,
+      "buy": 200,
+      "source": [
+        "Whiteboard Markers"
+      ],
+      "themes": [
+        "School",
+        "Office"
+      ]
+    },
+    {
+      "id": "black-marker",
+      "itemId": "black-marker",
+      "name": "Black Marker",
+      "category": "Tools",
+      "sell": 50,
+      "buy": 200,
+      "source": [
+        "Whiteboard Markers"
+      ],
+      "themes": [
+        "School",
+        "Office"
+      ]
     }
   ],
   "meta": {

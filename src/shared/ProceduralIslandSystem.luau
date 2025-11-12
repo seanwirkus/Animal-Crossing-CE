@@ -21,7 +21,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local IslandAnalyzer = require(script.Parent.IslandAnalyzer)
 local IslandGenerator = require(script.Parent.IslandGenerator)
 local IslandAuditor = require(script.Parent.IslandAuditor)
-local GenerationRules = require(script.Parent.GenerationRules)
+
+local OAK_TREE_TEMPLATE: Model? = ReplicatedStorage:FindFirstChild("OakTree")
+
+local function getOakTreeTemplate(): Model?
+	if OAK_TREE_TEMPLATE and OAK_TREE_TEMPLATE.Parent then
+		return OAK_TREE_TEMPLATE
+	end
+
+	OAK_TREE_TEMPLATE = ReplicatedStorage:FindFirstChild("OakTree")
+	return OAK_TREE_TEMPLATE
+end
 
 local ProceduralIslandSystem = {}
 ProceduralIslandSystem.__index = ProceduralIslandSystem
@@ -94,7 +104,7 @@ end
 	@param minScore Minimum audit score (default: 60)
 	@return Audit results
 ]]
-function ProceduralIslandSystem:runGenerationCycle(config: {[string]: boolean}?, minScore: number?): {any}
+function ProceduralIslandSystem:runGenerationCycle(config: {[string]: boolean}?, minScore: number?): {any}?
 	if not self.initialized then
 		warn("[ProceduralIslandSystem] ❌ System not initialized - call initialize() first")
 		return nil
@@ -272,49 +282,61 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
 	local treeContainer = Instance.new("Model")
 	treeContainer.Name = proposal.subtype or "Tree"
 	
-	print("[ProceduralIslandSystem] Loading tree model asset 133091177315123...")
+	print("[ProceduralIslandSystem] 🌲 Cloning OakTree from ReplicatedStorage...")
 	
-	-- Load the actual tree model from Roblox
-	local success, treeModel = pcall(function()
-		return game:GetService("InsertService"):LoadAsset(133091177315123)
-	end)
-	
-	if success and treeModel then
-		print("[ProceduralIslandSystem] ✅ Tree model loaded successfully")
-		local tree = treeModel:GetChildren()[1]:Clone()
-		tree.Name = "TreeModel"
+	local oakTemplate = getOakTreeTemplate()
+	if oakTemplate and oakTemplate:IsA("Model") then
+		local tree = oakTemplate:Clone()
+		tree.Name = "OakTree"
 		
-		-- Scale to 0.2x FIRST before positioning
-		if tree:IsA("Model") then
-			-- Scale the model
-			local originalSize = tree:GetExtentsSize()
-			tree:ScaleTo(0.2)
-			local newSize = tree:GetExtentsSize()
-			print(string.format("[ProceduralIslandSystem] Scaled tree from %.2f to %.2f", originalSize.Y, newSize.Y))
-			
-			-- Position 1 stud into ground for roots (accounting for scaled height)
-			local treeHeight = newSize.Y
-			local groundOffset = terrainHeight - 1 -- 1 stud below terrain
-			tree:MoveTo(Vector3.new(proposal.position.X, groundOffset + (treeHeight / 2), proposal.position.Z))
-			
-			-- Set rotation
-			if tree.PrimaryPart then
-				tree.PrimaryPart.Orientation = Vector3.new(0, proposal.rotation or 0, 0)
+		-- Ensure a PrimaryPart exists (prefer TreeRoot t or Root)
+		if not tree.PrimaryPart then
+			local preferredRoot = tree:FindFirstChild("TreeRoot t", true)
+				or tree:FindFirstChild("Root", true)
+			if preferredRoot and preferredRoot:IsA("BasePart") then
+				tree.PrimaryPart = preferredRoot
+			else
+				local firstPart = tree:FindFirstChildWhichIsA("BasePart", true)
+				if firstPart then
+					tree.PrimaryPart = firstPart
+				end
 			end
-			
-			print(string.format("[ProceduralIslandSystem] Tree positioned at Y: %.2f (terrain: %.2f)", groundOffset + (treeHeight / 2), terrainHeight))
-		else
-			-- If it's a single part, scale it manually
-			local scale = 0.2
-			tree.Size = tree.Size * scale
-			tree.Position = Vector3.new(proposal.position.X, terrainHeight - 1 + (tree.Size.Y / 2), proposal.position.Z)
-			tree.Orientation = Vector3.new(0, proposal.rotation or 0, 0)
+		end
+		
+		-- Anchor parts so tree stays in place
+		for _, descendant in ipairs(tree:GetDescendants()) do
+			if descendant:IsA("BasePart") then
+				descendant.Anchored = true
+			end
+		end
+		
+		-- Apply rotation and place at target position
+		local rotationCFrame = CFrame.Angles(0, math.rad(proposal.rotation or 0), 0)
+		local baseCFrame = CFrame.new(proposal.position.X, terrainHeight, proposal.position.Z)
+		tree:PivotTo(baseCFrame * rotationCFrame)
+		
+		-- Adjust vertical position so roots sit on terrain
+		local lowestPoint = math.huge
+		for _, basePart in ipairs(tree:GetDescendants()) do
+			if basePart:IsA("BasePart") then
+				local partCF = basePart.CFrame
+				local partSize = basePart.Size
+				local partBottomY = (partCF.Position - (partCF.UpVector * (partSize.Y * 0.5))).Y
+				if partBottomY < lowestPoint then
+					lowestPoint = partBottomY
+				end
+			end
+		end
+		
+		if lowestPoint < math.huge then
+			local deltaY = terrainHeight - lowestPoint
+			local currentPivot = tree:GetPivot()
+			tree:PivotTo(currentPivot + Vector3.new(0, deltaY, 0))
 		end
 		
 		tree.Parent = treeContainer
-		treeModel:Destroy() -- Clean up the asset container
 	else
-		warn("[ProceduralIslandSystem] Failed to load tree model, using fallback")
+		warn("[ProceduralIslandSystem] ❌ OakTree template missing - using fallback tree")
 		
 		-- Fallback: Simple part-based tree
 		local tree = Instance.new("Part")

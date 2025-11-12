@@ -41,36 +41,37 @@ local COLORS = {
 	}
 }
 
--- Find NooksTent model
-local function findNooksTent(): Model?
-	local tent = Workspace:FindFirstChild("NooksTent")
-	if not tent then
-		warn("[IslandGenerationGUI] ⚠️ NooksTent model not found in Workspace!")
-		warn("[IslandGenerationGUI] Please create a model named 'NooksTent' in Workspace for the GUI to attach to.")
+-- Find Whiteboard model
+local function findWhiteboard(): Model?
+	local whiteboard = Workspace:FindFirstChild("Whiteboard")
+	if not whiteboard then
+		warn("[IslandGenerationGUI] ⚠️ Whiteboard model not found in Workspace!")
+		warn("[IslandGenerationGUI] Please create a model named 'Whiteboard' in Workspace for the GUI to attach to.")
 		return nil
 	end
-	return tent
+	return whiteboard
 end
 
 -- Create GUI elements
-local function createGUI(tent: Model)
+local function createGUI(whiteboard: Model)
 	-- Create SurfaceGui
 	local surfaceGui = Instance.new("SurfaceGui")
 	surfaceGui.Name = "IslandGeneratorGUI"
 	surfaceGui.Face = Enum.NormalId.Front
-	surfaceGui.Adornee = tent:FindFirstChildWhichIsA("BasePart") -- Attach to first part
-	surfaceGui.AlwaysOnTop = true
+	surfaceGui.Adornee = whiteboard:FindFirstChildWhichIsA("BasePart") -- Attach to whiteboard surface
+	surfaceGui.AlwaysOnTop = false -- Draw on the actual surface
 	surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	surfaceGui.PixelsPerStud = 500 -- ULTRA HIGH RESOLUTION
-	surfaceGui.Parent = tent
+	surfaceGui.PixelsPerStud = 50 -- Lower value = bigger UI relative to surface
+	surfaceGui.Parent = whiteboard
 	
-	-- Main frame - ABSOLUTELY MASSIVE SIZE
+	-- Main frame - FILL THE ENTIRE WHITEBOARD SURFACE
 	local mainFrame = Instance.new("Frame")
 	mainFrame.Name = "MainFrame"
-	mainFrame.Size = UDim2.new(0, 3000, 0, 2250) -- HUGE 3000x2250!
-	mainFrame.Position = UDim2.new(0.5, -1500, 0.5, -1125)
+	mainFrame.Size = UDim2.new(1, 0, 1, 0) -- FILL 100% of surface
+	mainFrame.Position = UDim2.new(0, 0, 0, 0)
 	mainFrame.BackgroundColor3 = COLORS.background
 	mainFrame.BorderSizePixel = 0
+	mainFrame.Rotation = 180 -- Flip GUI 180 degrees so it's right-side up
 	mainFrame.Parent = surfaceGui
 	
 	-- Rounded corners
@@ -78,49 +79,60 @@ local function createGUI(tent: Model)
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = mainFrame
 	
-	-- Padding - MASSIVE
+	-- Padding - proportional to screen
 	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0, 60)
-	padding.PaddingBottom = UDim.new(0, 60)
-	padding.PaddingLeft = UDim.new(0, 60)
-	padding.PaddingRight = UDim.new(0, 60)
+	padding.PaddingTop = UDim.new(0.02, 0) -- 2% of height
+	padding.PaddingBottom = UDim.new(0.02, 0)
+	padding.PaddingLeft = UDim.new(0.02, 0)
+	padding.PaddingRight = UDim.new(0.02, 0)
 	padding.Parent = mainFrame
 	
-	-- Title - ABSOLUTELY MASSIVE TEXT
+	-- Title - proportional sizing
 	local title = Instance.new("TextLabel")
 	title.Name = "Title"
-	title.Size = UDim2.new(1, 0, 0, 250)
+	title.Size = UDim2.new(1, 0, 0.12, 0) -- 12% of height
 	title.Position = UDim2.new(0, 0, 0, 0)
 	title.BackgroundTransparency = 1
 	title.Text = "🏝️ Island Generator"
 	title.TextColor3 = COLORS.title
-	title.TextSize = 180 -- ABSOLUTELY MASSIVE!
+	title.TextScaled = true -- Auto-scale text
 	title.Font = Enum.Font.GothamBold
 	title.Parent = mainFrame
 	
-	-- Status label - ABSOLUTELY MASSIVE TEXT
+	-- Text size constraint for title
+	local titleConstraint = Instance.new("UITextSizeConstraint")
+	titleConstraint.MaxTextSize = 80
+	titleConstraint.MinTextSize = 20
+	titleConstraint.Parent = title
+	
+	-- Status label - proportional
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Name = "StatusLabel"
-	statusLabel.Size = UDim2.new(1, 0, 0, 170)
-	statusLabel.Position = UDim2.new(0, 0, 0, 270)
+	statusLabel.Size = UDim2.new(1, 0, 0.08, 0) -- 8% of height
+	statusLabel.Position = UDim2.new(0, 0, 0.13, 0) -- Below title
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.Text = "Ready to generate"
 	statusLabel.TextColor3 = COLORS.text
-	statusLabel.TextSize = 108
+	statusLabel.TextScaled = true
 	statusLabel.Font = Enum.Font.Gotham
 	statusLabel.Parent = mainFrame
 	
-	-- Progress bar background - ABSOLUTELY MASSIVE
+	local statusConstraint = Instance.new("UITextSizeConstraint")
+	statusConstraint.MaxTextSize = 40
+	statusConstraint.MinTextSize = 12
+	statusConstraint.Parent = statusLabel
+	
+	-- Progress bar background - proportional
 	local progressBg = Instance.new("Frame")
 	progressBg.Name = "ProgressBackground"
-	progressBg.Size = UDim2.new(1, 0, 0, 150)
-	progressBg.Position = UDim2.new(0, 0, 0, 460)
+	progressBg.Size = UDim2.new(1, 0, 0.06, 0) -- 6% of height
+	progressBg.Position = UDim2.new(0, 0, 0.22, 0) -- Below status
 	progressBg.BackgroundColor3 = Color3.fromRGB(200, 190, 170)
 	progressBg.BorderSizePixel = 0
 	progressBg.Parent = mainFrame
 	
 	local progressCorner = Instance.new("UICorner")
-	progressCorner.CornerRadius = UDim.new(0, 20)
+	progressCorner.CornerRadius = UDim.new(0.3, 0) -- Proportional corner
 	progressCorner.Parent = progressBg
 	
 	-- Progress bar fill
@@ -132,60 +144,70 @@ local function createGUI(tent: Model)
 	progressFill.Parent = progressBg
 	
 	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(0, 20)
+	fillCorner.CornerRadius = UDim.new(0.3, 0)
 	fillCorner.Parent = progressFill
 	
-	-- Stats panel - ABSOLUTELY MASSIVE
+	-- Stats panel - proportional
 	local statsPanel = Instance.new("Frame")
 	statsPanel.Name = "StatsPanel"
-	statsPanel.Size = UDim2.new(1, 0, 0, 550)
-	statsPanel.Position = UDim2.new(0, 0, 0, 640)
+	statsPanel.Size = UDim2.new(1, 0, 0.25, 0) -- 25% of height
+	statsPanel.Position = UDim2.new(0, 0, 0.30, 0) -- Below progress bar
 	statsPanel.BackgroundColor3 = Color3.fromRGB(240, 236, 216)
 	statsPanel.BorderSizePixel = 0
 	statsPanel.Parent = mainFrame
 	
 	local statsCorner = Instance.new("UICorner")
-	statsCorner.CornerRadius = UDim.new(0, 25)
+	statsCorner.CornerRadius = UDim.new(0.05, 0)
 	statsCorner.Parent = statsPanel
 	
-	-- Stats text - ABSOLUTELY MASSIVE TEXT
+	-- Stats text - proportional with TextScaled
 	local statsText = Instance.new("TextLabel")
 	statsText.Name = "StatsText"
-	statsText.Size = UDim2.new(1, -100, 1, -100)
-	statsText.Position = UDim2.new(0, 50, 0, 50)
+	statsText.Size = UDim2.new(0.9, 0, 0.9, 0)
+	statsText.Position = UDim2.new(0.05, 0, 0.05, 0)
 	statsText.BackgroundTransparency = 1
 	statsText.Text = "🌳 Trees: 0\n🪨 Rocks: 0\n🌸 Flowers: 0"
 	statsText.TextColor3 = COLORS.text
-	statsText.TextSize = 120
+	statsText.TextScaled = true
 	statsText.Font = Enum.Font.GothamMedium
 	statsText.TextXAlignment = Enum.TextXAlignment.Left
 	statsText.TextYAlignment = Enum.TextYAlignment.Top
 	statsText.Parent = statsPanel
 	
-	-- Button container - ABSOLUTELY MASSIVE BUTTONS
+	local statsConstraint = Instance.new("UITextSizeConstraint")
+	statsConstraint.MaxTextSize = 50
+	statsConstraint.MinTextSize = 14
+	statsConstraint.Parent = statsText
+	
+	-- Button container - proportional
 	local buttonContainer = Instance.new("Frame")
 	buttonContainer.Name = "ButtonContainer"
-	buttonContainer.Size = UDim2.new(1, 0, 0, 300)
-	buttonContainer.Position = UDim2.new(0, 0, 0, 1220)
+	buttonContainer.Size = UDim2.new(1, 0, 0.15, 0) -- 15% of height
+	buttonContainer.Position = UDim2.new(0, 0, 0.82, 0) -- Near bottom
 	buttonContainer.BackgroundTransparency = 1
 	buttonContainer.Parent = mainFrame
 	
-	-- Button creator helper - ABSOLUTELY MASSIVE BUTTON TEXT
+	-- Button creator helper - with TextScaled
 	local function createButton(name: string, text: string, color: Color3, position: UDim2): TextButton
 		local button = Instance.new("TextButton")
 		button.Name = name
-		button.Size = UDim2.new(0.3, -5, 1, 0)
+		button.Size = UDim2.new(0.3, -10, 1, 0) -- 30% width with spacing
 		button.Position = position
 		button.BackgroundColor3 = color
 		button.BorderSizePixel = 0
 		button.Text = text
 		button.TextColor3 = Color3.fromRGB(255, 255, 255)
-		button.TextSize = 108 -- ABSOLUTELY MASSIVE!
+		button.TextScaled = true
 		button.Font = Enum.Font.GothamBold
 		button.Parent = buttonContainer
 		
+		local btnConstraint = Instance.new("UITextSizeConstraint")
+		btnConstraint.MaxTextSize = 40
+		btnConstraint.MinTextSize = 10
+		btnConstraint.Parent = button
+		
 		local btnCorner = Instance.new("UICorner")
-		btnCorner.CornerRadius = UDim.new(0, 25)
+		btnCorner.CornerRadius = UDim.new(0.15, 0)
 		btnCorner.Parent = button
 		
 		-- Hover effect
@@ -248,25 +270,25 @@ end
 local function initialize()
 	print("[IslandGenerationGUI] 🎨 Initializing GUI...")
 	
-	-- Find NooksTent
-	local tent = findNooksTent()
-	if not tent then
+	-- Find Whiteboard
+	local whiteboard = findWhiteboard()
+	if not whiteboard then
 		-- Try again in 5 seconds
 		task.wait(5)
-		tent = findNooksTent()
-		if not tent then
+		whiteboard = findWhiteboard()
+		if not whiteboard then
 			return
 		end
 	end
 	
 	-- Create GUI
-	local gui = createGUI(tent)
+	local gui = createGUI(whiteboard)
 	if not gui then
 		warn("[IslandGenerationGUI] ❌ Failed to create GUI")
 		return
 	end
 	
-	print("[IslandGenerationGUI] ✅ GUI created and attached to", tent.Name)
+	print("[IslandGenerationGUI] ✅ GUI created and attached to", whiteboard.Name)
 	
 	-- Connect buttons
 	gui.generateBtn.MouseButton1Click:Connect(function()

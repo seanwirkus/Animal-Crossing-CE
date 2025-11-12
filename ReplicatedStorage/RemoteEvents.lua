@@ -9,3 +9,10 @@ inventoryRemote.Name = "InventoryEvent"
 inventoryRemote.Parent = ReplicatedStorage
 
 print("[RemoteEvents] ✅ Created InventoryEvent RemoteEvent")
+
+-- Create CurrencyEvent RemoteEvent
+local currencyRemote = ReplicatedStorage:FindFirstChild("CurrencyEvent") or Instance.new("RemoteEvent")
+currencyRemote.Name = "CurrencyEvent"
+currencyRemote.Parent = ReplicatedStorage
+
+print("[RemoteEvents] ✅ Created CurrencyEvent RemoteEvent")

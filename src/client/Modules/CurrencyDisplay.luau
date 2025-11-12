@@ -20,8 +20,18 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
--- Wait for CurrencyEvent RemoteEvent
-local currencyRemote = ReplicatedStorage:WaitForChild("CurrencyEvent")
+-- Wait for CurrencyEvent RemoteEvent (with timeout to avoid infinite yield)
+local currencyRemote = nil
+local _success = pcall(function()
+	currencyRemote = ReplicatedStorage:WaitForChild("CurrencyEvent", 5)
+end)
+
+if not currencyRemote then
+	print("[CurrencyDisplay] ⚠️ CurrencyEvent not found in ReplicatedStorage - creating it")
+	currencyRemote = Instance.new("RemoteEvent")
+	currencyRemote.Name = "CurrencyEvent"
+	currencyRemote.Parent = ReplicatedStorage
+end
 
 -- Format number with commas (1000 -> "1,000")
 local function formatNumber(num: number): string

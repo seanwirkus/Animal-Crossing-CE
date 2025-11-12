@@ -347,6 +347,37 @@ function ParticleEffects.disable()
 end
 
 --[[
+	Updates particle quality settings
+	@param settings table - Graphics quality settings from SettingsController
+]]
+function ParticleEffects.updateQuality(settings)
+	if not settings then return end
+	
+	local grassQuality = settings.grassQuality or 1.0
+	local particleDensity = settings.particleDensity or 1.0
+	
+	-- Update particle rates based on quality
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("ParticleEmitter") then
+			if obj.Name == "SakuraPetals" or obj.Name == "Fireflies" or obj.Name == "DustMotes" then
+				-- Scale rate by grass quality and particle density
+				local baseRate = CONFIG[obj.Name:lower()] and CONFIG[obj.Name:lower()].rate or 5
+				obj.Rate = baseRate * grassQuality * particleDensity
+				obj.Enabled = (grassQuality > 0 and particleDensity > 0)
+			elseif obj.Name == "WaterSparkles" then
+				-- Water particles use water quality
+				local waterQuality = settings.waterQuality or 1.0
+				local baseRate = CONFIG.waterSparkles and CONFIG.waterSparkles.rate or 10
+				obj.Rate = baseRate * waterQuality * particleDensity
+				obj.Enabled = (waterQuality > 0 and particleDensity > 0)
+			end
+		end
+	end
+	
+	print("[ParticleEffects] ✅ Particle quality updated")
+end
+
+--[[
 	Enables seasonal particle effects
 	@param season string - "spring", "summer", "fall", "winter"
 ]]

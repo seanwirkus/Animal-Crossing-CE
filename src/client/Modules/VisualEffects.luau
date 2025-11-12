@@ -436,6 +436,54 @@ function VisualEffects.getCurrentSeason()
 end
 
 --[[
+	Updates graphics quality settings
+	@param settings table - Graphics quality settings from SettingsController
+]]
+function VisualEffects.updateQuality(settings)
+	if not settings then return end
+	
+	local Lighting = game:GetService("Lighting")
+	
+	-- Update bloom
+	local bloom = Lighting:FindFirstChild("ACNHBloom")
+	if bloom then
+		local bloomIntensity = settings.bloomIntensity or 0.4
+		local shaderQuality = settings.shaderQuality or 1.0
+		bloom.Intensity = bloomIntensity * shaderQuality
+		bloom.Enabled = bloomIntensity > 0
+	end
+	
+	-- Update sun rays
+	local sunRays = Lighting:FindFirstChild("ACNHSunRays")
+	if sunRays then
+		local shaderQuality = settings.shaderQuality or 1.0
+		sunRays.Intensity = (CONFIG.sunRays.intensity or 0.15) * shaderQuality
+		sunRays.Enabled = shaderQuality > 0
+	end
+	
+	-- Update color correction
+	local colorCorrection = Lighting:FindFirstChild("ACNHColorCorrection")
+	if colorCorrection then
+		local intensity = settings.colorCorrectionIntensity or 1.0
+		colorCorrection.Brightness = (CONFIG.colorCorrection.brightness or 0.05) * intensity
+		colorCorrection.Contrast = (CONFIG.colorCorrection.contrast or 0.1) * intensity
+		colorCorrection.Saturation = (CONFIG.colorCorrection.saturation or 0.15) * intensity
+		colorCorrection.Enabled = intensity > 0
+	end
+	
+	-- Update atmosphere
+	local atmosphere = Lighting:FindFirstChild("ACNHAtmosphere")
+	if atmosphere then
+		local quality = settings.atmosphereQuality or 1.0
+		atmosphere.Density = (CONFIG.atmosphere.density or 0.3) * quality
+		atmosphere.Haze = (CONFIG.atmosphere.haze or 1.5) * quality
+		atmosphere.Enabled = quality > 0
+	end
+	
+	print("[VisualEffects] ✅ Graphics quality updated")
+end
+
+--[[
 	Removes all visual effects
 	Useful for performance testing or disabling effects
 ]]

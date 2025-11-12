@@ -4,6 +4,21 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 
+-- Load tooltip module
+local ItemTooltip = nil
+local success, tooltipModule = pcall(function()
+	local clientFolder = script.Parent
+	local modulesFolder = clientFolder:FindFirstChild("Modules")
+	if modulesFolder then
+		return require(modulesFolder:FindFirstChild("ItemTooltip"))
+	end
+	return nil
+end)
+if success and tooltipModule then
+	ItemTooltip = tooltipModule
+	print("[InventoryClient] ✅ ItemTooltip loaded")
+end
+
 local InventoryClient = {}
 InventoryClient.__index = InventoryClient
 InventoryClient.MAX_SLOTS = 10  -- Always show 10 slots (1 row)
@@ -400,6 +415,15 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         end
         
         slot.BackgroundColor3 = Color3.fromHex("#04AFA6")
+        
+        -- Show tooltip if item exists and tooltip module is available
+        if ItemTooltip and state and state.itemId then
+            local itemData = self:getItemDefinition(state.itemId)
+            if itemData then
+                ItemTooltip.show(itemData, slot, state.count)
+                ItemTooltip._startTracking()
+            end
+        end
     end)
 
     local leaveConnection = clickRegion.MouseLeave:Connect(function()
@@ -416,6 +440,12 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
         end
         
         slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
+        
+        -- Hide tooltip
+        if ItemTooltip then
+            ItemTooltip.hide()
+            ItemTooltip._stopTracking()
+        end
     end)
     
     -- Track all connections for cleanup
@@ -870,19 +900,19 @@ function InventoryClient:populateFromServer(payload)
 
     -- ALWAYS ensure we have 10 slots visible (even if empty!)
     local MINIMUM_SLOTS = 10
-    local slotsToShow = math.max(self.maxSlots, MINIMUM_SLOTS)
+    local slotsToShow = math.max(self.maxSlots or 10, MINIMUM_SLOTS)
+    
+    -- Ensure all slots exist and are visible BEFORE refreshing
+    for i = 1, slotsToShow do
+        local slot = self:ensureSlot(i)
+        if slot then
+            slot.Visible = true  -- Always show first 10 slots
+        end
+    end
     
     -- Refresh ALL slots to ensure proper state (drag-and-drop needs this)
     for i = 1, slotsToShow do
         self:refreshSlot(i)
-    end
-    
-    -- Make sure all slots up to MINIMUM_SLOTS are visible
-    for i = 1, slotsToShow do
-        local slot = self.slotsByIndex[i]
-        if slot then
-            slot.Visible = true  -- Always show first 10 slots
-        end
     end
 
     self:_emitInventoryChanged()

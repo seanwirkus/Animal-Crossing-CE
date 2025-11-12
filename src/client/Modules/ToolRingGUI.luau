@@ -20,16 +20,15 @@ local CENTER_SIZE = 100
 local GLOW_SIZE = 130
 
 local COLORS = {
-    ITEM_GRABBED = Color3.fromRGB(255, 234, 160), -- Bright yellow highlight
-    ITEM_SELECTED = Color3.fromRGB(3, 176, 170), -- Teal accent
-    BG_PRIMARY = Color3.fromRGB(255, 251, 231),
-    BG_SECONDARY = Color3.fromRGB(255, 255, 255),
-    BORDER_DARK = Color3.fromRGB(100, 80, 60),
-    SLOT_NORMAL = Color3.fromRGB(240, 235, 220),
-    SLOT_HOVER = Color3.fromRGB(222, 216, 200),
-    SLOT_EQUIPPED = Color3.fromRGB(253, 211, 120),
-    TEXT_DARK = Color3.fromRGB(60, 50, 40),
-    TEXT_LIGHT = Color3.fromRGB(255, 255, 255),
+    ITEM_GRABBED = Color3.fromRGB(122, 198, 255),
+    ITEM_SELECTED = Color3.fromRGB(86, 174, 255),
+    BORDER_DARK = Color3.fromRGB(120, 138, 160),
+    SLOT_NORMAL = Color3.fromRGB(245, 247, 250),
+    SLOT_HOVER = Color3.fromRGB(234, 242, 252),
+    SLOT_EQUIPPED = Color3.fromRGB(214, 230, 251),
+    TEXT_DARK = Color3.fromRGB(110, 122, 138),
+    TEXT_LIGHT = Color3.fromRGB(245, 247, 250),
+    STROKE_SUBTLE = Color3.fromRGB(186, 198, 212),
 }
 
 local TOOL_KEYWORDS = {
@@ -76,11 +75,9 @@ function ToolRingGUI.new()
 
     self.player = Players.LocalPlayer
     self.gui = nil
-    self.backgroundFrame = nil
     self.ringContainer = nil
     self.centerLabel = nil
-    self.descriptionLabel = nil
-    self.instructionLabel = nil
+    self.selectedLabel = nil
     self.toolSlots = table.create(SLOT_COUNT)
     self.selectedSlot = 1
     self.equippedItemSlot = nil
@@ -160,34 +157,51 @@ function ToolRingGUI:applySlotStyling(slotFrame: Frame?, state: string?)
         return
     end
 
-    local styling = self.inventoryStyling
-    if styling then
-        if state == "selected" then
-            styling.ApplySelectedStyling(slotFrame)
-        elseif state == "hover" then
-            styling.ApplyHoverStyling(slotFrame)
-        elseif state == "equipped" then
-            styling.ApplySlotStyling(slotFrame)
-            slotFrame.BackgroundColor3 = COLORS.SLOT_EQUIPPED
-        elseif state == "default" or not state then
-            styling.ApplySlotStyling(slotFrame)
-        else
-            styling.ResetSlotStyling(slotFrame)
-        end
-    else
-        if state == "selected" then
-            slotFrame.BackgroundColor3 = COLORS.ITEM_GRABBED
-        elseif state == "hover" then
-            slotFrame.BackgroundColor3 = COLORS.SLOT_HOVER
-        elseif state == "equipped" then
-            slotFrame.BackgroundColor3 = COLORS.SLOT_EQUIPPED
-        else
-            slotFrame.BackgroundColor3 = COLORS.SLOT_NORMAL
-        end
-        slotFrame.BackgroundTransparency = 0
-        slotFrame.BorderColor3 = COLORS.BORDER_DARK
-        slotFrame.BorderSizePixel = 2
+    local corner = slotFrame:FindFirstChild("ToolRingCorner")
+    if not corner then
+        corner = Instance.new("UICorner")
+        corner.Name = "ToolRingCorner"
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = slotFrame
     end
+
+    local stroke = slotFrame:FindFirstChild("ToolRingStroke")
+    if not stroke then
+        stroke = Instance.new("UIStroke")
+        stroke.Name = "ToolRingStroke"
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = slotFrame
+    end
+
+    local backgroundColor = COLORS.SLOT_NORMAL
+    local backgroundTransparency = 0.4
+    local strokeColor = COLORS.STROKE_SUBTLE
+    local strokeThickness = 1.5
+
+    if state == "selected" then
+        backgroundColor = COLORS.ITEM_SELECTED
+        backgroundTransparency = 0.15
+        strokeColor = COLORS.ITEM_SELECTED
+        strokeThickness = 2.5
+    elseif state == "hover" then
+        backgroundColor = COLORS.SLOT_HOVER
+        backgroundTransparency = 0.2
+        strokeColor = COLORS.ITEM_GRABBED
+        strokeThickness = 2
+    elseif state == "equipped" then
+        backgroundColor = COLORS.SLOT_EQUIPPED
+        backgroundTransparency = 0.25
+        strokeColor = COLORS.ITEM_SELECTED
+        strokeThickness = 2
+    end
+
+    slotFrame.BackgroundColor3 = backgroundColor
+    slotFrame.BackgroundTransparency = backgroundTransparency
+    slotFrame.BorderSizePixel = 0
+
+    stroke.Color = strokeColor
+    stroke.Thickness = strokeThickness
+    stroke.Transparency = 0
 end
 
 function ToolRingGUI:applyCountStyling(label: TextLabel?)
@@ -325,71 +339,69 @@ function ToolRingGUI:buildGui()
     gui.Parent = playerGui
     self.gui = gui
 
-    local boardSize = (RING_RADIUS + TOOL_SLOT_SIZE) * 2 + 120
-
-    local backdrop = Instance.new("Frame")
-    backdrop.Name = "Backdrop"
-    backdrop.Size = UDim2.fromOffset(boardSize, boardSize)
-    backdrop.Position = UDim2.new(0.5, -boardSize / 2, 0.5, -boardSize / 2)
-    backdrop.BackgroundColor3 = COLORS.BG_PRIMARY
-    backdrop.BackgroundTransparency = 0.05
-    backdrop.BorderSizePixel = 0
-    backdrop.ZIndex = 1
-    backdrop.Parent = gui
-    self.backgroundFrame = backdrop
-
-    local backdropCorner = Instance.new("UICorner")
-    backdropCorner.CornerRadius = UDim.new(0, 32)
-    backdropCorner.Parent = backdrop
-
-    local backdropStroke = Instance.new("UIStroke")
-    backdropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    backdropStroke.Thickness = 3
-    backdropStroke.Color = COLORS.BORDER_DARK
-    backdropStroke.Parent = backdrop
-
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "DropShadow"
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.Position = UDim2.fromScale(0.5, 0.5)
-    shadow.Size = UDim2.fromScale(1, 1)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://6015897843"
-    shadow.ImageTransparency = 0.5
-    shadow.ZIndex = 0
-    shadow.Parent = backdrop
+    local diameter = (RING_RADIUS + TOOL_SLOT_SIZE) * 2
 
     local ringContainer = Instance.new("Frame")
     ringContainer.Name = "RingContainer"
-    local diameter = (RING_RADIUS + TOOL_SLOT_SIZE)
-    ringContainer.Size = UDim2.fromOffset(diameter * 2, diameter * 2)
-    ringContainer.Position = UDim2.new(0.5, -diameter, 0.5, -diameter - 20)
+    ringContainer.Size = UDim2.fromOffset(diameter, diameter)
+    ringContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    ringContainer.Position = UDim2.fromScale(0.5, 0.5)
     ringContainer.BackgroundTransparency = 1
     ringContainer.ZIndex = 3
-    ringContainer.Parent = backdrop
+    ringContainer.Parent = gui
     self.ringContainer = ringContainer
 
-    local glow = Instance.new("Frame")
-    glow.Name = "CenterGlow"
-    glow.Size = UDim2.fromOffset(GLOW_SIZE, GLOW_SIZE)
-    glow.Position = UDim2.new(0.5, -GLOW_SIZE / 2, 0.5, -GLOW_SIZE / 2)
-    glow.BackgroundColor3 = COLORS.ITEM_SELECTED
-    glow.BackgroundTransparency = 0.85
-    glow.BorderSizePixel = 0
-    glow.ZIndex = 2
-    glow.Parent = ringContainer
+    local halo = Instance.new("Frame")
+    halo.Name = "CenterHalo"
+    halo.Size = UDim2.fromOffset(GLOW_SIZE + 36, GLOW_SIZE + 36)
+    halo.AnchorPoint = Vector2.new(0.5, 0.5)
+    halo.Position = UDim2.fromScale(0.5, 0.5)
+    halo.BackgroundTransparency = 0.85
+    halo.BackgroundColor3 = COLORS.SLOT_HOVER
+    halo.BorderSizePixel = 0
+    halo.ZIndex = 1
+    halo.Parent = ringContainer
 
-    local glowCorner = Instance.new("UICorner")
-    glowCorner.CornerRadius = UDim.new(1, 0)
-    glowCorner.Parent = glow
+    local haloCorner = Instance.new("UICorner")
+    haloCorner.CornerRadius = UDim.new(1, 0)
+    haloCorner.Parent = halo
+
+    local haloStroke = Instance.new("UIStroke")
+    haloStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    haloStroke.Color = COLORS.STROKE_SUBTLE
+    haloStroke.Thickness = 1.5
+    haloStroke.Transparency = 0.3
+    haloStroke.Parent = halo
+
+    local centerPad = Instance.new("Frame")
+    centerPad.Name = "CenterPad"
+    centerPad.Size = UDim2.fromOffset(CENTER_SIZE + 24, CENTER_SIZE + 24)
+    centerPad.AnchorPoint = Vector2.new(0.5, 0.5)
+    centerPad.Position = UDim2.fromScale(0.5, 0.5)
+    centerPad.BackgroundColor3 = COLORS.SLOT_NORMAL
+    centerPad.BackgroundTransparency = 0.25
+    centerPad.BorderSizePixel = 0
+    centerPad.ZIndex = 2
+    centerPad.Parent = ringContainer
+
+    local padCorner = Instance.new("UICorner")
+    padCorner.CornerRadius = UDim.new(1, 0)
+    padCorner.Parent = centerPad
+
+    local padStroke = Instance.new("UIStroke")
+    padStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    padStroke.Color = COLORS.STROKE_SUBTLE
+    padStroke.Thickness = 1.5
+    padStroke.Transparency = 0.15
+    padStroke.Parent = centerPad
 
     local centerLabel = Instance.new("TextLabel")
     centerLabel.Name = "CenterLabel"
     centerLabel.Size = UDim2.fromOffset(CENTER_SIZE, CENTER_SIZE)
-    centerLabel.Position = UDim2.new(0.5, -CENTER_SIZE / 2, 0.5, -CENTER_SIZE / 2)
-    centerLabel.BackgroundColor3 = COLORS.BG_SECONDARY
-    centerLabel.BorderSizePixel = 0
-    centerLabel.Font = Enum.Font.GothamBold
+    centerLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    centerLabel.Position = UDim2.fromScale(0.5, 0.5)
+    centerLabel.BackgroundTransparency = 1
+    centerLabel.Font = Enum.Font.GothamMedium
     centerLabel.TextColor3 = COLORS.ITEM_SELECTED
     centerLabel.TextScaled = true
     centerLabel.Text = ""
@@ -397,46 +409,20 @@ function ToolRingGUI:buildGui()
     centerLabel.Parent = ringContainer
     self.centerLabel = centerLabel
 
-    local centerCorner = Instance.new("UICorner")
-    centerCorner.CornerRadius = UDim.new(1, 0)
-    centerCorner.Parent = centerLabel
-
-    local descriptionLabel = Instance.new("TextLabel")
-    descriptionLabel.Name = "DescriptionLabel"
-    descriptionLabel.Size = UDim2.fromOffset(boardSize - 80, 44)
-    descriptionLabel.Position = UDim2.new(0.5, -(boardSize - 80) / 2, 1, -60)
-    descriptionLabel.BackgroundColor3 = COLORS.BG_SECONDARY
-    descriptionLabel.BorderSizePixel = 0
-    descriptionLabel.Font = Enum.Font.GothamBold
-    descriptionLabel.TextColor3 = COLORS.TEXT_DARK
-    descriptionLabel.TextSize = 20
-    descriptionLabel.TextWrapped = true
-    descriptionLabel.Text = "Select a tool"
-    descriptionLabel.ZIndex = 3
-    descriptionLabel.Parent = backdrop
-    self.descriptionLabel = descriptionLabel
-
-    local descriptionCorner = Instance.new("UICorner")
-    descriptionCorner.CornerRadius = UDim.new(0, 16)
-    descriptionCorner.Parent = descriptionLabel
-
-    local instructionLabel = Instance.new("TextLabel")
-    instructionLabel.Name = "InstructionLabel"
-    instructionLabel.Size = UDim2.fromOffset(boardSize - 60, 32)
-    instructionLabel.Position = UDim2.new(0.5, -(boardSize - 60) / 2, 0, 24)
-    instructionLabel.BackgroundColor3 = COLORS.BG_SECONDARY
-    instructionLabel.BorderSizePixel = 0
-    instructionLabel.Font = Enum.Font.GothamBold
-    instructionLabel.TextColor3 = COLORS.BORDER_DARK
-    instructionLabel.TextSize = 18
-    instructionLabel.Text = "⚒️ TOOL RING — Click a tool to equip"
-    instructionLabel.ZIndex = 3
-    instructionLabel.Parent = backdrop
-    self.instructionLabel = instructionLabel
-
-    local instructionCorner = Instance.new("UICorner")
-    instructionCorner.CornerRadius = UDim.new(0, 14)
-    instructionCorner.Parent = instructionLabel
+    local selectedLabel = Instance.new("TextLabel")
+    selectedLabel.Name = "SelectedLabel"
+    selectedLabel.AnchorPoint = Vector2.new(0.5, 0)
+    selectedLabel.Position = UDim2.new(0.5, 0, 1, 12)
+    selectedLabel.Size = UDim2.fromOffset(diameter, 28)
+    selectedLabel.BackgroundTransparency = 1
+    selectedLabel.Text = "Select a tool"
+    selectedLabel.TextColor3 = COLORS.TEXT_DARK
+    selectedLabel.TextSize = 20
+    selectedLabel.Font = Enum.Font.GothamMedium
+    selectedLabel.TextWrapped = true
+    selectedLabel.ZIndex = 4
+    selectedLabel.Parent = ringContainer
+    self.selectedLabel = selectedLabel
 
     self:createSlots()
 end
@@ -466,19 +452,6 @@ function ToolRingGUI:createSlots()
         container.Parent = self.ringContainer
         container:SetAttribute("RingIndex", index)
 
-        local indexLabel = Instance.new("TextLabel")
-        indexLabel.Name = "IndexLabel"
-        indexLabel.Size = UDim2.fromOffset(24, 24)
-        indexLabel.AnchorPoint = Vector2.new(0.5, 1)
-        indexLabel.Position = UDim2.new(0.5, 0, 0, -12)
-        indexLabel.BackgroundTransparency = 1
-        indexLabel.Text = tostring(index)
-        indexLabel.Font = Enum.Font.GothamBold
-        indexLabel.TextColor3 = COLORS.TEXT_DARK
-        indexLabel.TextScaled = true
-        indexLabel.ZIndex = 4
-        indexLabel.Parent = container
-
         local slotFrame = template:Clone()
         slotFrame.Visible = true
         slotFrame.Name = "InventoryItemSlotTemplate"
@@ -504,7 +477,7 @@ function ToolRingGUI:createSlots()
             nameTag.AnchorPoint = Vector2.new(0.5, 0)
             nameTag.Position = UDim2.new(0.5, 0, 1, 6)
             nameTag.Size = UDim2.new(1, 12, 0, 22)
-            nameTag.BackgroundTransparency = 0.2
+            nameTag.BackgroundTransparency = 1
             nameTag.ZIndex = 6
             if not nameTag:FindFirstChildOfClass("UICorner") then
                 local nameCorner = Instance.new("UICorner")
@@ -563,9 +536,6 @@ function ToolRingGUI:createSlots()
 
             if not self.tools[index].isEmpty and index ~= self.selectedSlot then
                 self:applySlotStyling(slotFrame, "hover")
-                if indexLabel then
-                    indexLabel.TextColor3 = COLORS.ITEM_GRABBED
-                end
             end
         end)
 
@@ -576,9 +546,6 @@ function ToolRingGUI:createSlots()
 
             if index ~= self.selectedSlot then
                 self:applySlotStyling(slotFrame, "default")
-                if indexLabel then
-                    indexLabel.TextColor3 = COLORS.TEXT_DARK
-                end
             end
         end)
 
@@ -594,7 +561,7 @@ function ToolRingGUI:createSlots()
             countBadge = countBadge,
             countLabel = countLabel,
             nameTag = nameTag,
-            numberLabel = indexLabel,
+            numberLabel = nil,
             selectionTween = nil,
         }
     end
@@ -751,8 +718,8 @@ function ToolRingGUI:updateCenterDisplay()
     local tool = self.tools[self.selectedSlot]
     if not tool or tool.isEmpty then
         self.centerLabel.Text = ""
-        if self.descriptionLabel then
-            self.descriptionLabel.Text = "Select a tool"
+        if self.selectedLabel then
+            self.selectedLabel.Text = "Select a tool"
         end
         return
     end
@@ -760,8 +727,8 @@ function ToolRingGUI:updateCenterDisplay()
     local countDisplay = tool.count and tool.count > 1 and ("x" .. tostring(tool.count)) or "1"
     self.centerLabel.Text = countDisplay
 
-    if self.descriptionLabel then
-        self.descriptionLabel.Text = tool.description ~= "" and tool.description or tool.name
+    if self.selectedLabel then
+        self.selectedLabel.Text = tool.description ~= "" and tool.description or tool.name
     end
 end
 

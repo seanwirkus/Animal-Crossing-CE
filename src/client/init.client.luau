@@ -20,6 +20,48 @@ local _Players = game:GetService("Players")
 local _ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local _RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+-- Disable annoying Roblox Studio UI interference
+pcall(function()
+	-- Disable Studio command bar from appearing during testing
+	StarterGui:SetCore("TopbarEnabled", true) -- Keep topbar for Roblox menu
+	
+	-- Set core GUI to minimal to prevent Studio UI interference
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+	
+	-- Mouse lock to prevent Studio command bar from appearing
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	UserInputService.MouseIconEnabled = true
+	
+	print("[Client] 🎮 Studio UI interference mitigation enabled")
+end)
+
+-- Additional Studio UI prevention
+if _RunService:IsStudio() then
+	-- In Studio, keep focus on the game viewport
+	task.spawn(function()
+		while task.wait(0.5) do
+			-- Periodically ensure mouse stays in game context
+			pcall(function()
+				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+			end)
+		end
+	end)
+	print("[Client] 🎮 Studio mode: Focus lock enabled to prevent command bar interference")
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- LOADING SCREEN FIRST - Show immediately before everything else
+-- ═══════════════════════════════════════════════════════════════
+print("[Client] 🎬 SHOWING LOADING SCREEN FIRST...")
+local LoadingScreenModule = require(script.Modules.LoadingScreen)
+LoadingScreenModule.init()
+print("[Client] ✅ Loading screen displayed")
+
+-- ═══════════════════════════════════════════════════════════════
+-- NOW load everything else in the background
+-- ═══════════════════════════════════════════════════════════════
 
 -- Load modules (they are children of this script)
 print("[Client] Loading modules from script children...")
@@ -53,6 +95,16 @@ print("[Client] ✅ DebugInventoryGrid module loaded")
 local DebugCraftingMenuModule = require(script.Modules.DebugCraftingMenu)
 print("[Client] ✅ DebugCraftingMenu module loaded")
 
+local CraftingGUIModule = require(script.Modules.CraftingGUI)
+print("[Client] ✅ CraftingGUI module loaded")
+-- Initialize the crafting GUI (creates singleton instance)
+local craftingGUI = CraftingGUIModule.new()
+print("[Client] ✅ CraftingGUI initialized")
+
+local OnboardingControllerModule = require(script.Modules.OnboardingController)
+print("[Client] ✅ OnboardingController module loaded")
+-- Onboarding controller auto-initializes and listens for server events
+
 local RecipesInventoryGUIModule = require(script.Modules.RecipesInventoryGUI)
 print("[Client] ✅ RecipesInventoryGUI module loaded")
 
@@ -70,6 +122,9 @@ print("[Client] ✅ NookPhoneGUI module loaded")
 
 local NookShoppingGUIModule = require(script.Modules.NookShoppingGUI)
 print("[Client] ✅ NookShoppingGUI module loaded")
+
+local HomeScreenModule = require(script.Modules.HomeScreen)
+print("[Client] ✅ HomeScreen module loaded")
 
 local FishingControllerModule = require(script.Modules.FishingController)
 local SlingshotControllerModule = require(script.Modules.SlingshotController)
@@ -89,17 +144,20 @@ print("[Client] ✅ VisualEffects module loaded")
 local ParticleEffectsModule = require(script.Modules.ParticleEffects)
 print("[Client] ✅ ParticleEffects module loaded")
 
--- Loading Screen - Initial load with character preview
-local LoadingScreenModule = require(script.Modules.LoadingScreen)
-print("[Client] ✅ LoadingScreen module loaded")
-
--- Camera System - Animal Crossing style camera
-local ACNHCameraModule = require(script.Modules.ACNHCamera)
-print("[Client] ✅ ACNHCamera module loaded")
+-- Startup Keybind Hint - Persistent controls display
+local StartupKeybindHintModule = require(script.Modules.StartupKeybindHint)
+print("[Client] ✅ StartupKeybindHint module loaded")
 
 -- NookPlane - Cutscene system for flying
 local NookPlaneModule = require(script.Modules.NookPlane)
 print("[Client] ✅ NookPlane module loaded")
+
+local WhiteboardControllerModule = require(script.Modules.WhiteboardController)
+
+local DIYWorkBenchControllerModule = require(script.Modules.DIYWorkBenchController)
+print("[Client] ✅ DIYWorkBenchController module loaded")
+WhiteboardControllerModule.init()
+print("[Client] ✅ WhiteboardController initialized")
 
 -- Initialize HUD system
 local _HUD = nil
@@ -157,6 +215,7 @@ print("[Client] ✅ InventoryClient initialized")
 
 -- Setup KeybindManager
 local keybindManager = KeybindManager.new()
+_G.KeybindManager = keybindManager -- Store globally for debug menu access
 print("[Client] ✅ KeybindManager created")
 
 -- Create instances of debug modules
@@ -179,22 +238,74 @@ local GUIManager = require(script.Modules.GUIManager)
 local guiManager = GUIManager.new()
 print("[Client] ✅ GUIManager loaded successfully")
 
--- Initialize Visual Effects for beautiful graphics
+local SettingsControllerModule = require(script.Modules.SettingsController)
+local settingsController = SettingsControllerModule.init({
+	guiManager = guiManager,
+})
+print("[Client] ✅ SettingsController initialized")
+
+-- Initialize comprehensive Game Menu (` key)
+local GameMenuModule = require(script.Modules.GameMenu)
+GameMenuModule.init(guiManager, settingsController, inventoryClient)
+print("[Client] ✅ GameMenu initialized (` key)")
+
+HomeScreenModule.initialize({
+	guiManager = guiManager,
+	inventoryClient = inventoryClient,
+	settingsController = settingsController,
+	gameMenu = GameMenuModule,
+	keybindManager = keybindManager,
+})
+
+local KeybindGuideModule = require(script.Modules.KeybindGuide)
+KeybindGuideModule.init(guiManager, keybindManager, GameMenuModule, settingsController)
+print("[Client] ✅ Keybind Guide initialized (F1)")
+
+keybindManager:registerBind("GAME_MENU", function(inputState)
+	if inputState == "began" then
+		GameMenuModule.toggle()
+	end
+end)
+
+keybindManager:registerBind("KEYBIND_GUIDE", function(inputState)
+	if inputState == "began" then
+		KeybindGuideModule.toggle()
+	end
+end)
+
 local localPlayer = _Players.LocalPlayer
 
--- Show loading screen first
-print("[Client] 🎬 Showing loading screen...")
-LoadingScreenModule.init()
+local ACNHCameraModule = require(script.Modules.ACNHCamera)
+print("[Client] ✅ ACNHCamera module loaded")
 
--- Wait for loading to complete in a non-blocking way
+-- Initialize camera IMMEDIATELY (before loading screen)
+-- This allows the player to see the game world and move the camera around
+ACNHCameraModule.init()
+print("[Client] 🎥 Animal Crossing camera initialized")
+
+-- Loading screen already initialized at the top of the file (line 29)
+-- Just wait for it to be closed by the user clicking START button
+print("[Client] ⏳ Waiting for loading screen to close...")
+
+-- Spawn a thread to hide loading screen when button is clicked
+-- The hide() function is called when the START button is pressed
 task.spawn(function()
+	-- Keep polling until loading is complete (button clicked)
 	while LoadingScreenModule.isLoading do
 		task.wait(0.1)
 	end
 	
-	-- Initialize camera after loading completes
-	ACNHCameraModule.init()
-	print("[Client] 🎥 Animal Crossing camera initialized")
+	print("[Client] ✅ Loading screen closed - game fully ready")
+	
+	-- Show homescreen overlay before handing control to the player
+	task.wait(0.4)
+	HomeScreenModule.show({
+		onStart = function()
+			task.wait(0.3)
+			StartupKeybindHintModule.init()
+			print("[Client] 🎮 Keybind hint displayed")
+		end,
+	})
 end)
 
 -- Expose NookPlane for cutscenes (can be called from scripts)
@@ -544,13 +655,33 @@ else
 	warn("[Client] ⚠️ START_ONBOARDING keybind not registered - DialogueGUI failed to load")
 end
 
--- Register ESC key to close current GUI
+-- Register ESC key to open/close settings menu
 keybindManager:registerBind("SETTINGS", function(inputState)
 	if inputState == "began" then
-		print("[Keybind] ESC pressed - closing current GUI...")
-		if guiManager:getCurrentVisible() then
-			guiManager:hideGUI(guiManager:getCurrentVisible())
-		end
+		SettingsControllerModule.toggle()
+	end
+end)
+
+-- Register missing keybind handlers (MAP, EMOTE, DROP_ITEM)
+keybindManager:registerBind("MAP", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] M key pressed - Map feature coming soon!")
+		-- TODO: Implement map GUI
+	end
+end)
+
+keybindManager:registerBind("EMOTE", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] V key pressed - Emote feature coming soon!")
+		-- TODO: Implement emote system
+	end
+end)
+
+keybindManager:registerBind("DROP_ITEM", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] Q key pressed - Drop item feature coming soon!")
+		-- TODO: Implement drop item functionality
+		-- This should drop the currently selected/equipped item
 	end
 end)
 

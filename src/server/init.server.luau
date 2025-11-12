@@ -31,9 +31,17 @@ local DataStoreService = game:GetService("DataStoreService")
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
 local BalloonSpawner = require(script:WaitForChild("BalloonSpawner"))
+local BellBagSpawner = require(script:WaitForChild("BellBagSpawner"))
 local ChibiCharacterServer = require(script:WaitForChild("ChibiCharacterServer"))
 local HoleSpawner = require(script:WaitForChild("HoleSpawner"))
 local ShovelSystem = require(script:WaitForChild("ShovelSystem"))
+local WhiteboardService = require(script:WaitForChild("WhiteboardService"))
+local PlayerSettingsService = require(script:WaitForChild("PlayerSettingsService"))
+local DIYWorkBenchService = require(script:WaitForChild("DIYWorkBenchService"))
+local IslandSaveService = require(script:WaitForChild("IslandSaveService"))
+local OnboardingService = require(script:WaitForChild("OnboardingService"))
+local HomeBuildingService = require(script:WaitForChild("HomeBuildingService"))
+local PlayerIslandService = require(script:WaitForChild("PlayerIslandService"))
 
 -- Roblox types and enums
 local Instance = Instance
@@ -60,6 +68,27 @@ HoleSpawner.init()
 
 -- Initialize shovel system
 ShovelSystem.init()
+
+-- Initialize whiteboard service (handles Workspace.Whiteboard + markers)
+WhiteboardService.init()
+
+-- Initialize player settings persistence service
+PlayerSettingsService.init()
+
+-- Initialize DIY Workbench service
+print("[Server] 🔨 Initializing DIY Workbench service...")
+local workbenchService = DIYWorkBenchService.new()
+workbenchService:initialize()
+
+-- Initialize Player Island service
+print("[Server] 🏝️ Initializing Player Island service...")
+local islandService = PlayerIslandService.new()
+islandService:initialize()
+
+-- Initialize Onboarding/Tutorial service
+print("[Server] 📚 Initializing Onboarding service...")
+local onboardingService = OnboardingService.new()
+onboardingService:initialize(islandService)
 
 -- Create RemoteEvent
 local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent") or Instance.new("RemoteEvent")
@@ -839,7 +868,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		itemId = itemId,
 		count = count,
 		position = worldPosition,
-		droppedBy = player.UserId,
+		droppedBy = player and player.UserId or nil, -- Handle nil player
 		droppedAt = tick(),
 		model = model,
 		connections = presentationConnections,
@@ -1124,9 +1153,16 @@ end
 inventoryRemote.OnServerEvent:Connect(function(player, action, data)
 	print("[Server] Received", action, "from", player.Name)
 	local inventory = playerInventories[player.UserId]
+	
+	-- Initialize inventory if it doesn't exist (race condition fix)
 	if not inventory then
-		warn("[Server] Player inventory not found:", player.Name)
-		return
+		warn("[Server] Player inventory not found:", player.Name, "- initializing now...")
+		initializePlayerInventory(player)
+		inventory = playerInventories[player.UserId]
+		if not inventory then
+			warn("[Server] ❌ Failed to initialize inventory for", player.Name)
+			return
+		end
 	end
 	
         if action == "RequestInventory" then
@@ -1664,6 +1700,10 @@ print("[Server] 🎈 Starting balloon spawner system...")
 task.spawn(function()
 	BalloonSpawner.start()
 end)
+
+-- Start BellBag spawner system
+print("[Server] 🎒 Starting BellBag spawner system...")
+BellBagSpawner.init()
 
 -- Handle balloon hit events from client
 balloonHitRemote.OnServerEvent:Connect(function(player, balloonName)

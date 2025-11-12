@@ -22,9 +22,14 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ContentProvider = game:GetService("ContentProvider")
 local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local LoadingScreen = {}
 LoadingScreen.isLoading = true  -- Exposed property for checking load status
+
+-- Orientation helper: yaw to face the plane to screen-right in the viewport
+local _YAW_TO_FACE_RIGHT = math.rad(90)
 
 -- Loading tips (ACNH style)
 local LOADING_TIPS = {
@@ -68,6 +73,99 @@ local _statusLabel = nil
 local _startButton = nil
 local _isShowing = false
 local _isReady = false
+local _settingsPanel = nil
+local _applySettingsButton = nil
+local _presetButtons: {TextButton}? = nil
+local _selectedPreset: string = "Medium"
+local _keybindsPanel = nil
+local _continueButton = nil
+
+-- Cached post effects (client-only, parented to CurrentCamera)
+local _effects = {
+	Bloom = nil :: BloomEffect?,
+	SunRays = nil :: SunRaysEffect?,
+	ColorCorrection = nil :: ColorCorrectionEffect?,
+}
+
+-- Utility: ensure we have a camera for client-side post effects
+local function getCurrentCamera(): Camera
+	return Workspace.CurrentCamera or Workspace:WaitForChild("Camera")
+end
+
+-- Create or fetch post effects on the client (non-replicated visual settings)
+local function ensurePostEffects()
+	local cam = getCurrentCamera()
+	if not _effects.Bloom or not _effects.Bloom.Parent then
+		local bloom = Instance.new("BloomEffect")
+		bloom.Name = "ACCE_Bloom"
+		bloom.Intensity = 0
+		bloom.Size = 0
+		bloom.Threshold = 1
+		bloom.Enabled = false
+		bloom.Parent = cam
+		_effects.Bloom = bloom
+	end
+	if not _effects.SunRays or not _effects.SunRays.Parent then
+		local sun = Instance.new("SunRaysEffect")
+		sun.Name = "ACCE_SunRays"
+		sun.Intensity = 0
+		sun.Spread = 0.2
+		sun.Enabled = false
+		sun.Parent = cam
+		_effects.SunRays = sun
+	end
+	if not _effects.ColorCorrection or not _effects.ColorCorrection.Parent then
+		local cc = Instance.new("ColorCorrectionEffect")
+		cc.Name = "ACCE_ColorCorrection"
+		cc.Contrast = 0
+		cc.Saturation = 0
+		cc.Brightness = 0
+		cc.Enabled = false
+		cc.Parent = cam
+		_effects.ColorCorrection = cc
+	end
+end
+
+-- Apply a simple graphics preset. Low disables effects, Medium mild, High stronger.
+local function applyGraphicsPreset(preset: string)
+	_selectedPreset = preset
+	ensurePostEffects()
+	local bloom = _effects.Bloom :: BloomEffect
+	local sun = _effects.SunRays :: SunRaysEffect
+	local cc = _effects.ColorCorrection :: ColorCorrectionEffect
+
+	if preset == "Low" then
+		bloom.Enabled = false
+		bloom.Intensity = 0
+		bloom.Size = 0
+		sun.Enabled = false
+		sun.Intensity = 0
+		cc.Enabled = false
+		cc.Contrast = 0
+		cc.Saturation = 0
+		cc.Brightness = 0
+	elseif preset == "High" then
+		bloom.Enabled = true
+		bloom.Intensity = 0.7
+		bloom.Size = 24
+		sun.Enabled = true
+		sun.Intensity = 0.12
+		cc.Enabled = true
+		cc.Contrast = 0.06
+		cc.Saturation = 0.08
+		cc.Brightness = 0.02
+	else -- Medium (default)
+		bloom.Enabled = true
+		bloom.Intensity = 0.4
+		bloom.Size = 18
+		sun.Enabled = true
+		sun.Intensity = 0.06
+		cc.Enabled = true
+		cc.Contrast = 0.03
+		cc.Saturation = 0.04
+		cc.Brightness = 0.01
+	end
+end
 
 --[[
 	Pick a random loading tip
@@ -93,7 +191,7 @@ local function createGUI()
 	_gui.IgnoreGuiInset = true
 	_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	
-	-- Background frame (sky blue like ACNH)
+	-- Background frame (sky blue like ACNH with enhanced gradient)
 	_frame = Instance.new("Frame")
 	_frame.Name = "LoadingFrame"
 	_frame.Size = UDim2.new(1, 0, 1, 0)
@@ -103,55 +201,109 @@ local function createGUI()
 	_frame.BorderSizePixel = 0
 	_frame.Parent = _gui
 	
-	-- Gradient for depth
+	-- Enhanced gradient for depth with multiple colors
 	local gradient = Instance.new("UIGradient")
 	gradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(135, 206, 235)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 220))
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(135, 206, 250)), -- Lighter sky blue
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(135, 206, 235)), -- Sky blue
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 180, 220)) -- Deeper blue
 	})
 	gradient.Rotation = 90
 	gradient.Parent = _frame
 	
-	-- Title
+	-- Decorative clouds (simple circles)
+	for i = 1, 5 do
+		local cloud = Instance.new("Frame")
+		cloud.Name = "Cloud" .. i
+		cloud.Size = UDim2.new(0, math.random(80, 150), 0, math.random(40, 70))
+		cloud.Position = UDim2.new(math.random(0, 100) / 100, 0, math.random(5, 25) / 100, 0)
+		cloud.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		cloud.BackgroundTransparency = 0.6
+		cloud.BorderSizePixel = 0
+		cloud.Parent = _frame
+		
+		local cloudCorner = Instance.new("UICorner")
+		cloudCorner.CornerRadius = UDim.new(1, 0)
+		cloudCorner.Parent = cloud
+		
+		-- Animate clouds slowly
+		task.spawn(function()
+			while cloud and cloud.Parent do
+				local tween = TweenService:Create(cloud, TweenInfo.new(3 + math.random(), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+					Position = cloud.Position + UDim2.new(0, math.random(-20, 20), 0, 0)
+				})
+				tween:Play()
+				task.wait(3 + math.random())
+			end
+		end)
+	end
+	
+	-- Title with enhanced styling
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Name = "Title"
-	titleLabel.Size = UDim2.new(0, 600, 0, 80)
-	titleLabel.Position = UDim2.new(0.5, -300, 0.08, 0)
+	titleLabel.Size = UDim2.new(0, 700, 0, 90)
+	titleLabel.Position = UDim2.new(0.5, -350, 0.06, 0)
 	titleLabel.BackgroundTransparency = 1
 	titleLabel.Text = "Animal Crossing CE"
 	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextSize = 52
+	titleLabel.TextSize = 58
 	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	titleLabel.TextStrokeTransparency = 0.3
-	titleLabel.TextStrokeColor3 = Color3.fromRGB(80, 140, 180)
+	titleLabel.TextStrokeTransparency = 0.2
+	titleLabel.TextStrokeColor3 = Color3.fromRGB(60, 120, 160)
 	titleLabel.Parent = _frame
 	
-	-- Subtitle
+	-- Subtle pulsing animation for title
+	task.spawn(function()
+		while titleLabel and titleLabel.Parent do
+			TweenService:Create(titleLabel, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+				TextSize = 60
+			}):Play()
+			task.wait(2)
+		end
+	end)
+	
+	-- Subtitle with better positioning
 	local subtitleLabel = Instance.new("TextLabel")
 	subtitleLabel.Name = "Subtitle"
-	subtitleLabel.Size = UDim2.new(0, 400, 0, 30)
-	subtitleLabel.Position = UDim2.new(0.5, -200, 0.16, 0)
+	subtitleLabel.Size = UDim2.new(0, 450, 0, 35)
+	subtitleLabel.Position = UDim2.new(0.5, -225, 0.14, 0)
 	subtitleLabel.BackgroundTransparency = 1
 	subtitleLabel.Text = "Community Edition"
-	subtitleLabel.Font = Enum.Font.Gotham
-	subtitleLabel.TextSize = 20
+	subtitleLabel.Font = Enum.Font.GothamBold
+	subtitleLabel.TextSize = 22
 	subtitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	subtitleLabel.TextTransparency = 0.3
+	subtitleLabel.TextTransparency = 0.2
 	subtitleLabel.Parent = _frame
 	
-	-- Character viewport (larger, centered)
+	-- Plane viewport (smaller and shifted to the right)
 	_characterViewport = Instance.new("ViewportFrame")
-	_characterViewport.Name = "CharacterViewport"
-	_characterViewport.Size = UDim2.new(0, 500, 0, 350)
-	_characterViewport.Position = UDim2.new(0.5, -250, 0.25, 0)
+	_characterViewport.Name = "PlaneViewport"
+	_characterViewport.Size = UDim2.new(0, 460, 0, 320)
+	_characterViewport.AnchorPoint = Vector2.new(0.5, 0.5)
+	_characterViewport.Position = UDim2.new(0.7, 0, 0.32, 0)
 	_characterViewport.BackgroundTransparency = 1
 	_characterViewport.Parent = _frame
+	
+	-- Decorative border around viewport
+	local viewportBorder = Instance.new("Frame")
+	viewportBorder.Name = "ViewportBorder"
+	viewportBorder.Size = UDim2.new(1, 8, 1, 8)
+	viewportBorder.Position = UDim2.new(0, -4, 0, -4)
+	viewportBorder.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	viewportBorder.BackgroundTransparency = 0.7
+	viewportBorder.BorderSizePixel = 0
+	viewportBorder.ZIndex = -1
+	viewportBorder.Parent = _characterViewport
+	
+	local borderCorner = Instance.new("UICorner")
+	borderCorner.CornerRadius = UDim.new(0, 12)
+	borderCorner.Parent = viewportBorder
 	
 	-- Status label
 	_statusLabel = Instance.new("TextLabel")
 	_statusLabel.Name = "StatusLabel"
-	_statusLabel.Size = UDim2.new(0, 600, 0, 25)
-	_statusLabel.Position = UDim2.new(0.5, -300, 0.65, 0)
+	_statusLabel.Size = UDim2.new(0, 480, 0, 22)
+	_statusLabel.Position = UDim2.new(0.7, -240, 0.53, 0)
 	_statusLabel.BackgroundTransparency = 1
 	_statusLabel.Text = "Loading game assets..."
 	_statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -160,37 +312,53 @@ local function createGUI()
 	_statusLabel.TextXAlignment = Enum.TextXAlignment.Center
 	_statusLabel.Parent = _frame
 	
-	-- Progress bar background (cleaner design)
+	-- Progress bar background (enhanced design)
 	_progressBar = Instance.new("Frame")
 	_progressBar.Name = "ProgressBar"
-	_progressBar.Size = UDim2.new(0, 500, 0, 10)
-	_progressBar.Position = UDim2.new(0.5, -250, 0.70, 0)
+	_progressBar.Size = UDim2.new(0, 480, 0, 12)
+	_progressBar.Position = UDim2.new(0.7, -240, 0.57, 0)
 	_progressBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	_progressBar.BackgroundTransparency = 0.7
+	_progressBar.BackgroundTransparency = 0.6
 	_progressBar.BorderSizePixel = 0
 	_progressBar.Parent = _frame
 	
 	local progressBarCorner = Instance.new("UICorner")
-	progressBarCorner.CornerRadius = UDim.new(0, 6)
+	progressBarCorner.CornerRadius = UDim.new(0, 8)
 	progressBarCorner.Parent = _progressBar
 	
-	-- Progress bar fill (smooth animation)
+	-- Progress bar stroke for better visibility
+	local progressStroke = Instance.new("UIStroke")
+	progressStroke.Color = Color3.fromRGB(255, 255, 255)
+	progressStroke.Transparency = 0.5
+	progressStroke.Thickness = 2
+	progressStroke.Parent = _progressBar
+	
+	-- Progress bar fill (smooth animation with gradient)
 	_progressBarFill = Instance.new("Frame")
 	_progressBarFill.Name = "Fill"
 	_progressBarFill.Size = UDim2.new(0, 0, 1, 0)
-	_progressBarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_progressBarFill.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
 	_progressBarFill.BorderSizePixel = 0
 	_progressBarFill.Parent = _progressBar
 	
 	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(0, 6)
+	fillCorner.CornerRadius = UDim.new(0, 8)
 	fillCorner.Parent = _progressBarFill
+	
+	-- Add gradient to fill for visual appeal
+	local fillGradient = Instance.new("UIGradient")
+	fillGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 220, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 180, 240))
+	})
+	fillGradient.Rotation = 0
+	fillGradient.Parent = _progressBarFill
 	
 	-- Progress percentage text (on bar)
 	local progressText = Instance.new("TextLabel")
 	progressText.Name = "ProgressText"
-	progressText.Size = UDim2.new(1, 0, 1, 25)
-	progressText.Position = UDim2.new(0, 0, 1, 3)
+	progressText.Size = UDim2.new(1, 0, 1, 20)
+	progressText.Position = UDim2.new(0, 0, 1, 2)
 	progressText.BackgroundTransparency = 1
 	progressText.Text = "0%"
 	progressText.Font = Enum.Font.GothamBold
@@ -202,8 +370,8 @@ local function createGUI()
 	-- Loading tip at bottom (better positioned)
 	_tipLabel = Instance.new("TextLabel")
 	_tipLabel.Name = "TipLabel"
-	_tipLabel.Size = UDim2.new(0, 700, 0, 40)
-	_tipLabel.Position = UDim2.new(0.5, -350, 0.90, 0)
+	_tipLabel.Size = UDim2.new(0, 520, 0, 34)
+	_tipLabel.Position = UDim2.new(0.5, -260, 0.92, 0)
 	_tipLabel.BackgroundTransparency = 1
 	_tipLabel.Text = getRandomTip()
 	_tipLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -214,17 +382,17 @@ local function createGUI()
 	_tipLabel.TextTransparency = 0.4
 	_tipLabel.Parent = _frame
 	
-	-- Start button (pulsing "Press to Play" style)
+	-- Start button (enhanced "Press to Play" style)
 	_startButton = Instance.new("TextButton")
 	_startButton.Name = "StartButton"
 	_startButton.Size = UDim2.new(0, 0, 0, 0)  -- Start invisible
-	_startButton.Position = UDim2.new(0.5, 0, 0.78, 0)
+	_startButton.Position = UDim2.new(0.7, 0, 0.72, 0)
 	_startButton.AnchorPoint = Vector2.new(0.5, 0.5)
 	_startButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	_startButton.BackgroundTransparency = 0.2
+	_startButton.BackgroundTransparency = 0.15
 	_startButton.Text = "PRESS TO START"
 	_startButton.Font = Enum.Font.GothamBold
-	_startButton.TextSize = 26
+	_startButton.TextSize = 28
 	_startButton.TextColor3 = Color3.fromRGB(80, 140, 180)
 	_startButton.Visible = false
 	_startButton.BorderSizePixel = 0
@@ -232,91 +400,291 @@ local function createGUI()
 	_startButton.Parent = _frame
 	
 	local buttonCorner = Instance.new("UICorner")
-	buttonCorner.CornerRadius = UDim.new(0, 25)
+	buttonCorner.CornerRadius = UDim.new(0, 30)
 	buttonCorner.Parent = _startButton
+	
+	-- Button stroke for better visibility
+	local buttonStroke = Instance.new("UIStroke")
+	buttonStroke.Color = Color3.fromRGB(255, 255, 255)
+	buttonStroke.Transparency = 0.3
+	buttonStroke.Thickness = 2
+	buttonStroke.Parent = _startButton
 	
 	-- Button click handler
 	_startButton.MouseButton1Click:Connect(function()
 		LoadingScreen.hide()
 	end)
 	
-	-- Hover effect
+	-- Enhanced hover effect
 	_startButton.MouseEnter:Connect(function()
-		TweenService:Create(_startButton, TweenInfo.new(0.2), {
+		TweenService:Create(_startButton, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
 			BackgroundTransparency = 0,
-			TextSize = 28
+			TextSize = 30,
+			TextColor3 = Color3.fromRGB(60, 120, 160)
 		}):Play()
+		if buttonStroke then
+			TweenService:Create(buttonStroke, TweenInfo.new(0.25), {
+				Transparency = 0
+			}):Play()
+		end
 	end)
 	
 	_startButton.MouseLeave:Connect(function()
-		TweenService:Create(_startButton, TweenInfo.new(0.2), {
-			BackgroundTransparency = 0.2,
-			TextSize = 26
+		TweenService:Create(_startButton, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+			BackgroundTransparency = 0.15,
+			TextSize = 28,
+			TextColor3 = Color3.fromRGB(80, 140, 180)
 		}):Play()
+		if buttonStroke then
+			TweenService:Create(buttonStroke, TweenInfo.new(0.25), {
+				Transparency = 0.3
+			}):Play()
+		end
 	end)
 	
 	_gui.Parent = playerGui
 	
 	print("[LoadingScreen] ✅ GUI created")
+
+	-- Settings panel (shown before Start; user applies settings first)
+	_settingsPanel = Instance.new("Frame")
+	_settingsPanel.Name = "SettingsPanel"
+	_settingsPanel.Size = UDim2.new(0, 520, 0, 160)
+	_settingsPanel.Position = UDim2.new(0.5, -260, 0.74, 0)
+	_settingsPanel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_settingsPanel.BackgroundTransparency = 0.09
+	_settingsPanel.BorderSizePixel = 0
+	_settingsPanel.Visible = false
+	_settingsPanel.Parent = _frame
+
+	local spCorner = Instance.new("UICorner")
+	spCorner.CornerRadius = UDim.new(0, 12)
+	spCorner.Parent = _settingsPanel
+
+	local spStroke = Instance.new("UIStroke")
+	spStroke.Color = Color3.fromRGB(255, 255, 255)
+	spStroke.Transparency = 0.2
+	spStroke.Thickness = 2
+	spStroke.Parent = _settingsPanel
+
+	local spTitle = Instance.new("TextLabel")
+	spTitle.Name = "Title"
+	spTitle.Size = UDim2.new(1, -20, 0, 28)
+	spTitle.Position = UDim2.new(0, 10, 0, 10)
+	spTitle.BackgroundTransparency = 1
+	spTitle.Text = "Choose your graphics preset"
+	spTitle.Font = Enum.Font.GothamBold
+	spTitle.TextSize = 20
+	spTitle.TextColor3 = Color3.fromRGB(80, 140, 180)
+	spTitle.TextXAlignment = Enum.TextXAlignment.Left
+	spTitle.Parent = _settingsPanel
+
+	-- Preset buttons container
+	local presetsContainer = Instance.new("Frame")
+	presetsContainer.Name = "Presets"
+	presetsContainer.Size = UDim2.new(1, -20, 0, 50)
+	presetsContainer.Position = UDim2.new(0, 10, 0, 50)
+	presetsContainer.BackgroundTransparency = 1
+	presetsContainer.Parent = _settingsPanel
+
+	local uiList = Instance.new("UIListLayout")
+	uiList.FillDirection = Enum.FillDirection.Horizontal
+	uiList.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	uiList.VerticalAlignment = Enum.VerticalAlignment.Top
+	uiList.Padding = UDim.new(0, 10)
+	uiList.Parent = presetsContainer
+
+	_presetButtons = {}
+	local presetNames = {"Low", "Medium", "High"}
+	for _, name in ipairs(presetNames) do
+		local btn = Instance.new("TextButton")
+		btn.Name = name .. "Preset"
+		btn.Size = UDim2.new(0, 150, 1, 0)
+		btn.BackgroundColor3 = Color3.fromRGB(245, 250, 255)
+		btn.Text = name
+		btn.Font = Enum.Font.GothamBold
+		btn.TextSize = 18
+		btn.TextColor3 = Color3.fromRGB(60, 120, 160)
+		btn.AutoButtonColor = true
+		btn.Parent = presetsContainer
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 10)
+		c.Parent = btn
+
+		local s = Instance.new("UIStroke")
+		s.Color = Color3.fromRGB(200, 220, 240)
+		s.Thickness = 2
+		s.Transparency = 0.2
+		s.Parent = btn
+
+		btn.MouseButton1Click:Connect(function()
+			_selectedPreset = name
+			-- Visually indicate selection
+			for _, b in ipairs(_presetButtons :: {TextButton}) do
+				b.BackgroundColor3 = if b == btn then Color3.fromRGB(230, 245, 255) else Color3.fromRGB(245, 250, 255)
+			end
+		end)
+
+		table.insert(_presetButtons :: {TextButton}, btn)
+	end
+
+	-- Default selection
+	_selectedPreset = "Medium"
+	for _, b in ipairs(_presetButtons :: {TextButton}) do
+		if b.Name == "MediumPreset" then
+			b.BackgroundColor3 = Color3.fromRGB(230, 245, 255)
+		end
+	end
+
+	_applySettingsButton = Instance.new("TextButton")
+	_applySettingsButton.Name = "ApplyButton"
+	_applySettingsButton.Size = UDim2.new(0, 220, 0, 44)
+	_applySettingsButton.Position = UDim2.new(1, -230, 1, -54)
+	_applySettingsButton.AnchorPoint = Vector2.new(0, 0)
+	_applySettingsButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	_applySettingsButton.Text = "Apply & Continue"
+	_applySettingsButton.Font = Enum.Font.GothamBold
+	_applySettingsButton.TextSize = 20
+	_applySettingsButton.TextColor3 = Color3.fromRGB(60, 120, 160)
+	_applySettingsButton.BorderSizePixel = 0
+	_applySettingsButton.Parent = _settingsPanel
+
+	local abCorner = Instance.new("UICorner")
+	abCorner.CornerRadius = UDim.new(0, 10)
+	abCorner.Parent = _applySettingsButton
+
+	local abStroke = Instance.new("UIStroke")
+	abStroke.Color = Color3.fromRGB(255, 255, 255)
+	abStroke.Transparency = 0.2
+	abStroke.Thickness = 2
+	abStroke.Parent = _applySettingsButton
+
+	_applySettingsButton.MouseButton1Click:Connect(function()
+		-- Apply selected preset, then show Start
+		applyGraphicsPreset(_selectedPreset)
+		_settingsPanel.Visible = false
+		-- Reveal Start button with animation
+		_startButton.Visible = true
+		_startButton.Size = UDim2.new(0, 0, 0, 0)
+		local tween = TweenService:Create(_startButton, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 320, 0, 60)
+		})
+		tween:Play()
+	end)
 end
 
 --[[
-	Setup character preview in viewport
+	Setup Nook plane preview in viewport
 ]]
-local function setupCharacterPreview()
-	local player = Players.LocalPlayer
-	local character = player.Character or player.CharacterAdded:Wait()
+local function setupPlanePreview()
+	-- Try to get the Nook plane from ReplicatedStorage
+	local nookPlane = ReplicatedStorage:FindFirstChild("NookPlane")
 	
-	-- Wait a bit for character to fully load
-	task.wait(0.5)
-	
-	if not character or not character.Parent then
-		warn("[LoadingScreen] Character not available for preview")
+	if not nookPlane then
+		warn("[LoadingScreen] ⚠️ NookPlane not found in ReplicatedStorage, using fallback")
+		-- Create a simple fallback plane
+		local fallbackPlane = Instance.new("Model")
+		fallbackPlane.Name = "NookPlane"
+		
+		local body = Instance.new("Part")
+		body.Name = "Body"
+		body.Size = Vector3.new(10, 5, 15)
+		body.Transparency = 0.3
+		body.Color = Color3.fromRGB(255, 200, 100)
+		body.Material = Enum.Material.SmoothPlastic
+		body.CanCollide = false
+		body.Anchored = true
+		body.Parent = fallbackPlane
+		
+		fallbackPlane.PrimaryPart = body
+		fallbackPlane.Parent = _characterViewport
+		
+		-- Setup orientation to face right, camera (side view), and gentle bobbing
+		local viewportCamera = Instance.new("Camera")
+		viewportCamera.Parent = _characterViewport
+		_characterViewport.CurrentCamera = viewportCamera
+		-- Yaw rotate to face right in the viewport
+		local baseCFrame = CFrame.new(body.Position) * CFrame.Angles(0, _YAW_TO_FACE_RIGHT, 0) * CFrame.new(0, 1.2, 0)
+		body.CFrame = baseCFrame
+		-- Place camera in front of the plane's side (along +Z) for a clear right-facing silhouette
+		viewportCamera.CFrame = CFrame.new(body.Position + Vector3.new(0, 7, 22), body.Position)
+
+		-- Animate bobbing
+		task.spawn(function()
+			local t = 0
+			while fallbackPlane and fallbackPlane.Parent do
+				if body and body.Parent then
+					t = t + 0.05
+					local bob = math.sin(t * 1.2) * 0.7
+					local pitch = math.rad(math.sin(t * 1.2) * 2)
+					local roll = math.rad(math.cos(t * 0.8) * 0.8)
+					body.CFrame = baseCFrame * CFrame.new(0, bob, 0) * CFrame.Angles(pitch, 0, roll)
+				end
+				task.wait(0.05)
+			end
+		end)
+		
+		print("[LoadingScreen] ✅ Fallback plane preview setup")
 		return
 	end
 	
-	-- Clone character
-	local success, characterClone = pcall(function()
-		return character:Clone()
-	end)
+	-- Clone the plane model from ReplicatedStorage
+	local planeModel = nookPlane:Clone()
+	planeModel.Name = "NookPlane"
 	
-	if not success or not characterClone then
-		warn("[LoadingScreen] Failed to clone character for preview")
-		return
-	end
-	
-	-- Clean up clone
-	for _, descendant in ipairs(characterClone:GetDescendants()) do
+	-- Clean up scripts
+	for _, descendant in ipairs(planeModel:GetDescendants()) do
 		if descendant:IsA("Script") or descendant:IsA("LocalScript") then
 			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+		end
+	end
+	
+	-- Ensure PrimaryPart exists
+	if not planeModel.PrimaryPart then
+		local primary = planeModel:FindFirstChildWhichIsA("BasePart", true)
+		if primary then
+			planeModel.PrimaryPart = primary
 		end
 	end
 	
 	-- Position in viewport
-	characterClone.Parent = _characterViewport
+	planeModel.Parent = _characterViewport
 	
 	-- Create camera for viewport
 	local viewportCamera = Instance.new("Camera")
 	viewportCamera.Parent = _characterViewport
 	_characterViewport.CurrentCamera = viewportCamera
 	
-	-- Position camera
-	local hrp = characterClone:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		viewportCamera.CFrame = CFrame.new(hrp.Position + Vector3.new(5, 2, 5), hrp.Position)
-		
-		-- Animate character (rotation)
+		-- Position and orient plane to face right; show from the side
+	local primaryPart = planeModel.PrimaryPart
+	if primaryPart then
+			-- Yaw rotate to face right and slightly elevate baseline
+			local baseCFrame = CFrame.new(primaryPart.Position) * CFrame.Angles(0, _YAW_TO_FACE_RIGHT, 0) * CFrame.new(0, 1.5, 0)
+		primaryPart.CFrame = baseCFrame
+			-- Place camera along +Z for side-on view (plane nose points screen-right)
+			viewportCamera.CFrame = CFrame.new(primaryPart.Position + Vector3.new(0, 10, 30), primaryPart.Position)
+
+		-- Animate plane with gentle up/down bobbing and subtle tilt (side view)
 		task.spawn(function()
-			while characterClone and characterClone.Parent do
-				if hrp and hrp.Parent then
-					hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(1), 0)
+			local t = 0
+			while planeModel and planeModel.Parent do
+				if primaryPart and primaryPart.Parent then
+					t = t + 0.05
+					local bob = math.sin(t * 1.2) * 0.9 -- vertical bob amplitude
+					local pitch = math.rad(math.sin(t * 1.2) * 2.5)
+					local roll = math.rad(math.cos(t * 0.8) * 1)
+					primaryPart.CFrame = baseCFrame * CFrame.new(0, bob, 0) * CFrame.Angles(pitch, 0, roll)
 				end
 				task.wait(0.05)
 			end
 		end)
 	end
 	
-	print("[LoadingScreen] Character preview setup complete")
+	print("[LoadingScreen] ✅ Nook plane preview setup complete")
 end
 
 --[[
@@ -363,18 +731,29 @@ local function preloadAssets()
 		progressText.Text = "100%"
 	end
 	
-	_statusLabel.Text = "Ready to play!"
-	_startButton.Visible = true
+	_statusLabel.Text = "Choose your settings"
+	-- Show settings panel first, then gate Start behind Apply
+	if _settingsPanel then
+		_settingsPanel.Visible = true
+		-- Ensure Start remains hidden until Apply
+		_startButton.Visible = false
+	else
+		-- Fallback: if panel missing, show Start directly
+		_startButton.Visible = true
+	end
 	_isReady = true
 	-- DON'T set isLoading to false yet - wait for button click!
 	-- LoadingScreen.isLoading will be set to false in hide() function
 	
-	-- Animate button entrance (smooth pop-in)
-	_startButton.Size = UDim2.new(0, 0, 0, 0)
-	local tween = TweenService:Create(_startButton, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 320, 0, 60)
-	})
-	tween:Play()
+	-- Animate button entrance (smooth pop-in) only if settings panel isn't gating it
+	if not (_settingsPanel and _settingsPanel.Visible) then
+		_startButton.Visible = true
+		_startButton.Size = UDim2.new(0, 0, 0, 0)
+		local tween = TweenService:Create(_startButton, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, 320, 0, 60)
+		})
+		tween:Play()
+	end
 	
 	-- Pulsing animation
 	task.spawn(function()
@@ -399,15 +778,20 @@ end
 function LoadingScreen.init()
 	-- Disable player controls during loading (cutscene mode)
 	local player = Players.LocalPlayer
+
+	-- Hide Roblox top bar to prevent overlap with loading UI (can be re-enabled later)
+	pcall(function()
+		StarterGui:SetCore("TopbarEnabled", false)
+	end)
 	
 	-- Create GUI first
 	createGUI()
 	
-	-- Try to setup character preview after a delay
+	-- Setup plane preview (non-blocking, after assets load)
 	task.spawn(function()
-		local character = player.Character or player.CharacterAdded:Wait()
-		task.wait(1)  -- Wait for character to fully load
-		setupCharacterPreview()
+		-- Wait a bit for assets to start loading
+		task.wait(0.3)
+		setupPlanePreview()
 	end)
 	
 	-- Freeze player if character exists
@@ -460,9 +844,10 @@ function LoadingScreen.hide()
 		end
 	end
 	
-	-- Restore core GUI
+	-- Restore core GUI and top bar
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+		StarterGui:SetCore("TopbarEnabled", true)
 	end)
 	
 	-- Re-enable user input and FREE THE MOUSE

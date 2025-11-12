@@ -9,29 +9,25 @@ function ChibiCharacter.init()
         if not humanoid then return end
         
         -- First, scale the entire character to 1.5x (bigger!)
-        if character:IsA("Model") and character.PrimaryPart then
-            character:ScaleTo(1.5)
-            print("[ChibiCharacter] ✅ Scaled character to 1.5x")
+        if character:IsA("Model") and character.PrimaryPart and not character:GetAttribute("ChibiClientScaled") then
+            character:SetAttribute("ChibiClientScaled", true)
+            local ok, scaleErr = pcall(function()
+                character:ScaleTo(1.5)
+            end)
+
+            if ok then
+                print("[ChibiCharacter] ✅ Scaled character to 1.5x (client preview)")
+            else
+                warn("[ChibiCharacter] ❌ Failed to scale character:", scaleErr)
+            end
         end
-        
-        -- Then apply ACNH chibi proportions
-        local success, err = pcall(function()
-            local desc = humanoid:GetAppliedDescription()
-            
-            -- ACNH-style chibi proportions (big head, short body)
-            desc.HeadScale = 1.0        -- Much bigger head for chibi look
-            desc.WidthScale = 3.0      -- Wider body
-            desc.DepthScale = 3.0        -- Thicker body  
-            desc.HeightScale = 0.8        -- Shorter torso/legs (chibi!)
-            desc.BodyTypeScale = 0        -- Round, soft body
-            
-            humanoid:ApplyDescription(desc)
-            print("[ChibiCharacter] ✅ Applied ACNH chibi proportions")
-        end)
-        
-        if not success then
-            warn("[ChibiCharacter] ❌ Failed to apply proportions:", err)
+
+        -- Make sure Roblox doesn't undo the server proportions
+        if humanoid.AutomaticScalingEnabled then
+            humanoid.AutomaticScalingEnabled = false
         end
+
+        print("[ChibiCharacter] ✅ Client chibi tweaks applied (server will finish proportions)")
     end
     
     local LocalPlayer = Players.LocalPlayer

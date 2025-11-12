@@ -1,156 +1,161 @@
 --[[
 	ACNHCamera.luau
 	
-	Enhanced Animal Crossing style camera system
-	- Super smooth following with spring physics
-	- Dynamic FOV based on movement speed
-	- Collision detection to prevent clipping
-	- Auto-rotation behind player when moving
-	- Beautiful cinematic feel
+	Smoothed default Roblox camera:
+	- Keeps classic controls (right-mouse drag, mouse wheel zoom, mobile gestures)
+	- Adds a subtle per-frame smoothing pass for cinematic feel
+	- Applies a light motion blur based on camera translation speed
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+
+local SettingsController = require(script.Parent.SettingsController)
 
 local ACNHCamera = {}
 
-local camera = workspace.CurrentCamera
 local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
--- Simple, clean camera settings (Animal Crossing style)
-local MIN_ZOOM = 12
-local MAX_ZOOM = 28
-local DEFAULT_ZOOM = 18  -- Closer to player!
-local currentZoom = DEFAULT_ZOOM
+local SMOOTH_SPEED = 10
+local DEFAULT_FOV = 75
+local BASE_BLUR_MULTIPLIER = 2
+local MAX_BLUR_SIZE = 6
 
--- Rotation
-local cameraAngleX = -0.5  -- Nice downward angle
-local cameraAngleY = 0
+local _isActive = false
+local _smoothedCFrame: CFrame? = nil
+local _blurEffect: BlurEffect? = nil
+local _characterAddedConn: RBXScriptConnection? = nil
 
--- Cinematic smooth settings
-local CAMERA_SMOOTHNESS = 0.08  -- Much slower, smoother movement
-local ROTATION_SPEED = 0.002  -- Slower rotation
-local TOUCH_ROTATION_SPEED = 0.003  -- Slower touch panning
-local HEIGHT_OFFSET = 12  -- Camera height
-local LOOK_AHEAD = 3  -- Cinematic look ahead
+local function ensureBlurEffect(): BlurEffect
+	if _blurEffect and _blurEffect.Parent then
+		return _blurEffect
+	end
 
-local DEFAULT_FOV = 70
+	local blur = Lighting:FindFirstChild("ACNHCameraBlur")
+	if not blur then
+		blur = Instance.new("BlurEffect")
+		blur.Name = "ACNHCameraBlur"
+		blur.Size = 0
+		blur.Parent = Lighting
+	end
 
-local _isActive = false  -- Track if camera is active
-local _lastTouchPosition = nil  -- For touch panning
+	_blurEffect = blur :: BlurEffect
+	return _blurEffect
+end
 
 function ACNHCamera.init()
-	print("[ACNHCamera] 🎥 Initializing Animal Crossing camera...")
-	
-	_isActive = true  -- Mark camera as active
-	
+	if _isActive then
+		ACNHCamera.disable()
+	end
+
+	SettingsController.init()
+
+	_isActive = true
+	camera = workspace.CurrentCamera
+
 	local character = player.Character or player.CharacterAdded:Wait()
-	local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-	
-	-- Set camera to scriptable
-	camera.CameraType = Enum.CameraType.Scriptable
-	camera.FieldOfView = DEFAULT_FOV
-	
-	-- Handle mouse input for camera rotation
-	UserInputService.InputChanged:Connect(function(input)
-		if not _isActive then return end
-		
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			local delta = input.Delta
-			cameraAngleX = cameraAngleX - delta.Y * ROTATION_SPEED
-			cameraAngleY = cameraAngleY - delta.X * ROTATION_SPEED
-			
-			-- Limit vertical rotation
-			cameraAngleX = math.clamp(cameraAngleX, -1.4, -0.2)  -- Keep looking down
+	local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid")
+
+	if camera then
+		camera.CameraType = Enum.CameraType.Custom
+		camera.CameraSubject = humanoid
+		camera.FieldOfView = DEFAULT_FOV
+	end
+
+	player.CameraMode = Enum.CameraMode.Classic
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+
+	local blur = ensureBlurEffect()
+	blur.Size = 0
+	_smoothedCFrame = nil
+
+	RunService:BindToRenderStep("ACNHSmoothCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
+		if not _isActive then
+			return
+		end
+
+		camera = workspace.CurrentCamera
+		if not camera then
+			return
+		end
+
+		local targetCFrame = camera.CFrame
+		if not _smoothedCFrame then
+			_smoothedCFrame = targetCFrame
+		else
+			local alpha = math.clamp(dt * SMOOTH_SPEED, 0, 1)
+			_smoothedCFrame = _smoothedCFrame:Lerp(targetCFrame, alpha)
+			camera.CFrame = _smoothedCFrame
+		end
+
+		local translation = (_smoothedCFrame.Position - targetCFrame.Position).Magnitude
+		local blurSetting = SettingsController.getSetting("blurIntensity")
+		if typeof(blurSetting) ~= "number" then
+			blurSetting = 0.25
+		end
+		blurSetting = math.clamp(blurSetting, 0, 1)
+		local maxBlur = MAX_BLUR_SIZE * blurSetting
+		if maxBlur <= 0 then
+			blur.Size = 0
+		else
+			blur.Size = math.clamp(translation * BASE_BLUR_MULTIPLIER * blurSetting, 0, maxBlur)
 		end
 	end)
-	
-	-- Handle TOUCH input for 2-finger panning (cinematic!)
-	UserInputService.TouchMoved:Connect(function(touch, gameProcessed)
-		if not _isActive or gameProcessed then return end
-		
-		-- Check for 2-finger touch
-		local touches = UserInputService:GetTouchesInProgress()
-		if #touches == 2 then
-			-- Two-finger panning
-			if _lastTouchPosition then
-				local delta = touch.Position - _lastTouchPosition
-				cameraAngleX = cameraAngleX - delta.Y * TOUCH_ROTATION_SPEED
-				cameraAngleY = cameraAngleY - delta.X * TOUCH_ROTATION_SPEED
-				
-				-- Limit vertical rotation
-				cameraAngleX = math.clamp(cameraAngleX, -1.4, -0.2)
-			end
-			_lastTouchPosition = touch.Position
+
+	if _characterAddedConn then
+		_characterAddedConn:Disconnect()
+	end
+
+	_characterAddedConn = player.CharacterAdded:Connect(function(newCharacter)
+		if not _isActive then
+			return
 		end
-	end)
-	
-	-- Reset touch tracking when touch ends
-	UserInputService.TouchEnded:Connect(function()
-		_lastTouchPosition = nil
-	end)
-	
-	-- Handle zoom with mouse wheel
-	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			currentZoom = math.clamp(currentZoom - input.Position.Z * 2.5, MIN_ZOOM, MAX_ZOOM)
+
+		local newHumanoid = newCharacter:WaitForChild("Humanoid")
+		camera = workspace.CurrentCamera
+		if camera then
+			camera.CameraSubject = newHumanoid
 		end
+		_smoothedCFrame = nil
 	end)
-	
-	-- Simple smooth camera update
-	RunService.RenderStepped:Connect(function()
-		if not _isActive then return end
-		
-		if not character or not character.Parent then
-			character = player.Character
-			if character then
-				humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-			else
-				return
-			end
-		end
-		
-		local hrp = humanoidRootPart
-		if not hrp or not hrp.Parent then return end
-		
-		-- Calculate camera position - HIGHER and looking DOWN
-		local rotatedOffset = CFrame.Angles(cameraAngleX, cameraAngleY, 0) * Vector3.new(0, 0, currentZoom)
-		local targetPos = hrp.Position + Vector3.new(0, HEIGHT_OFFSET, 0) + rotatedOffset
-		
-		-- Smooth camera movement (simple lerp, no fancy physics)
-		local currentPos = camera.CFrame.Position
-		local smoothPos = currentPos:Lerp(targetPos, CAMERA_SMOOTHNESS)
-		
-		-- Look at player with slight ahead offset
-		local lookAtPos = hrp.Position + (hrp.CFrame.LookVector * LOOK_AHEAD) + Vector3.new(0, 2, 0)
-		
-		-- Set camera
-		camera.CFrame = CFrame.new(smoothPos, lookAtPos)
-		
-		-- Lock mouse to center for rotation
-		if _isActive then
-			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-		end
-	end)
-	
-	-- Handle character respawn
-	player.CharacterAdded:Connect(function(newCharacter)
-		character = newCharacter
-		humanoidRootPart = newCharacter:WaitForChild("HumanoidRootPart")
-		cameraAngleX = -0.5  -- Reset to nice downward angle
-		cameraAngleY = 0
-		currentZoom = DEFAULT_ZOOM
-		_lastTouchPosition = nil
-	end)
-	
-	print("[ACNHCamera] ✅ Cinematic camera ready! Closer view, 2-finger panning 📱")
+
+	print("[ACNHCamera] ✅ Smoothing enabled with classic controls")
 end
 
 function ACNHCamera.disable()
+	if not _isActive then
+		return
+	end
+
 	_isActive = false
-	camera.CameraType = Enum.CameraType.Custom
+	RunService:UnbindFromRenderStep("ACNHSmoothCamera")
+
+	if _characterAddedConn then
+		_characterAddedConn:Disconnect()
+		_characterAddedConn = nil
+	end
+
+	camera = workspace.CurrentCamera
+	if camera then
+		camera.CameraType = Enum.CameraType.Custom
+		if player.Character then
+			local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				camera.CameraSubject = humanoid
+			end
+		end
+	end
+
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+
+	if _blurEffect then
+		_blurEffect.Size = 0
+	end
+
+	_smoothedCFrame = nil
 	print("[ACNHCamera] Camera reset to default")
 end
 

@@ -31,18 +31,34 @@ end
 
 -- Helper to hide a GUI object
 local function hideGUIObject(obj)
-	if not obj then
+	if not obj then return end
+
+	-- Prefer explicit Hide method (function only)
+	local hideMember = rawget(obj, "Hide") -- avoids picking up child instances via :FindFirstChild
+	if hideMember and typeof(hideMember) == "function" then
+		local ok, err = pcall(function()
+			obj:Hide()
+		end)
+		if not ok then
+			warn("[GUIManager] Hide() threw error:", err)
+		end
 		return
 	end
-	
-	-- Try different hide methods
-	if obj.Hide then
-		obj:Hide()
-	elseif obj.setInventoryVisible then
+
+	-- Inventory pattern
+	if obj.setInventoryVisible and typeof(obj.setInventoryVisible) == "function" then
 		obj:setInventoryVisible(false)
-	elseif obj.close then
+		return
+	end
+
+	-- Generic close pattern
+	if obj.close and typeof(obj.close) == "function" then
 		obj:close()
-	elseif typeof(obj) == "Instance" then
+		return
+	end
+
+	-- Instance fallbacks
+	if typeof(obj) == "Instance" then
 		if obj:IsA("GuiObject") then
 			obj.Visible = false
 		elseif obj:IsA("ScreenGui") then
@@ -53,18 +69,30 @@ end
 
 -- Helper to show a GUI object
 local function showGUIObject(obj)
-	if not obj then
+	if not obj then return end
+
+	local showMember = rawget(obj, "Show")
+	if showMember and typeof(showMember) == "function" then
+		local ok, err = pcall(function()
+			obj:Show()
+		end)
+		if not ok then
+			warn("[GUIManager] Show() threw error:", err)
+		end
 		return
 	end
-	
-	-- Try different show methods
-	if obj.Show then
-		obj:Show()
-	elseif obj.setInventoryVisible then
+
+	if obj.setInventoryVisible and typeof(obj.setInventoryVisible) == "function" then
 		obj:setInventoryVisible(true)
-	elseif obj.open then
+		return
+	end
+
+	if obj.open and typeof(obj.open) == "function" then
 		obj:open()
-	elseif typeof(obj) == "Instance" then
+		return
+	end
+
+	if typeof(obj) == "Instance" then
 		if obj:IsA("GuiObject") then
 			obj.Visible = true
 		elseif obj:IsA("ScreenGui") then

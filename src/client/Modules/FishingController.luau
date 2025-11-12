@@ -63,6 +63,7 @@ function FishingController.new()
     self.castPosition = nil
     self.castLocation = nil
     self.equippedTool = nil
+    self.hasShownNoRodMessage = false
 
     self.bobber = nil
     self.bobberFloatConnection = nil
@@ -300,9 +301,14 @@ function FishingController:onCastRequested()
     end
 
     if not self:isToolReady() then
-        self:showMessage("Equip a fishing rod first!", 2)
+        if not self.hasShownNoRodMessage then
+            self.hasShownNoRodMessage = true
+            self:showMessage("Equip a fishing rod first!", 2)
+        end
         return
     end
+
+    self.hasShownNoRodMessage = false
 
     if UserInputService:GetFocusedTextBox() then
         return
