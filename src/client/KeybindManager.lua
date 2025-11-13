@@ -29,15 +29,18 @@ KeybindManager.KEYBINDS = {
 	-- Settings
 	SETTINGS = Enum.KeyCode.Escape,
 	
-	-- Menus
-	GAME_MENU = Enum.KeyCode.Tilde,
-	KEYBIND_GUIDE = Enum.KeyCode.F1,
-	
-	-- Future binds (placeholder)
-	EMOTE = Enum.KeyCode.V,
-	
-	-- Item Browser (always available)
-	ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
+        -- Menus
+        GAME_MENU = Enum.KeyCode.Tilde,
+        KEYBIND_GUIDE = Enum.KeyCode.F1,
+
+        -- Future binds (placeholder)
+        EMOTE = Enum.KeyCode.V,
+
+        -- Item Browser (always available)
+        ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
+
+        -- Building interface
+        BUILD = Enum.KeyCode.H,            -- H for Housing/Island building
 }
 
 -- Debug keybinds (only active in debug mode)
