@@ -161,7 +161,7 @@ function ToolRingGUI:applySlotStyling(slotFrame: Frame?, state: string?)
     if not corner then
         corner = Instance.new("UICorner")
         corner.Name = "ToolRingCorner"
-        corner.CornerRadius = UDim.new(1, 0)
+        corner.CornerRadius = UDim.new(0, 1)
         corner.Parent = slotFrame
     end
 
@@ -363,7 +363,7 @@ function ToolRingGUI:buildGui()
     halo.Parent = ringContainer
 
     local haloCorner = Instance.new("UICorner")
-    haloCorner.CornerRadius = UDim.new(1, 0)
+    haloCorner.CornerRadius = UDim.new(0, 1)
     haloCorner.Parent = halo
 
     local haloStroke = Instance.new("UIStroke")
@@ -385,7 +385,7 @@ function ToolRingGUI:buildGui()
     centerPad.Parent = ringContainer
 
     local padCorner = Instance.new("UICorner")
-    padCorner.CornerRadius = UDim.new(1, 0)
+    padCorner.CornerRadius = UDim.new(0, 1)
     padCorner.Parent = centerPad
 
     local padStroke = Instance.new("UIStroke")
@@ -504,7 +504,7 @@ function ToolRingGUI:createSlots()
         countBadge.Parent = container
 
         local badgeCorner = countBadge:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
-        badgeCorner.CornerRadius = UDim.new(1, 0)
+        badgeCorner.CornerRadius = UDim.new(0, 1)
         badgeCorner.Parent = countBadge
 
         local countLabel = countBadge:FindFirstChild("CountLabel")
@@ -898,4 +898,3 @@ ToolRingGUI.Hide = ToolRingGUI.hide
 ToolRingGUI.Toggle = ToolRingGUI.toggle
 
 return ToolRingGUI
-

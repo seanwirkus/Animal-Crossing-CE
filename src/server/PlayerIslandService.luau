@@ -271,13 +271,13 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 	local islandData = self.playerIslands[userId]
 	if not islandData then return end
 	
-	-- Generate more trees for better island coverage (distributed across entire island)
-	local treeCount = math.random(30, 50) -- Increased from 10-20 to 30-50
+	-- Generate many more trees for full island coverage (distributed across entire island)
+	local treeCount = math.random(60, 100) -- Increased to 60-100 for full island coverage
 	local islandFolder = self.islandFolders[userId]
 	
 	local treesPlaced = 0
 	local attempts = 0
-	local maxAttempts = treeCount * 30 -- Increased attempts for better distribution
+	local maxAttempts = treeCount * 50 -- Increased attempts for better distribution across entire island
 	
 	-- Minimum spacing between trees (INCREASED for better distribution)
 	local MIN_TREE_SPACING = 10 -- Increased from 2 to 10 studs
@@ -315,24 +315,31 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 		[Enum.Material.Mud] = 1,
 	}
 	
-	-- Collect all potential tree positions across the island
+	-- Collect all potential tree positions across the island using RANDOM sampling instead of grid
 	local candidatePositions = {}
-	local islandRadius = math.min(size.X, size.Z) * 0.9 -- Use 90% of island size
+	local islandRadius = math.min(size.X, size.Z) * 0.95 -- Use 95% of island size (cover more area)
+	local minDistanceFromCenter = 15 -- Reduced from 20 to allow trees closer to center
 	
-	-- Sample positions across the entire island in a grid pattern
-	local sampleSpacing = 15 -- Sample every 15 studs
-	for x = -islandRadius, islandRadius, sampleSpacing do
-		for z = -islandRadius, islandRadius, sampleSpacing do
-			local distanceFromCenter = math.sqrt(x^2 + z^2)
-			-- Skip center plaza area
-			if distanceFromCenter > 20 and distanceFromCenter < islandRadius then
-				local pos = center + Vector3.new(x, 20, z)
-				table.insert(candidatePositions, pos)
-			end
-		end
+	-- Generate random candidate positions instead of grid pattern to prevent lines
+	local numCandidates = treeCount * 8 -- Generate 8x more candidates for better distribution
+	for i = 1, numCandidates do
+		-- Random angle and distance for better distribution
+		local angle = math.random() * math.pi * 2 -- Random angle in radians
+		local distance = math.random(minDistanceFromCenter, islandRadius) -- Random distance from center
+		
+		-- Convert to X/Z coordinates
+		local x = math.cos(angle) * distance
+		local z = math.sin(angle) * distance
+		
+		-- Add some random variation to break up patterns
+		x = x + (math.random() - 0.5) * 10 -- ±5 studs variation
+		z = z + (math.random() - 0.5) * 10 -- ±5 studs variation
+		
+		local pos = center + Vector3.new(x, 20, z)
+		table.insert(candidatePositions, pos)
 	end
 	
-	-- Shuffle candidate positions for random distribution
+	-- Shuffle candidate positions for additional randomization
 	for i = #candidatePositions, 2, -1 do
 		local j = math.random(i)
 		candidatePositions[i], candidatePositions[j] = candidatePositions[j], candidatePositions[i]
@@ -341,7 +348,18 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 	-- Try placing trees with even distribution
 	local placedTreePositions = {} -- Track placed tree positions for spacing check
 	
-	for _, candidatePos in ipairs(candidatePositions) do
+	-- Use random sampling instead of sequential iteration to prevent line patterns
+	local shuffledIndices = {}
+	for i = 1, #candidatePositions do
+		table.insert(shuffledIndices, i)
+	end
+	-- Shuffle indices for random access
+	for i = #shuffledIndices, 2, -1 do
+		local j = math.random(i)
+		shuffledIndices[i], shuffledIndices[j] = shuffledIndices[j], shuffledIndices[i]
+	end
+	
+	for _, index in ipairs(shuffledIndices) do
 		if treesPlaced >= treeCount then
 			break
 		end
@@ -351,92 +369,88 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 			break
 		end
 		
-		-- Check if grid cell is already used
-		if isGridCellUsed(candidatePos) then
-			-- Skip this grid cell - already has trees
-			continue
-		end
-		
-		-- Raycast to find terrain surface and check material
-		local rayOrigin = candidatePos + Vector3.new(0, 100, 0)
-		local rayDirection = Vector3.new(0, -200, 0)
-		
-		local raycastParams = RaycastParams.new()
-		raycastParams.FilterType = Enum.RaycastFilterType.Include
-		raycastParams.FilterDescendantsInstances = {workspace.Terrain}
-		raycastParams.IgnoreWater = false -- We want to detect water
-		
-		local ray = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-		if not ray then
-			-- No terrain found - skip
-			continue
-		end
-		
-		-- Check if material is valid for trees (not water)
-		local hitMaterial = ray.Material
-		if hitMaterial == Enum.Material.Water then
-			-- Skip water - don't place trees on water
-			continue
-		end
-		
-		-- Check if material is valid (prioritize Grass)
-		local materialWeight = validTreeMaterials[hitMaterial]
-		if not materialWeight then
-			-- Skip invalid materials
-			continue
-		end
-		
-		-- Prefer grass material (but allow others with lower probability)
-		if hitMaterial ~= Enum.Material.Grass and math.random() > 0.3 then
-			-- 70% chance to skip non-grass materials (prioritize grass)
-			continue
-		end
-		
-		local pos = ray.Position
-		
-		-- Check spacing from already placed trees (INCREASED spacing)
-		local tooClose = false
-		for _, placedPos in ipairs(placedTreePositions) do
-			local distance = (pos - placedPos).Magnitude
-			if distance < MIN_TREE_SPACING then
-				tooClose = true
-				break
-			end
-		end
-		
-		-- Also check spacing from existing trees in workspace
-		if not tooClose then
-			local treeFolder = islandFolder:FindFirstChild("Trees")
-			if treeFolder then
-				for _, existingTree in ipairs(treeFolder:GetChildren()) do
-					if existingTree:IsA("Model") and existingTree.PrimaryPart then
-						local treePos = existingTree.PrimaryPart.Position
-						local distance = (pos - treePos).Magnitude
-						if distance < MIN_TREE_SPACING then
-							tooClose = true
-							break
+		local candidatePos = candidatePositions[index]
+		if not candidatePos then
+			-- Skip invalid index
+		else
+			-- Check if grid cell is already used
+			if not isGridCellUsed(candidatePos) then
+				-- Raycast to find terrain surface and check material
+				local rayOrigin = candidatePos + Vector3.new(0, 100, 0)
+				local rayDirection = Vector3.new(0, -200, 0)
+				
+				local raycastParams = RaycastParams.new()
+				raycastParams.FilterType = Enum.RaycastFilterType.Include
+				raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+				raycastParams.IgnoreWater = false -- We want to detect water
+				
+				local ray = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+				if ray then
+					-- Check if material is valid for trees (not water)
+					local hitMaterial = ray.Material
+					if hitMaterial ~= Enum.Material.Water then
+						-- Check if material is valid (prioritize Grass)
+						local materialWeight = validTreeMaterials[hitMaterial]
+						if materialWeight then
+							-- Prefer grass material (but allow others with lower probability)
+							local shouldPlace = true
+							if hitMaterial ~= Enum.Material.Grass and math.random() > 0.3 then
+								-- 70% chance to skip non-grass materials (prioritize grass)
+								shouldPlace = false
+							end
+							
+							if shouldPlace then
+								local pos = ray.Position
+								
+								-- Check spacing from already placed trees (INCREASED spacing)
+								local tooClose = false
+								for _, placedPos in ipairs(placedTreePositions) do
+									local distance = (pos - placedPos).Magnitude
+									if distance < MIN_TREE_SPACING then
+										tooClose = true
+										break
+									end
+								end
+								
+								-- Also check spacing from existing trees in workspace
+								if not tooClose then
+									local treeFolder = islandFolder:FindFirstChild("Trees")
+									if treeFolder then
+										for _, existingTree in ipairs(treeFolder:GetChildren()) do
+											if existingTree:IsA("Model") and existingTree.PrimaryPart then
+												local treePos = existingTree.PrimaryPart.Position
+												local distance = (pos - treePos).Magnitude
+												if distance < MIN_TREE_SPACING then
+													tooClose = true
+													break
+												end
+											end
+										end
+									end
+								end
+								
+								if not tooClose then
+									-- Place tree
+									self:placeTree(islandFolder, pos, "Oak")
+									
+									-- Save to island data
+									table.insert(islandData.trees, {
+										X = pos.X,
+										Y = pos.Y,
+										Z = pos.Z,
+										type = "Oak"
+									})
+									
+									-- Track placed position
+									table.insert(placedTreePositions, pos)
+									markGridCellUsed(pos)
+									treesPlaced = treesPlaced + 1
+								end
+							end
 						end
 					end
 				end
 			end
-		end
-		
-		if not tooClose then
-			-- Place tree
-			self:placeTree(islandFolder, pos, "Oak")
-			
-			-- Save to island data
-			table.insert(islandData.trees, {
-				X = pos.X,
-				Y = pos.Y,
-				Z = pos.Z,
-				type = "Oak"
-			})
-			
-			-- Track placed position
-			table.insert(placedTreePositions, pos)
-			markGridCellUsed(pos)
-			treesPlaced = treesPlaced + 1
 		end
 	end
 	
@@ -513,9 +527,10 @@ end
 function PlayerIslandService:placeTree(folder, position, treeType)
 	-- Try to get tree from ReplicatedStorage
 	local treeTemplate = ReplicatedStorage:FindFirstChild("OakTree")
+	local tree = nil
 	
 	if treeTemplate and treeTemplate:IsA("Model") then
-		local tree = treeTemplate:Clone()
+		tree = treeTemplate:Clone()
 		tree:SetPrimaryPartCFrame(CFrame.new(position))
 		
 		-- Anchor all parts
@@ -528,7 +543,7 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 		tree.Parent = folder
 	else
 		-- Fallback simple tree
-		local tree = Instance.new("Model")
+		tree = Instance.new("Model")
 		tree.Name = "Tree"
 		
 		local trunk = Instance.new("Part")
@@ -553,6 +568,34 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 		tree.PrimaryPart = trunk
 		tree.Parent = folder
 	end
+	
+	-- Add ProximityPrompt for tree shaking
+	if tree then
+		local rootPart = tree.PrimaryPart or tree:FindFirstChildOfClass("BasePart")
+		if rootPart then
+			-- Set attribute for tree identification
+			tree:SetAttribute("HarvestType", "tree")
+			tree:SetAttribute("ResourceType", "tree")
+			
+			-- Add ProximityPrompt
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "ShakeTree"
+			prompt.ActionText = "Shake Tree"
+			prompt.ObjectText = "Tree"
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 8
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = rootPart
+			
+			-- Connect to tree shaking system
+			local TreeShakingSystem = require(script.Parent:WaitForChild("TreeShakingSystem"))
+			prompt.Triggered:Connect(function(player)
+				TreeShakingSystem.shakeTree(player, tree)
+			end)
+		end
+	end
+	
+	return tree
 end
 
 function PlayerIslandService:placeRock(folder, position)

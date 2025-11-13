@@ -55,11 +55,40 @@ local function createHole(position)
 	hole = hole:Clone()
 	holeModel:Destroy()
 	
-	-- Position the hole
+	-- Position the hole ON TOP of terrain
+	-- Get the bounding box to calculate proper positioning
 	if hole:IsA("Model") and hole.PrimaryPart then
-		hole:MoveTo(position)
+		-- Calculate the bottom of the model
+		local primaryPart = hole.PrimaryPart
+		local size = primaryPart.Size
+		local bottomOffset = size.Y / 2
+		
+		-- Position so the bottom of the model sits on the terrain
+		local adjustedPosition = position - Vector3.new(0, bottomOffset, 0)
+		hole:MoveTo(adjustedPosition)
 	elseif hole:IsA("BasePart") then
-		hole.Position = position
+		-- For a single part, position it so bottom sits on terrain
+		local bottomOffset = hole.Size.Y / 2
+		hole.Position = position - Vector3.new(0, bottomOffset, 0)
+	else
+		-- For models without PrimaryPart, try to find the lowest part
+		local lowestPart = nil
+		local lowestY = math.huge
+		for _, part in ipairs(hole:GetDescendants()) do
+			if part:IsA("BasePart") then
+				local partBottom = part.Position.Y - part.Size.Y / 2
+				if partBottom < lowestY then
+					lowestY = partBottom
+					lowestPart = part
+				end
+			end
+		end
+		if lowestPart then
+			local offset = position.Y - lowestY
+			hole:PivotTo(CFrame.new(position - Vector3.new(0, offset, 0)))
+		else
+			hole:PivotTo(CFrame.new(position))
+		end
 	end
 	
 	hole.Name = "DugHole"
@@ -253,7 +282,16 @@ local function handleDig(player)
 		local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 		
 		if rayResult then
-			createHole(rayResult.Position + Vector3.new(0, 0.5, 0))
+			-- Get the surface normal to position hole correctly
+			local surfaceNormal = rayResult.Normal
+			local hitPosition = rayResult.Position
+			
+			-- Position hole ON TOP of terrain (not inside)
+			-- Add offset based on surface normal to ensure it sits on top
+			local offset = surfaceNormal * 0.2  -- Small offset to sit on surface
+			local holePosition = hitPosition + offset
+			
+			createHole(holePosition)
 			print("[ShovelSystem] Player", player.Name, "dug a hole")
 			
 			-- Set cooldown

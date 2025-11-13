@@ -20,13 +20,25 @@ function GUIManager:registerGUI(name, guiObject)
 		warn("[GUIManager] Invalid registration:", name, guiObject)
 		return false
 	end
-	
+
 	registeredGUIs[name] = {
 		object = guiObject,
 		name = name,
 	}
-	
+
 	print("[GUIManager] ✅ Registered GUI:", name)
+
+	-- Apply universal presets to newly registered GUI
+	task.spawn(function()
+		local success, err = pcall(function()
+			local UniversalGUIPreset = require(script.Parent.UniversalGUIPreset)
+			UniversalGUIPreset.applyToGUI(guiObject)
+		end)
+		if not success then
+			warn("[GUIManager] Failed to apply universal presets to", name, ":", err)
+		end
+	end)
+
 	return true
 end
 
@@ -363,6 +375,19 @@ end
 -- Clear all suppressions
 function GUIManager:clearAllSuppressions()
 	suppressedUntil = {}
+end
+
+-- Apply universal presets to all registered GUIs
+function GUIManager:applyUniversalPresets()
+	task.spawn(function()
+		local success, err = pcall(function()
+			local UniversalGUIPreset = require(script.Parent.UniversalGUIPreset)
+			UniversalGUIPreset.applyToRegisteredGUIs(registeredGUIs)
+		end)
+		if not success then
+			warn("[GUIManager] Failed to apply universal presets:", err)
+		end
+	end)
 end
 
 return GUIManager

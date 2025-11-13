@@ -159,10 +159,6 @@ function DebugManager:Init(modules)
     local graphicsPage = self:CreateTab("Graphics")
     self:CreateGraphicsTab(graphicsPage)
 
-    -- Whiteboard tab
-    local whiteboardPage = self:CreateTab("Whiteboard")
-    self:CreateWhiteboardTab(whiteboardPage)
-
     -- Inventory tab
     local inventoryPage = self:CreateTab("Inventory")
     self:CreateInventoryTab(inventoryPage)
@@ -383,7 +379,7 @@ function DebugManager:CreateSystemsTab(parentFrame)
     -- System status display
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, 0, 0, 100)
-    statusLabel.Text = "System Status:\n- Inventory: Active\n- Crafting: Active\n- Whiteboard: Active\n- Graphics: Active"
+    statusLabel.Text = "System Status:\n- Inventory: Active\n- Crafting: Active\n- Graphics: Active"
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextSize = 14
     statusLabel.TextColor3 = Color3.fromRGB(80, 70, 60)
@@ -412,18 +408,7 @@ function DebugManager:CreateGraphicsTab(parentFrame)
     label.Parent = parentFrame
 end
 
-function DebugManager:CreateWhiteboardTab(parentFrame)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 1, -20)
-    label.Position = UDim2.new(0, 10, 0, 10)
-    label.Text = "Whiteboard Controls:\n- Pick up markers from workspace\n- Draw on whiteboard with equipped marker\n- Shift+C to clear\n- Shift+S to save"
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 14
-    label.TextColor3 = Color3.fromRGB(80, 70, 60)
-    label.BackgroundTransparency = 1
-    label.TextWrapped = true
-    label.Parent = parentFrame
-end
+-- Whiteboard tab removed - whiteboard system deleted
 
 function DebugManager:CreateInventoryTab(parentFrame)
     local label = Instance.new("TextLabel")

@@ -6,7 +6,7 @@ BalloonSpawner.activeBalloons = {}
 BalloonSpawner.nextBalloonId = 1
 
 -- Configuration
-local SPAWN_INTERVAL = 180 -- Spawn a balloon every 3 minutes
+local SPAWN_INTERVAL = 15 -- Spawn a balloon every 15 seconds (debug mode - increased frequency)
 local BALLOON_SPEED = 10 -- Studs per second
 local BALLOON_HEIGHT = 60 -- Height above ground
 local BALLOON_LIFETIME = 120 -- Despawn after 2 minutes if not popped
@@ -396,7 +396,7 @@ end
 -- Start spawning balloons
 function BalloonSpawner.start()
 	print("[BalloonSpawner] 🎈 Starting balloon spawner...")
-	print("[BalloonSpawner] ℹ️ Normal mode: Spawning balloons every", SPAWN_INTERVAL, "seconds")
+	print("[BalloonSpawner] ℹ️ Debug mode: Spawning balloons every", SPAWN_INTERVAL, "seconds")
 	
 	-- Spawn balloons on normal interval
 	while true do

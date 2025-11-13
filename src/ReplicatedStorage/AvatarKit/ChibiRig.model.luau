@@ -20,8 +20,8 @@ local function createPart(name, size, position, color)
     part.Name = name
     part.Size = size
     part.Position = position
-    part.Anchored = true
-    part.CanCollide = false
+    part.Anchored = false
+    part.CanCollide = true
     part.Color = color or Color3.fromRGB(255, 228, 200)
     part.Material = Enum.Material.SmoothPlastic
     return part
@@ -36,7 +36,8 @@ end
 
 local existing = AvatarKitFolder:FindFirstChild("ChibiRig")
 if existing then
-    return existing
+    print("[ChibiRig] ✅ ChibiRig model already exists")
+    return
 end
 
 local rig = Instance.new("Model")
@@ -68,6 +69,23 @@ leftArm.Parent = rig
 local rightArm = createPart("RightUpperArm", Vector3.new(0.55, 1.2, 0.55), Vector3.new(1.2, 3.2, 0))
 rightArm.Parent = rig
 
+-- Add forearms
+local leftForearm = createPart("LeftLowerArm", Vector3.new(0.5, 1.0, 0.5), Vector3.new(-1.2, 1.9, 0))
+leftForearm.Parent = rig
+local rightForearm = createPart("RightLowerArm", Vector3.new(0.5, 1.0, 0.5), Vector3.new(1.2, 1.9, 0))
+rightForearm.Parent = rig
+
+    -- Add bigger spherical hands (more chibi-like) - proper spheres
+    local leftHand = createPart("LeftHand", Vector3.new(0.3, 0.3, 0.3), Vector3.new(-1.2, 1.3, 0))
+    local leftHandMesh = createSphereMesh(Vector3.new(4, 4, 4))  -- Larger scale for more prominent spheres
+    leftHandMesh.Parent = leftHand
+    leftHand.Parent = rig
+
+    local rightHand = createPart("RightHand", Vector3.new(0.3, 0.3, 0.3), Vector3.new(1.2, 1.3, 0))
+    local rightHandMesh = createSphereMesh(Vector3.new(4, 4, 4))  -- Larger scale for more prominent spheres
+    rightHandMesh.Parent = rightHand
+    rightHand.Parent = rig
+
 local leftLeg = createPart("LeftUpperLeg", Vector3.new(0.6, 1.3, 0.6), Vector3.new(-0.5, 0.6, 0))
 leftLeg.Color = Color3.fromRGB(92, 159, 115)
 leftLeg.Parent = rig
@@ -79,6 +97,8 @@ local bodyColors = Instance.new("BodyColors")
 bodyColors.HeadColor3 = Color3.fromRGB(255, 228, 200)
 bodyColors.LeftArmColor3 = Color3.fromRGB(255, 228, 200)
 bodyColors.RightArmColor3 = Color3.fromRGB(255, 228, 200)
+bodyColors.LeftHandColor3 = Color3.fromRGB(255, 228, 200)  -- Match arm color
+bodyColors.RightHandColor3 = Color3.fromRGB(255, 228, 200)  -- Match arm color
 bodyColors.TorsoColor3 = Color3.fromRGB(255, 228, 200)
 bodyColors.LeftLegColor3 = Color3.fromRGB(92, 159, 115)
 bodyColors.RightLegColor3 = Color3.fromRGB(92, 159, 115)
@@ -90,6 +110,10 @@ local welds = {
     { humanoidRootPart, lowerTorso },
     { humanoidRootPart, leftArm },
     { humanoidRootPart, rightArm },
+    { leftArm, leftForearm },  -- Weld forearm to upper arm
+    { rightArm, rightForearm },  -- Weld forearm to upper arm
+    { leftForearm, leftHand },  -- Weld hand to forearm
+    { rightForearm, rightHand },  -- Weld hand to forearm
     { humanoidRootPart, leftLeg },
     { humanoidRootPart, rightLeg },
 }
@@ -103,5 +127,6 @@ end
 
 rig.Parent = AvatarKitFolder
 
-return rig
+print("[ChibiRig] ✅ ChibiRig model created in ReplicatedStorage")
 
+return rig

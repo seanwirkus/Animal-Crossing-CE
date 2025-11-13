@@ -51,11 +51,40 @@ local function spawnXMarker(position)
 	xMarker = xMarker:Clone()
 	xModel:Destroy()
 	
-	-- Position the X marker slightly above ground
+	-- Position the X marker ON TOP of terrain
+	-- Get the bounding box to calculate proper positioning
 	if xMarker:IsA("Model") and xMarker.PrimaryPart then
-		xMarker:MoveTo(position + Vector3.new(0, 0.1, 0))
+		-- Calculate the bottom of the model
+		local primaryPart = xMarker.PrimaryPart
+		local cf, size = primaryPart.CFrame, primaryPart.Size
+		local bottomOffset = size.Y / 2
+		
+		-- Position so the bottom of the model sits on the terrain
+		local adjustedPosition = position - Vector3.new(0, bottomOffset, 0) + Vector3.new(0, 0.05, 0)
+		xMarker:MoveTo(adjustedPosition)
 	elseif xMarker:IsA("BasePart") then
-		xMarker.Position = position + Vector3.new(0, 0.1, 0)
+		-- For a single part, position it so bottom sits on terrain
+		local bottomOffset = xMarker.Size.Y / 2
+		xMarker.Position = position - Vector3.new(0, bottomOffset, 0) + Vector3.new(0, 0.05, 0)
+	else
+		-- For models without PrimaryPart, try to find the lowest part
+		local lowestPart = nil
+		local lowestY = math.huge
+		for _, part in ipairs(xMarker:GetDescendants()) do
+			if part:IsA("BasePart") then
+				local partBottom = part.Position.Y - part.Size.Y / 2
+				if partBottom < lowestY then
+					lowestY = partBottom
+					lowestPart = part
+				end
+			end
+		end
+		if lowestPart then
+			local offset = position.Y - lowestY
+			xMarker:PivotTo(CFrame.new(position - Vector3.new(0, offset, 0) + Vector3.new(0, 0.05, 0)))
+		else
+			xMarker:PivotTo(CFrame.new(position + Vector3.new(0, 0.05, 0)))
+		end
 	end
 	
 	-- Set properties
@@ -90,6 +119,7 @@ end
 
 --[[
 	Finds a valid ground position using raycast (not on water)
+	Returns position ON TOP of terrain surface
 ]]
 local function findValidGroundPosition(x, z)
 	local rayOrigin = Vector3.new(x, SPAWN_HEIGHT, z)
@@ -115,7 +145,14 @@ local function findValidGroundPosition(x, z)
 			return nil
 		end
 		
-		return rayResult.Position
+		-- Get the surface normal to position marker correctly
+		local surfaceNormal = rayResult.Normal
+		local hitPosition = rayResult.Position
+		
+		-- Position marker ON TOP of terrain (not inside)
+		-- Add offset based on surface normal to ensure it sits on top
+		local offset = surfaceNormal * 0.1  -- Small offset to sit on surface
+		return hitPosition + offset
 	end
 	
 	return nil

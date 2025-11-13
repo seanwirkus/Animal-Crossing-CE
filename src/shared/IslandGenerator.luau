@@ -191,109 +191,117 @@ function IslandGenerator:generateTrees()
 		usedGridCells[key] = (usedGridCells[key] or 0) + 1
 	end
 	
-	-- Try placing trees with even distribution
-	local cellIndex = 1
-	while treesGenerated < maxTrees and attempts < maxAttempts and cellIndex <= #allCells do
+	-- Try placing trees with even distribution - use random sampling instead of sequential
+	-- Create shuffled indices to prevent line patterns
+	local shuffledIndices = {}
+	for i = 1, #allCells do
+		table.insert(shuffledIndices, i)
+	end
+	-- Shuffle indices for random access
+	for i = #shuffledIndices, 2, -1 do
+		local j = self.random:NextInteger(1, i)
+		shuffledIndices[i], shuffledIndices[j] = shuffledIndices[j], shuffledIndices[i]
+	end
+
+	for _, index in ipairs(shuffledIndices) do
+		if treesGenerated >= maxTrees then
+			break
+		end
+
 		attempts = attempts + 1
-		
-		-- Get next cell from shuffled list
-		local cell = allCells[cellIndex]
-		cellIndex = cellIndex + 1
-		
+		if attempts >= maxAttempts then
+			break
+		end
+
+		local cell = allCells[index]
 		if cell then
 			-- Check if grid cell is already used
-			if isGridCellUsed(cell.position) then
-				-- Skip this grid cell - already has trees
-				continue
-			end
-			
-			-- Verify material is suitable for trees (not water)
-			local validMaterials = {
-				[Enum.Material.Grass] = true,
-				[Enum.Material.Ground] = true,
-				[Enum.Material.Sand] = true,
-				[Enum.Material.Snow] = true,
-				[Enum.Material.Mud] = true,
-			}
-			
-			if not validMaterials[cell.material] then
-				-- Skip invalid materials
-				continue
-			end
-			
-			-- Get position
-			local position = cell.position
-			
-			-- Verify position is not on water using raycast
-			local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
-			local rayDirection = Vector3.new(0, -100, 0)
-			
-			local raycastParams = RaycastParams.new()
-			raycastParams.FilterType = Enum.RaycastFilterType.Include
-			raycastParams.FilterDescendantsInstances = {workspace.Terrain}
-			raycastParams.IgnoreWater = false -- We want to detect water
-			
-			local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-			if rayResult then
-				-- Check if we hit water
-				if rayResult.Material == Enum.Material.Water then
-					-- This is water - skip
-					continue
-				end
-				
-				-- Update position to terrain surface
-				position = rayResult.Position
-			end
-			
-			-- Check spacing from existing trees (INCREASED spacing)
-			local tooClose = false
-			local minSpacing = GenerationRules.Trees.MIN_SPACING
-			
-			for _, existingTree in ipairs(self.analyzer.existingObjects.trees) do
-				local distance = (position - existingTree.position).Magnitude
-				if distance < minSpacing then
-					tooClose = true
-					break
-				end
-			end
-			
-			-- Check spacing from proposed trees in this pass
-			if not tooClose then
-				for _, proposedTree in ipairs(self.currentPass.trees) do
-					local distance = (position - proposedTree.position).Magnitude
-					if distance < minSpacing then
-						tooClose = true
-						break
+			if not isGridCellUsed(cell.position) then
+				-- Verify material is suitable for trees (not water)
+				local validMaterials = {
+					[Enum.Material.Grass] = true,
+					[Enum.Material.Ground] = true,
+					[Enum.Material.Sand] = true,
+					[Enum.Material.Snow] = true,
+					[Enum.Material.Mud] = true,
+				}
+
+				if validMaterials[cell.material] then
+					-- Get position
+					local position = cell.position
+
+					-- Verify position is not on water using raycast
+					local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+					local rayDirection = Vector3.new(0, -100, 0)
+
+					local raycastParams = RaycastParams.new()
+					raycastParams.FilterType = Enum.RaycastFilterType.Include
+					raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+					raycastParams.IgnoreWater = false -- We want to detect water
+
+					local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+					if rayResult then
+						-- Check if we hit water
+						if rayResult.Material ~= Enum.Material.Water then
+							-- Verify the actual terrain material is valid for trees
+							if validMaterials[rayResult.Material] then
+								-- Update position to terrain surface
+								position = rayResult.Position
+
+								-- Check spacing from existing trees
+								local tooClose = false
+								local minSpacing = GenerationRules.Trees.MIN_SPACING
+
+								for _, existingTree in ipairs(self.analyzer.existingObjects.trees) do
+									local distance = (position - existingTree.position).Magnitude
+									if distance < minSpacing then
+										tooClose = true
+										break
+									end
+								end
+
+								-- Check spacing from proposed trees in this pass
+								if not tooClose then
+									for _, proposedTree in ipairs(self.currentPass.trees) do
+										local distance = (position - proposedTree.position).Magnitude
+										if distance < minSpacing then
+											tooClose = true
+											break
+										end
+									end
+								end
+
+								if not tooClose and cell.slope <= GenerationRules.Trees.MAX_SLOPE then
+									-- Pick tree type
+									local treeType = GenerationRules.weightedRandom(GenerationRules.Trees.TYPES)
+
+									-- Special case: Palm trees only on beaches
+									if treeType.name == "Palm Tree" and not self:isBeach(position) then
+										treeType = GenerationRules.Trees.TYPES[1] -- Fallback to hardwood
+									end
+
+									-- Create proposal
+									local proposal = {
+										type = "tree",
+										subtype = treeType.name,
+										position = position,
+										rotation = self.random:NextNumber(0, 360),
+										metadata = {
+											cellX = cell.gridX,
+											cellZ = cell.gridZ,
+											slope = cell.slope,
+											material = cell.material
+										}
+									}
+
+									table.insert(self.currentPass.trees, proposal)
+									markGridCellUsed(position)
+									treesGenerated = treesGenerated + 1
+								end
+							end
+						end
 					end
 				end
-			end
-			
-			if not tooClose and cell.slope <= GenerationRules.Trees.MAX_SLOPE then
-				-- Pick tree type
-				local treeType = GenerationRules.weightedRandom(GenerationRules.Trees.TYPES)
-				
-				-- Special case: Palm trees only on beaches
-				if treeType.name == "Palm Tree" and not self:isBeach(position) then
-					treeType = GenerationRules.Trees.TYPES[1] -- Fallback to hardwood
-				end
-				
-				-- Create proposal
-				local proposal = {
-					type = "tree",
-					subtype = treeType.name,
-					position = position,
-					rotation = self.random:NextNumber(0, 360),
-					metadata = {
-						cellX = cell.gridX,
-						cellZ = cell.gridZ,
-						slope = cell.slope,
-						material = cell.material
-					}
-				}
-				
-				table.insert(self.currentPass.trees, proposal)
-				markGridCellUsed(position)
-				treesGenerated = treesGenerated + 1
 			end
 		end
 	end
@@ -305,48 +313,58 @@ function IslandGenerator:generateTrees()
 		print("[IslandGenerator] ⚠️ Tree generation produced zero results; running fallback placement...")
 		local fallbackTarget = math.min(30, GenerationRules.Constraints.MAX_TREES_PER_PASS)
 		local placed = 0
+
+		-- Collect all valid cells for fallback
+		local fallbackCells = {}
 		for _, column in pairs(self.analyzer.grid) do
 			for _, cell in pairs(column) do
-				if placed >= fallbackTarget then break end
 				if cell.isFlat and not cell.isWater then
-					local position = cell.position
-					-- Raycast to terrain and ensure not water
-					local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
-					local rayDirection = Vector3.new(0, -100, 0)
-					local rp = RaycastParams.new()
-					rp.FilterType = Enum.RaycastFilterType.Include
-					rp.FilterDescendantsInstances = {workspace.Terrain}
-					rp.IgnoreWater = false
-					local rr = workspace:Raycast(rayOrigin, rayDirection, rp)
-					if rr and rr.Material ~= Enum.Material.Water then
-						position = rr.Position
-						-- Simple spacing check against proposals in this pass only
-						local tooClose = false
-						for _, proposed in ipairs(self.currentPass.trees) do
-							if (position - proposed.position).Magnitude < 8 then
-								tooClose = true
-								break
-							end
-						end
-						if not tooClose then
-							local treeType = GenerationRules.weightedRandom(GenerationRules.Trees.TYPES)
-							-- Avoid palms unless on beach
-							if treeType.name == "Palm Tree" and not self:isBeach(position) then
-								treeType = GenerationRules.Trees.TYPES[1]
-							end
-							table.insert(self.currentPass.trees, {
-								type = "tree",
-								subtype = treeType.name,
-								position = position,
-								rotation = self.random:NextNumber(0, 360),
-								metadata = { fallback = true }
-							})
-							placed += 1
-						end
-					end
+					table.insert(fallbackCells, cell)
 				end
 			end
+		end
+
+		-- Shuffle fallback cells to prevent straight lines
+		fallbackCells = shuffleArray(fallbackCells)
+
+		-- Place trees using shuffled cells
+		for _, cell in ipairs(fallbackCells) do
 			if placed >= fallbackTarget then break end
+			local position = cell.position
+			-- Raycast to terrain and ensure not water
+			local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+			local rayDirection = Vector3.new(0, -100, 0)
+			local rp = RaycastParams.new()
+			rp.FilterType = Enum.RaycastFilterType.Include
+			rp.FilterDescendantsInstances = {workspace.Terrain}
+			rp.IgnoreWater = false
+			local rr = workspace:Raycast(rayOrigin, rayDirection, rp)
+			if rr and rr.Material ~= Enum.Material.Water then
+				position = rr.Position
+				-- Simple spacing check against proposals in this pass only
+				local tooClose = false
+				for _, proposed in ipairs(self.currentPass.trees) do
+					if (position - proposed.position).Magnitude < 8 then
+						tooClose = true
+						break
+					end
+				end
+				if not tooClose then
+					local treeType = GenerationRules.weightedRandom(GenerationRules.Trees.TYPES)
+					-- Avoid palms unless on beach
+					if treeType.name == "Palm Tree" and not self:isBeach(position) then
+						treeType = GenerationRules.Trees.TYPES[1]
+					end
+					table.insert(self.currentPass.trees, {
+						type = "tree",
+						subtype = treeType.name,
+						position = position,
+						rotation = self.random:NextNumber(0, 360),
+						metadata = { fallback = true }
+					})
+					placed += 1
+				end
+			end
 		end
 		print(string.format("[IslandGenerator] ✅ Fallback placed %d baseline trees", placed))
 	end

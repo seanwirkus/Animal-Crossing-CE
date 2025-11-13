@@ -8,6 +8,7 @@
 local InsertService = game:GetService("InsertService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local IsabelleVillagerManager = {}
 IsabelleVillagerManager.__index = IsabelleVillagerManager
@@ -76,7 +77,58 @@ local function createFallbackModel()
 end
 
 local function loadIsabelleTemplate()
-	-- First, try to find the model in workspace (user may have placed it there)
+	-- First, try to find the model in ReplicatedStorage (preferred location)
+	local isabelleNames = {"Isabelle", "isabelle", "sza", "SZA"}
+	for _, name in ipairs(isabelleNames) do
+		local repStorageModel = ReplicatedStorage:FindFirstChild(name)
+		if repStorageModel and repStorageModel:IsA("Model") then
+			print(string.format("[IsabelleVillagerManager] ✅ Found Isabelle model '%s' in ReplicatedStorage", name))
+			local model = repStorageModel:Clone()
+			model.Name = "Isabelle"
+			
+			-- Ensure Humanoid exists and is configured
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			if not humanoid then
+				warn(string.format("[IsabelleVillagerManager] ⚠️ ReplicatedStorage model '%s' has no Humanoid; creating one.", name))
+				humanoid = Instance.new("Humanoid")
+				humanoid.Parent = model
+			end
+			
+			humanoid.WalkSpeed = WALK_SPEED
+			humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			
+			-- Ensure AnimationController exists for animations
+			if not model:FindFirstChildOfClass("AnimationController") then
+				local animController = Instance.new("AnimationController")
+				animController.Parent = model
+				print("[IsabelleVillagerManager] ✅ Added AnimationController to Isabelle model")
+			end
+			
+			-- Set PrimaryPart if needed
+			local rootPart = model:FindFirstChild("HumanoidRootPart")
+			if not rootPart then
+				rootPart = model.PrimaryPart
+			end
+			if not rootPart then
+				rootPart = model:FindFirstChildWhichIsA("BasePart")
+			end
+			if rootPart and not model.PrimaryPart then
+				model.PrimaryPart = rootPart
+			end
+			
+			-- Make sure all parts are unanchored for movement
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = false
+				end
+			end
+			
+			print("[IsabelleVillagerManager] ✅ Configured Isabelle model from ReplicatedStorage")
+			return model
+		end
+	end
+	
+	-- Fallback: try to find the model in workspace (user may have placed it there)
 	local workspaceModel = Workspace:FindFirstChild("sza")
 	if workspaceModel and workspaceModel:IsA("Model") then
 		print("[IsabelleVillagerManager] ✅ Found Isabelle model 'sza' in workspace")
@@ -130,7 +182,7 @@ local function loadIsabelleTemplate()
 	end)
 
 	if not ok or not asset then
-		warn(string.format("[IsabelleVillagerManager] ⚠️ Failed to load asset %d and no 'sza' model in workspace: %s", ASSET_ID, tostring(asset)))
+		warn(string.format("[IsabelleVillagerManager] ⚠️ Failed to load asset %d and no Isabelle model found in ReplicatedStorage or workspace: %s", ASSET_ID, tostring(asset)))
 		return createFallbackModel()
 	end
 

@@ -155,12 +155,8 @@ print("[Client] ✅ StartupKeybindHint module loaded")
 local NookPlaneModule = require(script.Modules.NookPlane)
 print("[Client] ✅ NookPlane module loaded")
 
-local WhiteboardControllerModule = require(script.Modules.WhiteboardController)
-
 local DIYWorkBenchControllerModule = require(script.Modules.DIYWorkBenchController)
 print("[Client] ✅ DIYWorkBenchController module loaded")
-WhiteboardControllerModule.init()
-print("[Client] ✅ WhiteboardController initialized")
 
 -- Initialize HUD system
 local _HUD = nil
@@ -707,12 +703,13 @@ keybindManager:registerBind("SETTINGS", function(inputState)
 end)
 
 -- Register missing keybind handlers (MAP, EMOTE, DROP_ITEM)
+local MinimapModule = require(script.Modules.Minimap)
 keybindManager:registerBind("MAP", function(inputState)
 	if inputState == "began" then
-		print("[Keybind] M key pressed - Map feature coming soon!")
-		-- TODO: Implement map GUI
+		MinimapModule:toggle()
 	end
 end)
+print("[Client] ✅ Minimap keybind registered (M key)")
 
 keybindManager:registerBind("EMOTE", function(inputState)
 	if inputState == "began" then

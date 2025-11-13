@@ -40,11 +40,40 @@ local function spawnHole(position)
 	hole = hole:Clone()
 	holeModel:Destroy()
 	
-	-- Position the hole
+	-- Position the hole ON TOP of terrain
+	-- Get the bounding box to calculate proper positioning
 	if hole:IsA("Model") and hole.PrimaryPart then
-		hole:MoveTo(position)
+		-- Calculate the bottom of the model
+		local primaryPart = hole.PrimaryPart
+		local cf, size = primaryPart.CFrame, primaryPart.Size
+		local bottomOffset = size.Y / 2
+		
+		-- Position so the bottom of the model sits on the terrain
+		local adjustedPosition = position - Vector3.new(0, bottomOffset, 0)
+		hole:MoveTo(adjustedPosition)
 	elseif hole:IsA("BasePart") then
-		hole.Position = position
+		-- For a single part, position it so bottom sits on terrain
+		local bottomOffset = hole.Size.Y / 2
+		hole.Position = position - Vector3.new(0, bottomOffset, 0)
+	else
+		-- For models without PrimaryPart, try to find the lowest part
+		local lowestPart = nil
+		local lowestY = math.huge
+		for _, part in ipairs(hole:GetDescendants()) do
+			if part:IsA("BasePart") then
+				local partBottom = part.Position.Y - part.Size.Y / 2
+				if partBottom < lowestY then
+					lowestY = partBottom
+					lowestPart = part
+				end
+			end
+		end
+		if lowestPart then
+			local offset = position.Y - lowestY
+			hole:PivotTo(CFrame.new(position - Vector3.new(0, offset, 0)))
+		else
+			hole:PivotTo(CFrame.new(position))
+		end
 	end
 	
 	-- Set properties
@@ -65,6 +94,7 @@ end
 
 --[[
 	Finds a valid ground position using raycast
+	Returns position ON TOP of terrain surface
 ]]
 local function findGroundPosition(x, z)
 	local rayOrigin = Vector3.new(x, SPAWN_HEIGHT, z)
@@ -77,7 +107,14 @@ local function findGroundPosition(x, z)
 	local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 	
 	if rayResult then
-		return rayResult.Position + Vector3.new(0, 0.5, 0)  -- Slightly above ground
+		-- Get the surface normal to position hole correctly
+		local surfaceNormal = rayResult.Normal
+		local hitPosition = rayResult.Position
+		
+		-- Position hole ON TOP of terrain (not inside)
+		-- Add offset based on surface normal to ensure it sits on top
+		local offset = surfaceNormal * 0.2  -- Small offset to sit on surface
+		return hitPosition + offset
 	end
 	
 	return nil
@@ -125,13 +162,14 @@ end
 
 --[[
 	Initializes the hole spawner
+	NOTE: Holes are NOT spawned automatically - they only appear when players dig with a shovel
 ]]
 function HoleSpawner.init()
 	print("[HoleSpawner] 🕳️ Initializing hole spawner...")
+	print("[HoleSpawner] ℹ️ Holes will only appear when players dig with a shovel")
 	
-	-- Spawn holes after a short delay (let terrain load)
-	task.wait(2)
-	HoleSpawner.spawnHoles()
+	-- Do NOT spawn holes automatically - they should only appear when dug
+	-- Holes are created by ShovelSystem when players dig
 	
 	print("[HoleSpawner] ✅ Hole spawner initialized")
 end

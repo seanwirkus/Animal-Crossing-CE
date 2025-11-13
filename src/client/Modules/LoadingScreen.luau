@@ -27,6 +27,9 @@ local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Import the new AC theme system
+local ThemeProvider = require(script.Parent.ThemeProvider)
+
 export type ShowOptions = {
         freezePlayer: boolean?,
         disableCoreGui: boolean?,
@@ -88,7 +91,18 @@ local ASSETS_TO_PRELOAD = {
         "rbxassetid://98139431900134",
 }
 
-local START_BUTTON_SIZE = UDim2.new(0, 260, 0, 54)
+local START_BUTTON_SIZE = UDim2.new(0, 200, 0, 50) -- Larger, more prominent start button
+
+-- Responsive sizing helpers
+local function getViewportSize(): Vector2
+        return Workspace.CurrentCamera.ViewportSize
+end
+
+local function getResponsiveScale(baseScale: number, minSize: number, maxSize: number): number
+        local viewportWidth = getViewportSize().X
+        local scaledSize = viewportWidth * baseScale
+        return math.clamp(scaledSize, minSize, maxSize) / viewportWidth
+end
 
 -- Simple post-effects managed per-client on CurrentCamera
 local _effects = {
@@ -444,9 +458,9 @@ local function setupPlaneViewport(viewportFrame: ViewportFrame, planeModel: Mode
         camera.Parent = viewportFrame
         viewportFrame.CurrentCamera = camera
         
-        -- Scale the plane to 2x size
-        local scaleFactor = 2
-        print("[LoadingScreen] Scaling plane to", scaleFactor, "x size")
+        -- Scale the plane to 8x size (REALLY BIG and eye-catching)
+        local scaleFactor = 8
+        print("[LoadingScreen] Scaling plane to", scaleFactor, "x size for maximum visibility")
         
         -- Make sure all parts are visible and properly set up first
         local partCount = 0
@@ -518,41 +532,22 @@ local function setupPlaneViewport(viewportFrame: ViewportFrame, planeModel: Mode
         planeModel.Parent = viewportFrame
         print("[LoadingScreen] Plane parented to viewport")
         
-        -- Add ambient lighting for the viewport (create a light source)
-        -- Use the same scaleFactor defined above
-        local light = Instance.new("PointLight")
-        light.Brightness = 3
-        light.Color = Color3.fromRGB(255, 255, 255)
-        light.Range = 200 * scaleFactor
-        light.Shadows = false
-        
-        -- Attach light to the plane (or create a separate part for it)
+        -- Simplified lighting - single ambient light for better performance
+        local ambientLight = Instance.new("PointLight")
+        ambientLight.Brightness = 2
+        ambientLight.Color = Color3.fromRGB(255, 255, 255)
+        ambientLight.Range = 400 * scaleFactor
+        ambientLight.Shadows = false
+
         local lightPart = Instance.new("Part")
-        lightPart.Name = "ViewportLight"
+        lightPart.Name = "AmbientLight"
         lightPart.Size = Vector3.new(1, 1, 1) * scaleFactor
         lightPart.Transparency = 1
         lightPart.CanCollide = false
         lightPart.Anchored = true
-        lightPart.Position = Vector3.new(0, 15, 0) * scaleFactor  -- Above the plane
+        lightPart.Position = Vector3.new(0, 15, 0) * scaleFactor
         lightPart.Parent = planeModel
-        light.Parent = lightPart
-        
-        -- Add another light from the front to help visibility
-        local frontLight = Instance.new("PointLight")
-        frontLight.Brightness = 2
-        frontLight.Color = Color3.fromRGB(255, 255, 255)
-        frontLight.Range = 150 * scaleFactor
-        frontLight.Shadows = false
-        
-        local frontLightPart = Instance.new("Part")
-        frontLightPart.Name = "FrontLight"
-        frontLightPart.Size = Vector3.new(1, 1, 1) * scaleFactor
-        frontLightPart.Transparency = 1
-        frontLightPart.CanCollide = false
-        frontLightPart.Anchored = true
-        frontLightPart.Position = Vector3.new(-10, 5, 0) * scaleFactor  -- In front of the plane
-        frontLightPart.Parent = planeModel
-        frontLight.Parent = frontLightPart
+        ambientLight.Parent = lightPart
         
         -- Position plane at origin, rotated to show side view
         -- Try to position it nicely for side view
@@ -591,33 +586,33 @@ local function setupPlaneViewport(viewportFrame: ViewportFrame, planeModel: Mode
                         local maxSize = math.max(size.X, size.Y, size.Z)
                         
                         -- Side view camera: position camera to the side (right), slightly above
-                        -- Account for 2x scale
-                        local cameraDistance = maxSize * 2.2
-                        local cameraHeight = size.Y * 0.2
+                        -- Account for 8x scale - need optimal distance to see the HUGE plane
+                        local cameraDistance = maxSize * 1.5  -- Perfect distance for 8x plane
+                        local cameraHeight = size.Y * 0.25  -- Slightly above center for dynamic view
                         
                         -- Position camera to the right side, looking at the plane from side view
                         local cameraPosition = Vector3.new(cameraDistance, cameraHeight, 0)
                         local lookAtPosition = Vector3.new(0, cameraHeight, 0)  -- Look at plane center
                         
                         camera.CFrame = CFrame.new(cameraPosition, lookAtPosition)
-                        camera.FieldOfView = 55  -- Slightly wider FOV to see the bigger plane
-                        print("[LoadingScreen] Camera positioned at:", cameraPosition, "for scaled plane")
+                        camera.FieldOfView = 70  -- Wide FOV to see the huge plane in all its glory
+                        print("[LoadingScreen] Camera positioned at:", cameraPosition, "for 8x scaled plane")
                 else
-                        -- Fallback camera position (scaled for 2x plane)
-                        local cameraPosition = Vector3.new(45, 10, 0)
+                        -- Fallback camera position (scaled for 8x plane)
+                        local cameraPosition = Vector3.new(120, 30, 0)  -- Further back and higher for 8x plane
                         local lookAtPosition = Vector3.new(0, 0, 0)
                         camera.CFrame = CFrame.new(cameraPosition, lookAtPosition)
-                        camera.FieldOfView = 55
-                        print("[LoadingScreen] Used fallback camera position for scaled plane")
+                        camera.FieldOfView = 70  -- Wide FOV
+                        print("[LoadingScreen] Used fallback camera position for 8x scaled plane")
                 end
         end)
         
         -- Set initial camera position (will be refined by deferred calculation)
-        -- Account for 2x scaled plane
-        local cameraPosition = Vector3.new(45, 10, 0)
+        -- Account for 8x scaled plane - need optimal distance
+        local cameraPosition = Vector3.new(120, 30, 0)  -- Further back and higher for 8x plane
         local lookAtPosition = Vector3.new(0, 0, 0)
         camera.CFrame = CFrame.new(cameraPosition, lookAtPosition)
-        camera.FieldOfView = 55
+        camera.FieldOfView = 70  -- Wide FOV to see the huge plane
         
         print("[LoadingScreen] Viewport setup complete")
 end
@@ -639,49 +634,27 @@ local function startPlaneAnimation()
         
         _planeAnimationTime = 0
         _planeAnimationConnection = RunService.RenderStepped:Connect(function(dt)
-                _planeAnimationTime += dt
-                
-                if refs.planeModel and refs.planeModel.Parent then
-                        -- Flying animation: continuous forward movement with realistic flight dynamics
-                        -- Plane is rotated -90 degrees for side view, so Z is forward direction
-                        
-                        -- Continuous forward movement (flying forward continuously)
-                        local forwardSpeed = 0.8  -- Speed of forward movement (faster for 4x plane)
-                        local loopDistance = 30  -- Distance before looping back
-                        local forwardDistance = (_planeAnimationTime * forwardSpeed) % loopDistance
-                        
-                        -- Vertical movement (gentle bobbing like flying through air)
-                        local verticalBob = math.sin(_planeAnimationTime * 1.5) * 3  -- More pronounced vertical bobbing
-                        
-                        -- Banking (roll) - smooth banking left and right like a plane flying
-                        local bankAngle = math.sin(_planeAnimationTime * 0.6) * 10  -- More noticeable banking
-                        
-                        -- Pitch - slight nose up/down movement
-                        local pitchAngle = math.sin(_planeAnimationTime * 0.4) * 5  -- Slight pitch variation
-                        
-                        -- Horizontal drift (side to side)
-                        local horizontalDrift = math.sin(_planeAnimationTime * 0.5) * 2  -- Side to side drift
-                        
-                                -- Base rotation for side view (+90 degrees around Y to face right)
-                                local baseRotation = CFrame.Angles(0, math.rad(90), 0)
-                        
-                        -- Combine all rotations: pitch (nose up/down), banking (roll), and maintain forward direction
-                        local animatedRotation = baseRotation 
-                                * CFrame.Angles(math.rad(pitchAngle), 0, math.rad(bankAngle))
-                        
-                        -- Position: continuous forward movement + vertical bobbing + horizontal drift
-                        -- Scale positions by 2 to match the scaled model
-                        -- Use negative Z for forward movement (plane flies forward in -Z direction when rotated -90)
-                        local scaleMultiplier = 2
-                        local animatedPosition = Vector3.new(
-                                horizontalDrift * scaleMultiplier, 
-                                verticalBob * scaleMultiplier, 
-                                -forwardDistance * scaleMultiplier  -- Negative Z = forward (since rotated -90 around Y)
-                        )
-                        
-                        refs.planeModel:PivotTo(animatedRotation * CFrame.new(animatedPosition))
-                end
-        end)
+                 _planeAnimationTime += dt
+
+                 if refs.planeModel and refs.planeModel.Parent then
+                         -- Simplified flying animation for better performance
+                         local forwardSpeed = 1.2
+                         local loopDistance = 60
+                         local forwardDistance = (_planeAnimationTime * forwardSpeed) % loopDistance
+
+                         -- Simple vertical bobbing
+                         local verticalBob = math.sin(_planeAnimationTime * 0.8) * 4
+
+                         -- Gentle banking
+                         local bankAngle = math.sin(_planeAnimationTime * 0.3) * 8
+
+                         local baseRotation = CFrame.Angles(0, math.rad(90), math.rad(bankAngle))
+                         local scaleMultiplier = 8
+                         local animatedPosition = Vector3.new(0, verticalBob * scaleMultiplier, -forwardDistance * scaleMultiplier)
+
+                         refs.planeModel:PivotTo(baseRotation * CFrame.new(animatedPosition))
+                 end
+         end)
 end
 
 local function disableCoreGui()
@@ -780,49 +753,48 @@ local function ensureGui(): GuiRefs
         local background = Instance.new("Frame")
         background.Name = "Background"
         background.Size = UDim2.fromScale(1, 1)
-        background.BackgroundColor3 = Color3.fromRGB(120, 190, 235)
+        background.BackgroundColor3 = ThemeProvider.getColor("skyBlue")
         background.BorderSizePixel = 0
         background.Parent = screenGui
 
         local gradient = Instance.new("UIGradient")
         gradient.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(135, 206, 250)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 160, 210)),
+                ColorSequenceKeypoint.new(0, ThemeProvider.getColor("skyBlue")),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 180, 240)), -- Keep some variation
+                ColorSequenceKeypoint.new(1, ThemeProvider.getColor("leafGreen")),
         })
-        gradient.Rotation = 90
+        gradient.Rotation = 135
         gradient.Parent = background
 
         local container = Instance.new("Frame")
         container.Name = "Container"
         container.AnchorPoint = Vector2.new(0.5, 0.5)
         container.Position = UDim2.fromScale(0.5, 0.5)
-        container.Size = UDim2.fromScale(0.6, 0)
+        container.Size = UDim2.fromScale(0.85, 0) -- Balanced container size
         container.AutomaticSize = Enum.AutomaticSize.Y
-        container.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        container.BackgroundColor3 = ThemeProvider.getColor("offWhite")
         container.BackgroundTransparency = 0.05
         container.BorderSizePixel = 0
         container.Parent = background
 
         local sizeConstraint = Instance.new("UISizeConstraint")
-        sizeConstraint.MinSize = Vector2.new(360, 0)
-        sizeConstraint.MaxSize = Vector2.new(720, 540)
+        sizeConstraint.MinSize = Vector2.new(500, 400) -- Reasonable minimum
+        sizeConstraint.MaxSize = Vector2.new(1200, 800) -- Reasonable maximum
         sizeConstraint.Parent = container
 
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 18)
-        corner.Parent = container
+        -- Apply AC-style large corner radius
+        ThemeProvider.applyCornerRadius(container, "large")
 
-        local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(210, 230, 255)
-        stroke.Thickness = 2
-        stroke.Transparency = 0.15
-        stroke.Parent = container
+        -- Apply bell-gold border with proper thickness
+        ThemeProvider.applyStroke(container, ThemeProvider.getColor("bellGold"), 3)
+
+        -- Decorative corner elements removed - they were causing glitches
 
         local padding = Instance.new("UIPadding")
-        padding.PaddingTop = UDim.new(0, 28)
-        padding.PaddingBottom = UDim.new(0, 32)
-        padding.PaddingLeft = UDim.new(0, 32)
-        padding.PaddingRight = UDim.new(0, 32)
+        padding.PaddingTop = UDim.new(0.03, 0)
+        padding.PaddingBottom = UDim.new(0.035, 0)
+        padding.PaddingLeft = UDim.new(0.035, 0)
+        padding.PaddingRight = UDim.new(0.035, 0)
         padding.Parent = container
 
         local layout = Instance.new("UIListLayout")
@@ -830,77 +802,100 @@ local function ensureGui(): GuiRefs
         layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         layout.VerticalAlignment = Enum.VerticalAlignment.Top
         layout.SortOrder = Enum.SortOrder.LayoutOrder
-        layout.Padding = UDim.new(0, 14)
+        layout.Padding = UDim.new(0, 12)
         layout.Parent = container
 
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Name = "Title"
-        titleLabel.AutomaticSize = Enum.AutomaticSize.XY
+        titleLabel.Size = UDim2.new(1, 0, 0, 50)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Font = Enum.Font.GothamBold
         titleLabel.Text = "Animal Crossing CE"
-        titleLabel.TextColor3 = Color3.fromRGB(65, 120, 160)
-        titleLabel.TextSize = 40
+        titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleLabel.TextScaled = true
+        titleLabel.TextStrokeTransparency = 0.4
+        titleLabel.TextStrokeColor3 = Color3.fromRGB(65, 120, 160)
         titleLabel.LayoutOrder = 1
         titleLabel.Parent = container
 
-        -- Two-column content row: left = text/controls, right = plane viewport
-        local contentRow = Instance.new("Frame")
-        contentRow.Name = "ContentRow"
-        contentRow.AutomaticSize = Enum.AutomaticSize.Y
-        contentRow.Size = UDim2.new(1, 0, 0, 0)
-        contentRow.BackgroundTransparency = 1
-        contentRow.LayoutOrder = 2
-        contentRow.Parent = container
+        local titleTextConstraint = Instance.new("UITextSizeConstraint")
+        titleTextConstraint.MaxTextSize = 36
+        titleTextConstraint.MinTextSize = 18
+        titleTextConstraint.Parent = titleLabel
 
-        local contentLayout = Instance.new("UIListLayout")
-        contentLayout.FillDirection = Enum.FillDirection.Horizontal
-        contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        contentLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-        contentLayout.Padding = UDim.new(0, 12)
-        contentLayout.Parent = contentRow
-
-        local leftCol = Instance.new("Frame")
-        leftCol.Name = "LeftCol"
-        leftCol.AutomaticSize = Enum.AutomaticSize.Y
-        leftCol.Size = UDim2.new(1, -280, 0, 0)
-        leftCol.BackgroundTransparency = 1
-        leftCol.Parent = contentRow
-
-        local leftLayout = Instance.new("UIListLayout")
-        leftLayout.FillDirection = Enum.FillDirection.Vertical
-        leftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        leftLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-        leftLayout.Padding = UDim.new(0, 10)
-        leftLayout.Parent = leftCol
-
-        local rightCol = Instance.new("Frame")
-        rightCol.Name = "RightCol"
-        rightCol.Size = UDim2.new(0, 260, 0, 220)
-        rightCol.BackgroundTransparency = 1
-        rightCol.Parent = contentRow
+        -- CENTERED PLANE VIEWPORT - Large and eye-catching but balanced
+        local viewportContainer = Instance.new("Frame")
+        viewportContainer.Name = "PlaneViewportContainer"
+        viewportContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+        viewportContainer.Position = UDim2.fromScale(0.5, 0.5)
+        viewportContainer.Size = UDim2.new(0.75, 0, 0.45, 0) -- Balanced viewport (75% width, 45% height) - big but leaves room for UI
+        viewportContainer.BackgroundTransparency = 1
+        viewportContainer.LayoutOrder = 2
+        viewportContainer.Parent = container
 
         local viewportFrame = Instance.new("ViewportFrame")
         viewportFrame.Name = "PlaneViewport"
         viewportFrame.AnchorPoint = Vector2.new(0.5, 0.5)
         viewportFrame.Position = UDim2.fromScale(0.5, 0.5)
-        viewportFrame.Size = UDim2.new(1, -8, 1, -8)
+        viewportFrame.Size = UDim2.new(1, 0, 1, 0) -- Fill container
         viewportFrame.BackgroundColor3 = Color3.fromRGB(135, 206, 250)
-        viewportFrame.BackgroundTransparency = 1
+        viewportFrame.BackgroundTransparency = 0.1 -- Slight sky blue tint
         viewportFrame.BorderSizePixel = 0
-        viewportFrame.Parent = rightCol
+        viewportFrame.Parent = viewportContainer
+
+        -- Add rounded corners to viewport
+        local viewportCorner = Instance.new("UICorner")
+        viewportCorner.CornerRadius = UDim.new(0, 16)
+        viewportCorner.Parent = viewportFrame
+
+        -- Add subtle border/glow
+        local viewportStroke = Instance.new("UIStroke")
+        viewportStroke.Color = Color3.fromRGB(200, 230, 255)
+        viewportStroke.Thickness = 3
+        viewportStroke.Transparency = 0.3
+        viewportStroke.Parent = viewportFrame
+
+        -- Text content below viewport
+        local textContainer = Instance.new("Frame")
+        textContainer.Name = "TextContainer"
+        textContainer.AutomaticSize = Enum.AutomaticSize.Y
+        textContainer.Size = UDim2.new(1, 0, 0, 0)
+        textContainer.BackgroundTransparency = 1
+        textContainer.LayoutOrder = 3
+        textContainer.Parent = container
+
+        -- Vertical flex layout - stretches horizontally, centers items
+        local textLayout = Instance.new("UIListLayout")
+        textLayout.FillDirection = Enum.FillDirection.Vertical
+        textLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        textLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+        textLayout.Padding = UDim.new(0, 16)
+        textLayout.Parent = textContainer
+        
+        -- Make textContainer stretch horizontally
+        textContainer.Size = UDim2.new(1, 0, 0, 0) -- Full width, auto height
+
+        local leftCol = textContainer -- Reuse variable name for compatibility
 
         local statusLabel = Instance.new("TextLabel")
         statusLabel.Name = "Status"
-        statusLabel.AutomaticSize = Enum.AutomaticSize.XY
+        statusLabel.Size = UDim2.new(1, 0, 0, 0) -- Stretch horizontally
+        statusLabel.AutomaticSize = Enum.AutomaticSize.Y -- Auto height only
         statusLabel.BackgroundTransparency = 1
-        statusLabel.Font = Enum.Font.Gotham
+        statusLabel.Font = Enum.Font.GothamBold
         statusLabel.Text = _statusText
-        statusLabel.TextColor3 = Color3.fromRGB(70, 70, 70)
-        statusLabel.TextSize = 20
+        statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        statusLabel.TextScaled = true
         statusLabel.TextWrapped = true
+        statusLabel.TextStrokeTransparency = 0.5
+        statusLabel.TextStrokeColor3 = Color3.fromRGB(65, 120, 160)
         statusLabel.LayoutOrder = 1
-        statusLabel.Parent = leftCol
+        statusLabel.Parent = textContainer
+
+        local statusTextConstraint = Instance.new("UITextSizeConstraint")
+        statusTextConstraint.MaxTextSize = 18
+        statusTextConstraint.MinTextSize = 12
+        statusTextConstraint.Parent = statusLabel
 
         -- Try to load and set up the plane
         local planeModel: Model? = nil
@@ -942,29 +937,28 @@ local function ensureGui(): GuiRefs
 
         local progressContainer = Instance.new("Frame")
         progressContainer.Name = "ProgressContainer"
-        progressContainer.Size = UDim2.new(1, 0, 0, 48)
-        progressContainer.BackgroundColor3 = Color3.fromRGB(240, 248, 255)
+        progressContainer.Size = UDim2.new(1, 0, 0, 48) -- Stretch horizontally (full width)
+        progressContainer.BackgroundColor3 = ThemeProvider.getColor("eggshell")
         progressContainer.BackgroundTransparency = 0.1
         progressContainer.BorderSizePixel = 0
         progressContainer.LayoutOrder = 2
-        progressContainer.Parent = leftCol
+        progressContainer.Parent = textContainer
 
-        local progressCorner = Instance.new("UICorner")
-        progressCorner.CornerRadius = UDim.new(0, 12)
-        progressCorner.Parent = progressContainer
+        -- Apply AC-style medium corner radius
+        ThemeProvider.applyCornerRadius(progressContainer, "medium")
 
-        local progressStroke = Instance.new("UIStroke")
-        progressStroke.Color = Color3.fromRGB(200, 220, 240)
-        progressStroke.Transparency = 0.25
-        progressStroke.Thickness = 2
-        progressStroke.Parent = progressContainer
+        -- Apply subtle stroke
+        ThemeProvider.applyStroke(progressContainer, ThemeProvider.getColor("lightBrown"), 2)
 
         local progressFill = Instance.new("Frame")
         progressFill.Name = "Fill"
-        progressFill.BackgroundColor3 = Color3.fromRGB(110, 190, 230)
+        progressFill.BackgroundColor3 = ThemeProvider.getColor("skyBlue")
         progressFill.BorderSizePixel = 0
         progressFill.Size = UDim2.new(_progressValue, 0, 1, 0)
         progressFill.Parent = progressContainer
+
+        -- Apply corner radius to fill
+        ThemeProvider.applyCornerRadius(progressFill, "medium")
 
         local fillCorner = Instance.new("UICorner")
         fillCorner.CornerRadius = UDim.new(0, 12)
@@ -981,57 +975,65 @@ local function ensureGui(): GuiRefs
         progressText.Text = string.format("%d%%", math.floor(_progressValue * 100 + 0.5))
         progressText.Parent = progressContainer
 
-        -- Settings panel (shown before Start)
+        -- Settings panel (shown before Start) - COMPACT VERSION with Flex
         local settingsPanel = Instance.new("Frame")
         settingsPanel.Name = "SettingsPanel"
         settingsPanel.BackgroundTransparency = 1
-        settingsPanel.Size = UDim2.new(1, 0, 0, 90)
+        settingsPanel.Size = UDim2.new(1, 0, 0, 0) -- Stretch horizontally
+        settingsPanel.AutomaticSize = Enum.AutomaticSize.Y -- Auto height
         settingsPanel.Visible = false
         settingsPanel.LayoutOrder = 3
-        settingsPanel.Parent = leftCol
+        settingsPanel.Parent = textContainer
+
+        local settingsLayout = Instance.new("UIListLayout")
+        settingsLayout.FillDirection = Enum.FillDirection.Vertical
+        settingsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        settingsLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+        settingsLayout.Padding = UDim.new(0, 8)
+        settingsLayout.Parent = settingsPanel
 
         local settingsTitle = Instance.new("TextLabel")
         settingsTitle.BackgroundTransparency = 1
         settingsTitle.Font = Enum.Font.GothamBold
         settingsTitle.Text = "Graphics Preset"
         settingsTitle.TextColor3 = Color3.fromRGB(70, 70, 70)
-        settingsTitle.TextSize = 20
-        settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
-        settingsTitle.Size = UDim2.new(1, 0, 0, 24)
+        settingsTitle.TextSize = 18
+        settingsTitle.TextXAlignment = Enum.TextXAlignment.Center
+        settingsTitle.Size = UDim2.new(1, 0, 0, 20)
         settingsTitle.Parent = settingsPanel
 
         local presetsRow = Instance.new("Frame")
         presetsRow.BackgroundTransparency = 1
-        presetsRow.Size = UDim2.new(1, 0, 0, 40)
-        presetsRow.Position = UDim2.new(0, 0, 0, 28)
+        presetsRow.Size = UDim2.new(1, 0, 0, 32) -- Stretch horizontally
         presetsRow.Parent = settingsPanel
 
+        -- Horizontal flex with space between buttons
         local rowLayout = Instance.new("UIListLayout")
         rowLayout.FillDirection = Enum.FillDirection.Horizontal
-        rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-        rowLayout.Padding = UDim.new(0, 10)
+        rowLayout.Padding = UDim.new(0, 15) -- More space between
         rowLayout.Parent = presetsRow
 
         local function makePresetButton(label: string): TextButton
                 local btn = Instance.new("TextButton")
-                btn.Size = UDim2.new(0, 110, 1, 0)
+                btn.Size = UDim2.new(0, 80, 0, 32) -- Smaller buttons
                 btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
                 btn.BackgroundTransparency = 0.1
                 btn.BorderSizePixel = 0
                 btn.AutoButtonColor = true
                 btn.Font = Enum.Font.Gotham
                 btn.TextColor3 = Color3.fromRGB(65, 120, 160)
-                btn.TextSize = 18
+                btn.TextSize = 16
                 btn.Text = label
                 btn.Parent = presetsRow
                 local c = Instance.new("UICorner")
-                c.CornerRadius = UDim.new(0, 10)
+                c.CornerRadius = UDim.new(0, 8)
                 c.Parent = btn
                 local s = Instance.new("UIStroke")
                 s.Color = Color3.fromRGB(200, 220, 240)
                 s.Transparency = 0.2
-                s.Thickness = 2
+                s.Thickness = 1.5
                 s.Parent = btn
                 return btn
         end
@@ -1064,36 +1066,63 @@ local function ensureGui(): GuiRefs
                 styleSelection(_selectedPreset)
         end)
 
+        -- Button row with horizontal flex (space between)
+        local buttonRow = Instance.new("Frame")
+        buttonRow.Name = "ButtonRow"
+        buttonRow.BackgroundTransparency = 1
+        buttonRow.Size = UDim2.new(1, 0, 0, 32) -- Stretch horizontally
+        buttonRow.Parent = settingsPanel
+        
+        local buttonRowLayout = Instance.new("UIListLayout")
+        buttonRowLayout.FillDirection = Enum.FillDirection.Horizontal
+        buttonRowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        buttonRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+        buttonRowLayout.Padding = UDim.new(0, 20) -- Space between buttons
+        buttonRowLayout.Parent = buttonRow
+        
+        -- Skip button (go straight to start) - connection will be set up later
+        local skipButton = Instance.new("TextButton")
+        skipButton.Name = "SkipButton"
+        skipButton.Size = UDim2.new(0, 100, 0, 28)
+        skipButton.BackgroundTransparency = 1
+        skipButton.BorderSizePixel = 0
+        skipButton.Font = Enum.Font.Gotham
+        skipButton.TextColor3 = Color3.fromRGB(150, 150, 150)
+        skipButton.TextSize = 14
+        skipButton.Text = "Skip"
+        skipButton.TextTransparency = 0.3
+        skipButton.Parent = buttonRow
+
+        -- Apply button (go to keybinds)
         local applyButton = Instance.new("TextButton")
         applyButton.Name = "ApplyButton"
-        applyButton.Size = UDim2.new(0, 220, 0, 40)
-        applyButton.Position = UDim2.new(0, 0, 0, 72)
+        applyButton.Size = UDim2.new(0, 140, 0, 32)
         applyButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         applyButton.BackgroundTransparency = 0.1
         applyButton.BorderSizePixel = 0
         applyButton.AutoButtonColor = true
         applyButton.Font = Enum.Font.GothamBold
         applyButton.TextColor3 = Color3.fromRGB(65, 120, 160)
-        applyButton.TextSize = 20
-        applyButton.Text = "Apply & Continue"
-        applyButton.Parent = settingsPanel
+        applyButton.TextSize = 16
+        applyButton.Text = "Continue"
+        applyButton.Parent = buttonRow
         local applyCorner = Instance.new("UICorner")
-        applyCorner.CornerRadius = UDim.new(0, 12)
+        applyCorner.CornerRadius = UDim.new(0, 10)
         applyCorner.Parent = applyButton
         local applyStroke = Instance.new("UIStroke")
         applyStroke.Color = Color3.fromRGB(200, 220, 240)
         applyStroke.Transparency = 0.2
-        applyStroke.Thickness = 2
+        applyStroke.Thickness = 1.5
         applyStroke.Parent = applyButton
 
-        -- Keybinds panel
+        -- Keybinds panel - stretch horizontally
         local keybindsPanel = Instance.new("Frame")
         keybindsPanel.Name = "KeybindsPanel"
         keybindsPanel.BackgroundTransparency = 1
-        keybindsPanel.Size = UDim2.new(1, 0, 0, 130)
+        keybindsPanel.Size = UDim2.new(1, 0, 0, 130) -- Stretch horizontally
         keybindsPanel.Visible = false
         keybindsPanel.LayoutOrder = 4
-        keybindsPanel.Parent = leftCol
+        keybindsPanel.Parent = textContainer
 
         local kbTitle = Instance.new("TextLabel")
         kbTitle.BackgroundTransparency = 1
@@ -1144,16 +1173,17 @@ local function ensureGui(): GuiRefs
         startButton.Name = "StartButton"
         startButton.Size = START_BUTTON_SIZE
         startButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        startButton.BackgroundTransparency = 0.1
+        startButton.BackgroundTransparency = 0.05
         startButton.BorderSizePixel = 0
         startButton.AutoButtonColor = true
         startButton.Font = Enum.Font.GothamBold
         startButton.TextColor3 = Color3.fromRGB(65, 120, 160)
-        startButton.TextSize = 24
+        startButton.TextSize = 26
         startButton.Text = "Press to Start"
         startButton.Visible = false
         startButton.LayoutOrder = 5
-        startButton.Parent = leftCol
+        startButton.ZIndex = 10 -- Ensure it's on top
+        startButton.Parent = textContainer
 
         local startCorner = Instance.new("UICorner")
         startCorner.CornerRadius = UDim.new(0, 14)
@@ -1171,24 +1201,42 @@ local function ensureGui(): GuiRefs
 
         local tipLabel = Instance.new("TextLabel")
         tipLabel.Name = "Tip"
-        tipLabel.AutomaticSize = Enum.AutomaticSize.XY
+        tipLabel.Size = UDim2.new(1, 0, 0, 0) -- Stretch horizontally
+        tipLabel.AutomaticSize = Enum.AutomaticSize.Y -- Auto height only
         tipLabel.BackgroundTransparency = 1
         tipLabel.Font = Enum.Font.Gotham
-        tipLabel.TextColor3 = Color3.fromRGB(70, 70, 70)
-        tipLabel.TextSize = 18
+        tipLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+        tipLabel.TextScaled = true
         tipLabel.TextWrapped = true
+        tipLabel.TextStrokeTransparency = 0.6
+        tipLabel.TextStrokeColor3 = Color3.fromRGB(65, 120, 160)
         tipLabel.LayoutOrder = 6
-        tipLabel.Parent = leftCol
+        tipLabel.Parent = textContainer
+
+        local tipTextConstraint = Instance.new("UITextSizeConstraint")
+        tipTextConstraint.MaxTextSize = 16
+        tipTextConstraint.MinTextSize = 10
+        tipTextConstraint.Parent = tipLabel
 
         -- Wire panel actions
+        -- Skip button connection (after keybindsPanel is defined)
+        skipButton.MouseButton1Click:Connect(function()
+                settingsPanel.Visible = false
+                keybindsPanel.Visible = false
+                LoadingScreen.setStatus("Press start to continue")
+                showStartButton("Press to Start", true)
+        end)
+        
         applyButton.MouseButton1Click:Connect(function()
                 applyGraphicsPreset(_selectedPreset)
                 settingsPanel.Visible = false
                 keybindsPanel.Visible = true
                 LoadingScreen.setStatus("Keybinds overview")
+                hideStartButton() -- Make sure start button is hidden during keybinds
         end)
         continueButton.MouseButton1Click:Connect(function()
                 keybindsPanel.Visible = false
+                settingsPanel.Visible = false -- Hide settings too
                 LoadingScreen.setStatus("Press start to continue")
                 showStartButton("Press to Start", true)
         end)
@@ -1248,17 +1296,21 @@ function LoadingScreen.setProgress(alpha: number)
 end
 
 function LoadingScreen.show(statusText: string?, showProgressBar: boolean?, options: ShowOptions?)
-        if LoadingScreen.isLoading then
-                LoadingScreen.hide()
-        end
+	local startTime = os.clock()
+	if LoadingScreen.isLoading then
+		LoadingScreen.hide()
+	end
 
-        _statusText = statusText or "Loading..."
-        _progressVisible = showProgressBar == true
-        if _progressVisible then
-                _progressValue = 0
-        end
+	_statusText = statusText or "Loading..."
+	_progressVisible = showProgressBar == true
+	if _progressVisible then
+		_progressValue = 0
+	end
 
-        local refs = ensureGui()
+	local guiStart = os.clock()
+	local refs = ensureGui()
+	local guiTime = os.clock() - guiStart
+	print(string.format("[LoadingScreen] 📺 GUI creation took %.3fs", guiTime))
         refs.statusLabel.Text = _statusText
         applyProgressVisibility()
         applyProgress()
@@ -1279,7 +1331,10 @@ function LoadingScreen.show(statusText: string?, showProgressBar: boolean?, opti
         LoadingScreen.isLoading = true
         startPlaneAnimation()
         startTipRotation()
-end
+       
+        local totalTime = os.clock() - startTime
+        print(string.format("[LoadingScreen] 📺 show() completed in %.3fs", totalTime))
+       end
 
 local function finishHide()
         stopTipRotation()

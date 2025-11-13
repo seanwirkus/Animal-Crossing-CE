@@ -1,5 +1,7 @@
 # Island Generation GUI Setup Guide
 
+> **🎨 Style Guide Reference**: This component follows the [Animal Crossing Style Guide](ANIMAL_CROSSING_STYLE_GUIDE.md) for consistent theming.
+
 ## Overview
 Complete GUI system for AI island generation attached to NooksTent model in Workspace. Players can generate, preview, clear, and save island layouts with real-time progress tracking.
 

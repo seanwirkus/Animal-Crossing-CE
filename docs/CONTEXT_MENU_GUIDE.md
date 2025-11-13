@@ -1,5 +1,7 @@
 # Context Menu System - Right-Click Item Actions
 
+> **🎨 Style Guide Reference**: This component follows the [Animal Crossing Style Guide](../docs/ANIMAL_CROSSING_STYLE_GUIDE.md) for consistent theming.
+
 ## Overview
 The Context Menu system provides a right-click popup interface for quick item actions in the inventory browser. When you right-click any item, a stylish AC-themed menu appears with available actions.
 

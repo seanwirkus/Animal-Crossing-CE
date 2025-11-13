@@ -27,6 +27,141 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 
+-- Create ChibiRig model directly
+local function createChibiRig()
+    local AvatarKitFolder = ReplicatedStorage:FindFirstChild("AvatarKit")
+    if not AvatarKitFolder then
+        AvatarKitFolder = Instance.new("Folder")
+        AvatarKitFolder.Name = "AvatarKit"
+        AvatarKitFolder.Parent = ReplicatedStorage
+    end
+
+    local existing = AvatarKitFolder:FindFirstChild("ChibiRig")
+    if existing then
+        print("[ChibiRig] ✅ ChibiRig model already exists")
+        return existing
+    end
+
+    local function createPart(name, size, position, color)
+        local part = Instance.new("Part")
+        part.Name = name
+        part.Size = size
+        part.Position = position
+        part.Anchored = false
+        part.CanCollide = true
+        part.Color = color or Color3.fromRGB(255, 228, 200)
+        part.Material = Enum.Material.SmoothPlastic
+        return part
+    end
+
+    local function createSphereMesh(scale)
+        local mesh = Instance.new("SpecialMesh")
+        mesh.MeshType = Enum.MeshType.Sphere
+        mesh.Scale = scale
+        return mesh
+    end
+
+    local rig = Instance.new("Model")
+    rig.Name = "ChibiRig"
+
+    local humanoidRootPart = createPart("HumanoidRootPart", Vector3.new(2, 1, 1), Vector3.new(0, 2.5, 0))
+    humanoidRootPart.Transparency = 1
+    humanoidRootPart.Parent = rig
+
+    rig.PrimaryPart = humanoidRootPart
+
+    local humanoid = Instance.new("Humanoid")
+    humanoid.Name = "Humanoid"
+    humanoid.Parent = rig
+
+    local head = createPart("Head", Vector3.new(1.4, 1.4, 1.4), Vector3.new(0, 4.3, 0))
+    local headMesh = createSphereMesh(Vector3.new(1.25, 1.3, 1.25))
+    headMesh.Parent = head
+    head.Parent = rig
+
+    local torso = createPart("UpperTorso", Vector3.new(1.8, 1.6, 1.4), Vector3.new(0, 3, 0))
+    torso.Parent = rig
+
+    local lowerTorso = createPart("LowerTorso", Vector3.new(1.7, 1.2, 1.4), Vector3.new(0, 1.8, 0))
+    lowerTorso.Parent = rig
+
+    local leftArm = createPart("LeftUpperArm", Vector3.new(0.55, 1.2, 0.55), Vector3.new(-1.2, 3.2, 0))
+    leftArm.Parent = rig
+    local rightArm = createPart("RightUpperArm", Vector3.new(0.55, 1.2, 0.55), Vector3.new(1.2, 3.2, 0))
+    rightArm.Parent = rig
+
+    -- Add forearms
+    local leftForearm = createPart("LeftLowerArm", Vector3.new(0.5, 1.0, 0.5), Vector3.new(-1.2, 1.9, 0))
+    leftForearm.Parent = rig
+    local rightForearm = createPart("RightLowerArm", Vector3.new(0.5, 1.0, 0.5), Vector3.new(1.2, 1.9, 0))
+    rightForearm.Parent = rig
+
+    -- Add bigger spherical hands (more chibi-like) - proper spheres
+    local leftHand = createPart("LeftHand", Vector3.new(0.3, 0.3, 0.3), Vector3.new(-1.2, 1.3, 0))
+    local leftHandMesh = createSphereMesh(Vector3.new(4, 4, 4))  -- Larger scale for more prominent spheres
+    leftHandMesh.Parent = leftHand
+    leftHand.Parent = rig
+
+    local rightHand = createPart("RightHand", Vector3.new(0.3, 0.3, 0.3), Vector3.new(1.2, 1.3, 0))
+    local rightHandMesh = createSphereMesh(Vector3.new(4, 4, 4))  -- Larger scale for more prominent spheres
+    rightHandMesh.Parent = rightHand
+    rightHand.Parent = rig
+
+    local leftLeg = createPart("LeftUpperLeg", Vector3.new(0.6, 1.3, 0.6), Vector3.new(-0.5, 0.6, 0))
+    leftLeg.Color = Color3.fromRGB(92, 159, 115)
+    leftLeg.Parent = rig
+    local rightLeg = createPart("RightUpperLeg", Vector3.new(0.6, 1.3, 0.6), Vector3.new(0.5, 0.6, 0))
+    rightLeg.Color = Color3.fromRGB(92, 159, 115)
+    rightLeg.Parent = rig
+
+    local bodyColors = Instance.new("BodyColors")
+    bodyColors.HeadColor3 = Color3.fromRGB(255, 228, 200)
+    bodyColors.LeftArmColor3 = Color3.fromRGB(255, 228, 200)
+    bodyColors.RightArmColor3 = Color3.fromRGB(255, 228, 200)
+    -- Note: BodyColors doesn't have LeftHandColor3/RightHandColor3 - hands will inherit arm color
+    bodyColors.TorsoColor3 = Color3.fromRGB(255, 228, 200)
+    bodyColors.LeftLegColor3 = Color3.fromRGB(92, 159, 115)
+    bodyColors.RightLegColor3 = Color3.fromRGB(92, 159, 115)
+    bodyColors.Parent = rig
+    
+    -- Set hand colors directly on the parts (BodyColors doesn't support hands)
+    if leftHand then
+        leftHand.Color = Color3.fromRGB(255, 228, 200)  -- Match arm color
+    end
+    if rightHand then
+        rightHand.Color = Color3.fromRGB(255, 228, 200)  -- Match arm color
+    end
+
+    local welds = {
+        { humanoidRootPart, head },
+        { humanoidRootPart, torso },
+        { humanoidRootPart, lowerTorso },
+        { humanoidRootPart, leftArm },
+        { humanoidRootPart, rightArm },
+        { leftArm, leftForearm },  -- Weld forearm to upper arm
+        { rightArm, rightForearm },  -- Weld forearm to upper arm
+        { leftForearm, leftHand },  -- Weld hand to forearm
+        { rightForearm, rightHand },  -- Weld hand to forearm
+        { humanoidRootPart, leftLeg },
+        { humanoidRootPart, rightLeg },
+    }
+
+    for _, pair in ipairs(welds) do
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = pair[1]
+        weld.Part1 = pair[2]
+        weld.Parent = pair[1]
+    end
+
+    rig.Parent = AvatarKitFolder
+
+    print("[ChibiRig] ✅ ChibiRig model created in ReplicatedStorage")
+    return rig
+end
+
+-- Create the ChibiRig model
+createChibiRig()
+
 -- Load CurrencyManager module (it's a child of this script)
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
@@ -36,7 +171,7 @@ local HoleSpawner = require(script:WaitForChild("HoleSpawner"))
 local ShovelSystem = require(script:WaitForChild("ShovelSystem"))
 local FossilSpawner = require(script:WaitForChild("FossilSpawner"))
 local BellSpawner = require(script:WaitForChild("BellSpawner"))
-local WhiteboardService = require(script:WaitForChild("WhiteboardService"))
+local TreeShakingSystem = require(script:WaitForChild("TreeShakingSystem"))
 local PlayerSettingsService = require(script:WaitForChild("PlayerSettingsService"))
 local DIYWorkBenchService = require(script:WaitForChild("DIYWorkBenchService"))
 local _IslandSaveService = require(script:WaitForChild("IslandSaveService"))
@@ -77,8 +212,9 @@ FossilSpawner.init()
 -- Initialize bell spawner (bell markers in ground)
 BellSpawner.init()
 
--- Initialize whiteboard service (handles Workspace.Whiteboard + markers)
-WhiteboardService.init()
+-- Initialize tree shaking system (apples drop from trees)
+-- TODO: Replace nil with actual apple asset ID when provided
+TreeShakingSystem.init(nil) -- Pass apple asset ID here when available
 
 -- Initialize player settings persistence service
 PlayerSettingsService.init()
@@ -282,6 +418,74 @@ local function shouldSpawnAsBellBag(itemId: string, count: number)
         -- Calculate total value
         local totalValue = sellPrice * count
         return true, totalValue
+end
+
+-- Load 3D model from ReplicatedStorage by itemId (checks various naming patterns)
+local function loadItem3DModel(itemId: string): Model?
+	-- Convert itemId to various naming formats
+	local function toCamelCase(str)
+		-- Convert "bell_bag_small" -> "BellBagSmall"
+		local parts = {}
+		for part in str:gmatch("[^_]+") do
+			table.insert(parts, part:sub(1, 1):upper() .. part:sub(2):lower())
+		end
+		return table.concat(parts)
+	end
+	
+	local function toPascalCase(str)
+		-- Same as camelCase for this use case
+		return toCamelCase(str)
+	end
+	
+	-- Try exact match first
+	local exactMatch = ReplicatedStorage:FindFirstChild(itemId)
+	if exactMatch and exactMatch:IsA("Model") then
+		print("[Server] ✅ Found 3D model (exact match):", itemId)
+		return exactMatch:Clone()
+	end
+	
+	-- Try CamelCase version (e.g., "bell_bag_small" -> "BellBagSmall")
+	local camelCaseName = toCamelCase(itemId)
+	local camelMatch = ReplicatedStorage:FindFirstChild(camelCaseName)
+	if camelMatch and camelMatch:IsA("Model") then
+		print("[Server] ✅ Found 3D model (CamelCase):", camelCaseName, "for", itemId)
+		return camelMatch:Clone()
+	end
+	
+	-- Try case-insensitive search
+	local lowerItemId = string.lower(itemId)
+	for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+		if child:IsA("Model") and string.lower(child.Name) == lowerItemId then
+			print("[Server] ✅ Found 3D model (case-insensitive):", child.Name, "for", itemId)
+			return child:Clone()
+		end
+	end
+	
+	-- Try partial match (e.g., "bell_bag_small" matches "BellBagSmall")
+	local itemIdParts = {}
+	for part in itemId:gmatch("[^_]+") do
+		table.insert(itemIdParts, string.lower(part))
+	end
+	
+	for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+		if child:IsA("Model") then
+			local childLower = string.lower(child.Name)
+			-- Check if all parts of itemId are found in model name
+			local allPartsMatch = true
+			for _, part in ipairs(itemIdParts) do
+				if not childLower:find(part, 1, true) then
+					allPartsMatch = false
+					break
+				end
+			end
+			if allPartsMatch and #itemIdParts > 0 then
+				print("[Server] ✅ Found 3D model (partial match):", child.Name, "for", itemId)
+				return child:Clone()
+			end
+		end
+	end
+	
+	return nil
 end
 
 -- Load bell bag model from ReplicatedStorage
@@ -881,12 +1085,47 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 	local bellBagModel: Model? = nil
 	local bellBagModelName: string? = nil
 	
+	-- For bell bag items, try to load 3D model first (BellBagSmall, BellBagMed, BellBagLarge)
 	if isBellBag and totalValue then
-		bellBagModelName = getBellBagModelName(item.sell or item.sell_price or 0, count)
-		if bellBagModelName then
-			bellBagModel = loadBellBagModel(bellBagModelName)
-			if bellBagModel then
-				print("[Server] 💰 Spawning", bellBagModelName, "for item", item.name, "worth", totalValue, "bells")
+		-- First, try to load 3D model directly by itemId (e.g., bell_bag_small -> BellBagSmall)
+		bellBagModel = loadItem3DModel(itemId)
+		if bellBagModel then
+			-- Get the actual model name from the cloned model's parent (original name)
+			-- Since we cloned it, we need to check what name pattern matched
+			-- Try to find the original model in ReplicatedStorage to get its name
+			local function toCamelCase(str)
+				local parts = {}
+				for part in str:gmatch("[^_]+") do
+					table.insert(parts, part:sub(1, 1):upper() .. part:sub(2):lower())
+				end
+				return table.concat(parts)
+			end
+			
+			local camelCaseName = toCamelCase(itemId)
+			local originalModel = ReplicatedStorage:FindFirstChild(camelCaseName)
+			if originalModel and originalModel:IsA("Model") then
+				bellBagModelName = originalModel.Name
+			else
+				-- Fallback: determine from itemId
+				if itemId:find("large") then
+					bellBagModelName = "BellBagLarge"
+				elseif itemId:find("med") or itemId:find("medium") then
+					bellBagModelName = "BellBagMedium"
+				elseif itemId:find("small") then
+					bellBagModelName = "BellBagSmall"
+				else
+					bellBagModelName = camelCaseName or "BellBag"
+				end
+			end
+			print("[Server] 💰 Found 3D model for bell bag item:", itemId, "->", bellBagModelName, "worth", totalValue, "bells")
+		else
+			-- Fallback to old logic if 3D model not found
+			bellBagModelName = getBellBagModelName(item.sell or item.sell_price or 0, count)
+			if bellBagModelName then
+				bellBagModel = loadBellBagModel(bellBagModelName)
+				if bellBagModel then
+					print("[Server] 💰 Spawning", bellBagModelName, "for item", item.name, "worth", totalValue, "bells")
+				end
 			end
 		end
 	end
@@ -899,16 +1138,24 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 	end
 	model.Parent = workspace
 
-        -- Simple physics part for gravity
+        -- Physics part for gravity - heavier for bell bags
         local pivot = Instance.new("Part")
         pivot.Name = "Pivot"
-        pivot.Size = Vector3.new(2, 2, 2) -- Small collision box
+        if bellBagModel then
+            -- Larger, heavier pivot for bell bags
+            pivot.Size = Vector3.new(3, 3, 3)
+            pivot.Material = Enum.Material.Metal
+            pivot.Massless = false
+            pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 4, 0)) -- Start higher
+            pivot.AssemblyLinearVelocity = Vector3.new(0, -15, 0) -- Faster, heavier drop
+        else
+            pivot.Size = Vector3.new(2, 2, 2) -- Small collision box for regular items
+            pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 3, 0)) -- Start higher
+            pivot.AssemblyLinearVelocity = Vector3.new(0, -8, 0) -- Drop down
+        end
         pivot.Transparency = 1
         pivot.Anchored = false
         pivot.CanCollide = true
-        pivot.Massless = false
-        pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 3, 0)) -- Start higher
-        pivot.AssemblyLinearVelocity = Vector3.new(0, -8, 0) -- Drop down
         pivot.Parent = model
 
 	-- If we have a bell bag model, use it instead of the regular display
@@ -954,18 +1201,41 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		end
 		
 		if bellBagPart then
-			-- Make all parts non-collidable and set up
+			-- Make bell bag heavy and realistic - NOT massless
 			for _, descendant in ipairs(bellBagModel:GetDescendants()) do
 				if descendant:IsA("BasePart") then
-					descendant.CanCollide = false
+					descendant.CanCollide = true  -- Allow collision for realistic physics
 					descendant.Anchored = false  -- Will be anchored after landing
-					descendant.Massless = true  -- Make it lighter for physics
+					descendant.Massless = false  -- Make it HEAVY for realistic drop
+					-- Make parts heavier based on bell bag size
+					if bellBagModelName == "BellBagLarge" then
+						descendant.Material = Enum.Material.Metal  -- Heavier material
+					elseif bellBagModelName == "BellBagMedium" then
+						descendant.Material = Enum.Material.Plastic
+					else
+						descendant.Material = Enum.Material.Plastic
+					end
 				end
 			end
 			
-			-- Position bell bag at drop position (slightly above ground)
-			local dropPosition = worldPosition + Vector3.new(0, 2, 0)
+			-- Position bell bag at drop position (higher for dramatic drop)
+			local dropPosition = worldPosition + Vector3.new(0, 4, 0)
 			bellBagModel:PivotTo(CFrame.new(dropPosition))
+			
+			-- Add initial velocity for realistic drop
+			if bellBagPart then
+				bellBagPart.AssemblyLinearVelocity = Vector3.new(
+					(math.random() - 0.5) * 2,  -- Small random horizontal velocity
+					-12,  -- Strong downward velocity for heavy drop
+					(math.random() - 0.5) * 2
+				)
+				-- Add slight rotation for realism
+				bellBagPart.AssemblyAngularVelocity = Vector3.new(
+					(math.random() - 0.5) * 5,
+					(math.random() - 0.5) * 5,
+					(math.random() - 0.5) * 5
+				)
+			end
 			
 			-- Make sure PrimaryPart is set
 			if not bellBagModel.PrimaryPart then
@@ -999,13 +1269,19 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		local floatConnection = nil
 		local floatTime = 0
 		
-		-- Function to start floating animation
+		-- Function to start floating animation - use RenderStepped for smoother animation
 		local function startFloatingAnimation()
 			if floatConnection then
 				return -- Already floating
 			end
 			
-			floatConnection = RunService.Heartbeat:Connect(function()
+			-- Use RenderStepped for smoother animation, but only update every other frame to reduce lag
+			local frameSkip = 0
+			floatConnection = RunService.RenderStepped:Connect(function()
+				frameSkip = frameSkip + 1
+				if frameSkip < 2 then return end -- Skip every other frame
+				frameSkip = 0
+				
 				if not model.Parent or not bellBagModel then
 					if floatConnection then
 						floatConnection:Disconnect()
@@ -1014,8 +1290,8 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 					return
 				end
 				
-				floatTime += 0.016 -- Approximate frame time
-				local floatHeight = math.sin(floatTime * 2) * 0.2 -- Gentle floating (reduced from 0.3)
+				floatTime += 0.033 -- Approximate frame time (30fps)
+				local floatHeight = math.sin(floatTime * 1.5) * 0.15 -- Gentle floating
 				local bellBagPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
 				if bellBagPart and pivot.Parent then
 					-- Float above the pivot position
@@ -1026,9 +1302,9 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 			trackConnection(floatConnection)
 		end
 		
-		-- Wait for bell bag to land
+		-- Wait for bell bag to land - use Stepped instead of Heartbeat for better performance
 		local landingConnection
-		landingConnection = RunService.Heartbeat:Connect(function()
+		landingConnection = RunService.Stepped:Connect(function()
 			if not model.Parent or not pivot.Parent then
 				if landingConnection then
 					landingConnection:Disconnect()
@@ -1039,9 +1315,22 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 			-- Check if landed (check both pivot and bell bag model velocity)
 			local bellBagPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
 			local bellBagVelocity = bellBagPart and bellBagPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
-			local combinedVelocity = pivot.AssemblyLinearVelocity.Magnitude + bellBagVelocity.Magnitude
+			local pivotVelocity = pivot.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+			local combinedVelocity = pivotVelocity.Magnitude + bellBagVelocity.Magnitude
 			
-			if combinedVelocity < 0.2 and not hasLanded then
+			-- Check if on ground (raycast down)
+			local isOnGround = false
+			if bellBagPart then
+				local rayOrigin = bellBagPart.Position
+				local rayDirection = Vector3.new(0, -2, 0)
+				local raycastParams = RaycastParams.new()
+				raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+				raycastParams.FilterDescendantsInstances = {model}
+				local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+				isOnGround = rayResult ~= nil
+			end
+			
+			if combinedVelocity < 0.3 and isOnGround and not hasLanded then
 				hasLanded = true
 				-- Anchor bell bag after landing
 				if bellBagModel and bellBagPart then
@@ -1148,7 +1437,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		end)
 		trackConnection(landingConnection)
 		
-		-- Add glow to bell bag (use PrimaryPart or first part)
+		-- Add enhanced glow to bell bag (use PrimaryPart or first part)
 		local glowPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
 		if glowPart then
 			-- Remove existing light if any
@@ -1157,14 +1446,48 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 				existingLight:Destroy()
 			end
 			
+			-- Enhanced glow based on bell bag size
+			local glowRange = 10
+			local glowBrightness = 1.5
+			if bellBagModelName == "BellBagLarge" then
+				glowRange = 15
+				glowBrightness = 2.0
+			elseif bellBagModelName == "BellBagMedium" then
+				glowRange = 12
+				glowBrightness = 1.8
+			end
+			
 			local pointLight = Instance.new("PointLight")
 			pointLight.Name = "BellBagGlow"
-			pointLight.Range = 8
-			pointLight.Brightness = 1.2
+			pointLight.Range = glowRange
+			pointLight.Brightness = glowBrightness
 			pointLight.Color = Color3.fromRGB(255, 215, 0) -- Gold color
 			pointLight.Shadows = false
 			pointLight.Parent = glowPart
-			print("[Server] ✅ Added glow to bell bag model:", bellBagModelName)
+			
+			-- Add subtle pulsing glow effect (optimized - only update every 10 frames)
+			local pulseTime = 0
+			local pulseConnection
+			local pulseFrameSkip = 0
+			pulseConnection = RunService.Heartbeat:Connect(function()
+				pulseFrameSkip = pulseFrameSkip + 1
+				if pulseFrameSkip < 10 then return end -- Update every 10 frames (~0.16s at 60fps)
+				pulseFrameSkip = 0
+				
+				if not model.Parent or not pointLight.Parent then
+					if pulseConnection then
+						pulseConnection:Disconnect()
+					end
+					return
+				end
+				
+				pulseTime = pulseTime + 0.16
+				local pulse = 0.1 * math.sin(pulseTime * 2) -- Subtle pulse
+				pointLight.Brightness = glowBrightness + pulse
+			end)
+			trackConnection(pulseConnection)
+			
+			print("[Server] ✅ Added enhanced glow to bell bag model:", bellBagModelName)
 		else
 			warn("[Server] ⚠️ Could not find part to add glow to bell bag model:", bellBagModelName)
 		end
@@ -1174,35 +1497,50 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		return -- Exit early, bell bag is set up
 	end
 
-        -- Check if this item has a 3D model (tools, etc.)
-        local has3DModel = ToolObjects.hasToolModel(itemId)
-        local displayModel
+        -- Check if this item has a 3D model in ReplicatedStorage (by itemId name)
+        -- Skip if already handled as bell bag
+        local displayModel = nil
+        local has3DModel = false
         
-        if has3DModel then
-            print("[Server] 🎨 Using 3D model for:", itemId)
-            displayModel = ToolObjects.getGroundDisplayModel(itemId)
-            if displayModel then
-                -- Position the 3D model
-                displayModel.Name = "Display3D"
-                displayModel.Parent = model
-                
-                -- Find primary part or first BasePart for positioning
-                local displayPart = displayModel.PrimaryPart or displayModel:FindFirstChildWhichIsA("BasePart")
-                if displayPart then
-                    displayPart.CFrame = CFrame.new(worldPosition + Vector3.new(0, 2, 0))
-                    displayPart.Anchored = true
-                    displayPart.CanCollide = false
-                    
-                    -- Set all parts to non-collidable
-                    for _, part in ipairs(displayModel:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                            part.Anchored = true
-                        end
+        if not isBellBag then
+            -- Only check for 3D models if not a bell bag (bell bags handled above)
+            displayModel = loadItem3DModel(itemId)
+            has3DModel = displayModel ~= nil
+            
+            -- If no direct model found, check ToolObjects (tools, etc.)
+            if not has3DModel then
+                has3DModel = ToolObjects.hasToolModel(itemId)
+                if has3DModel then
+                    print("[Server] 🎨 Using tool 3D model for:", itemId)
+                    displayModel = ToolObjects.getGroundDisplayModel(itemId)
+                    if not displayModel then
+                        has3DModel = false -- Fallback to sprite if model failed to load
                     end
                 end
             else
-                has3DModel = false -- Fallback to sprite if model failed to load
+                print("[Server] 🎨 Using 3D model from ReplicatedStorage for:", itemId)
+            end
+        end
+        
+        if has3DModel and displayModel then
+            -- Position the 3D model
+            displayModel.Name = "Display3D"
+            displayModel.Parent = model
+            
+            -- Find primary part or first BasePart for positioning
+            local displayPart = displayModel.PrimaryPart or displayModel:FindFirstChildWhichIsA("BasePart")
+            if displayPart then
+                displayPart.CFrame = CFrame.new(worldPosition + Vector3.new(0, 2, 0))
+                displayPart.Anchored = true
+                displayPart.CanCollide = false
+                
+                -- Set all parts to non-collidable
+                for _, part in ipairs(displayModel:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Anchored = true
+                    end
+                end
             end
         end
         
