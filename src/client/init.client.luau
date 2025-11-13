@@ -412,6 +412,23 @@ keybindManager:registerBind("NOOK_PHONE", function(inputState)
 end)
 print("[Client] ✅ NookPhone keybind registered (P key)")
 
+-- NOOK_SHOPPING keybind (S key) removed - Nook Shopping can only be accessed through NookPhone (P key)
+
+-- Initialize Premium Shop GUI
+local PremiumShopGUIModule = require(script.Modules.PremiumShopGUI)
+local premiumShopGUI = PremiumShopGUIModule.new()
+guiManager:registerGUI("premiumShop", premiumShopGUI)
+print("[Client] ✅ PremiumShopGUI initialized")
+
+-- Register PREMIUM_SHOP keybind (F2 key)
+keybindManager:registerBind("PREMIUM_SHOP", function(inputState)
+	if inputState == "began" then
+		print("[Keybind] Premium Shop triggered (F2 key)")
+		guiManager:toggleGUI("premiumShop")
+	end
+end)
+print("[Client] ✅ Premium Shop keybind registered (F2 key)")
+
 -- DebugManager is no longer needed (can be removed later if unused)
 print("[Client] ✅ Debug systems initialized")
 
@@ -532,6 +549,9 @@ if debugGui then
 end
 
 -- Register DEBUG_GUI keybind (G key)
+-- Note: This is a DEBUG keybind, so it only works when debug mode is enabled
+-- To enable debug mode: Open Game Menu (` key) → Debug tab → Toggle "Debug Mode" ON
+-- OR: In Studio, you can enable it via: _G.KeybindManager:setDebugMode(true)
 keybindManager:registerBind("DEBUG_GUI", function(inputState)
 	if inputState == "began" then
 		print("[Keybind] G key pressed - toggling debug GUI...")
@@ -544,6 +564,12 @@ keybindManager:registerBind("DEBUG_GUI", function(inputState)
 		print("[Keybind] ✅ Debug GUI toggled")
     end
 end)
+
+-- Enable debug mode by default in Studio for easier development
+if game:GetService("RunService"):IsStudio() then
+	keybindManager:setDebugMode(true)
+	print("[Client] ✅ Debug mode enabled by default in Studio")
+end
 
 -- Register CRAFTING keybind (C key) for DebugCraftingMenu
 keybindManager:registerBind("CRAFTING", function(inputState)

@@ -53,7 +53,8 @@ function Local.UpdateStatsForAllPlayers(bells: number, miles: number)
 end
 
 function Local.LockComponentForAllPlayers(componentName: string, locked: boolean)
-	print(`[ComponentService] {'Locking' if locked else 'Unlocking'} {componentName} for all players`)
+	local action = locked and "Locking" or "Unlocking"
+	print(`[ComponentService] {action} {componentName} for all players`)
 	
 	local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
 	if remotes then

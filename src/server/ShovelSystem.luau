@@ -13,6 +13,9 @@ local Workspace = game:GetService("Workspace")
 
 local ShovelSystem = {}
 
+-- Load CurrencyManager for adding bells
+local CurrencyManager = require(script.Parent:WaitForChild("CurrencyManager"))
+
 -- Configuration
 local HOLE_ASSET_ID = 98139431900134
 local X_MARKER_ASSET_ID = 95502544899864
@@ -75,26 +78,55 @@ local function createHole(position)
 end
 
 --[[
-	Finds the nearest X marker (dig spot)
+	Finds the nearest X marker (dig spot) - checks Fossils, Bells, and Holes folders
 ]]
 local function findNearestDigSpot(position)
-	local holesFolder = Workspace:FindFirstChild("Holes")
-	if not holesFolder then return nil end
-	
-	local nearestHole = nil
+	local nearestSpot = nil
 	local nearestDistance = DIG_RANGE
 	
-	for _, hole in ipairs(holesFolder:GetChildren()) do
-		local holePos = hole:IsA("Model") and hole:GetPivot().Position or hole.Position
-		local distance = (position - holePos).Magnitude
-		
-		if distance < nearestDistance then
-			nearestDistance = distance
-			nearestHole = hole
+	-- Check Fossils folder (X markers for fossils)
+	local fossilsFolder = Workspace:FindFirstChild("Fossils")
+	if fossilsFolder then
+		for _, fossil in ipairs(fossilsFolder:GetChildren()) do
+			local fossilPos = fossil:IsA("Model") and fossil:GetPivot().Position or fossil.Position
+			local distance = (position - fossilPos).Magnitude
+			
+			if distance < nearestDistance then
+				nearestDistance = distance
+				nearestSpot = fossil
+			end
 		end
 	end
 	
-	return nearestHole
+	-- Check Bells folder (bell markers)
+	local bellsFolder = Workspace:FindFirstChild("Bells")
+	if bellsFolder then
+		for _, bell in ipairs(bellsFolder:GetChildren()) do
+			local bellPos = bell:IsA("Model") and bell:GetPivot().Position or bell.Position
+			local distance = (position - bellPos).Magnitude
+			
+			if distance < nearestDistance then
+				nearestDistance = distance
+				nearestSpot = bell
+			end
+		end
+	end
+	
+	-- Check Holes folder (legacy X markers)
+	local holesFolder = Workspace:FindFirstChild("Holes")
+	if holesFolder then
+		for _, hole in ipairs(holesFolder:GetChildren()) do
+			local holePos = hole:IsA("Model") and hole:GetPivot().Position or hole.Position
+			local distance = (position - holePos).Magnitude
+			
+			if distance < nearestDistance then
+				nearestDistance = distance
+				nearestSpot = hole
+			end
+		end
+	end
+	
+	return nearestSpot
 end
 
 --[[
@@ -146,8 +178,50 @@ local function handleDig(player)
 		-- Digging an X marker spot
 		local holePos = digSpot:IsA("Model") and digSpot:GetPivot().Position or digSpot.Position
 		
-		-- Roll for item
-		local itemId, amount = rollForItem()
+		-- Check dig spot type (Fossil, Bell, or generic)
+		local digType = digSpot:GetAttribute("DigType")
+		local itemId = digSpot:GetAttribute("ItemId")
+		local bellAmount = digSpot:GetAttribute("BellAmount")
+		
+		local foundItemId = itemId
+		local foundAmount = 1
+		
+		if digType == "bells" and bellAmount then
+			-- This is a bell marker - give bells directly
+			foundItemId = "bells"
+			foundAmount = tonumber(bellAmount) or math.random(100, 1000)
+			
+			-- Add bells to player currency
+			local success = CurrencyManager.addBells(player, foundAmount)
+			if success then
+				print("[ShovelSystem] 💰 Player", player.Name, "dug up", foundAmount, "bells")
+			else
+				warn("[ShovelSystem] ❌ Failed to add bells to player", player.Name)
+			end
+		elseif digType == "fossil" then
+			-- This is a fossil marker - give fossil
+			foundItemId = "fossil"
+			foundAmount = 1
+			
+			-- TODO: Add fossil to inventory
+			print("[ShovelSystem] 🦴 Player", player.Name, "dug up a fossil")
+		else
+			-- Generic dig spot - roll for item
+			foundItemId, foundAmount = rollForItem()
+			
+			-- If it's bells, add to currency
+			if foundItemId == "bells" then
+				local success = CurrencyManager.addBells(player, foundAmount)
+				if success then
+					print("[ShovelSystem] 💰 Player", player.Name, "dug up", foundAmount, "bells")
+				else
+					warn("[ShovelSystem] ❌ Failed to add bells to player", player.Name)
+				end
+			else
+				-- TODO: Add item to inventory
+				print("[ShovelSystem] Player", player.Name, "dug up", foundAmount, "x", foundItemId)
+			end
+		end
 		
 		-- Create hole
 		createHole(holePos)
@@ -155,16 +229,13 @@ local function handleDig(player)
 		-- Remove the X marker
 		digSpot:Destroy()
 		
-		-- Give item to player (you'll need to implement this with your inventory system)
-		print("[ShovelSystem] Player", player.Name, "dug up", amount, "x", itemId)
-		
 		-- Set cooldown
 		playerCooldowns[userId] = tick()
 		
 		-- Fire event to client for visual feedback
 		local digEvent = ReplicatedStorage:FindFirstChild("ShovelDig")
 		if digEvent then
-			digEvent:FireClient(player, itemId, amount)
+			digEvent:FireClient(player, foundItemId, foundAmount)
 		end
 		
 	else

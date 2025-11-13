@@ -108,10 +108,6 @@ local function scheduleSave()
 	end)
 end
 
--- Forward declarations (will be defined later)
-local buildCameraTab
-local buildGraphicsTab
-
 local function fireChanged(key)
 	_changeEvent:Fire(key, _state[key])
 	applyGameSettings()
@@ -136,6 +132,11 @@ local function fireChanged(key)
 	scheduleSave()
 end
 
+-- Forward declarations for tab builders (defined after createToggleRow/createSliderRow)
+-- These will be assigned later in the file
+local buildCameraTab = nil
+local buildGraphicsTab = nil
+
 local function createBaseGui()
 	local playerGui = LOCAL_PLAYER:WaitForChild("PlayerGui")
 
@@ -148,15 +149,17 @@ local function createBaseGui()
 
 	local darken = Instance.new("Frame")
 	darken.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	darken.BackgroundTransparency = 0.35
+	-- Make overlay fully transparent (no darken backdrop)
+	darken.BackgroundTransparency = 1
 	darken.Size = UDim2.fromScale(1, 1)
 	darken.Parent = screenGui
 
 	local container = Instance.new("Frame")
 	container.Name = "Container"
 	container.AnchorPoint = Vector2.new(0.5, 0.5)
-	container.Position = UDim2.new(0.5, 0, 0.5, 0)
-	container.Size = UDim2.new(0, 500, 0, 600) -- Larger for more settings
+	-- Position lower to avoid Roblox player GUI in top-left
+	container.Position = UDim2.new(0.5, 0, 0.55, 0) -- Slightly lower than center
+	container.Size = UDim2.new(0, 480, 0, 580) -- Slightly smaller
 	container.BackgroundColor3 = Color3.fromRGB(32, 36, 40)
 	container.BackgroundTransparency = 0.1
 	container.Parent = darken
@@ -214,7 +217,7 @@ local function createBaseGui()
 	cameraTab.Size = UDim2.new(0, 120, 1, 0)
 	cameraTab.BackgroundColor3 = Color3.fromRGB(60, 70, 80)
 	cameraTab.Text = "Camera"
-	cameraTab.Font = Enum.Font.GothamSemibold
+	cameraTab.Font = Enum.Font.GothamMedium
 	cameraTab.TextSize = 16
 	cameraTab.TextColor3 = Color3.fromRGB(255, 255, 255)
 	cameraTab.Parent = tabContainer
@@ -228,7 +231,7 @@ local function createBaseGui()
 	graphicsTab.Size = UDim2.new(0, 120, 1, 0)
 	graphicsTab.BackgroundColor3 = Color3.fromRGB(50, 55, 60)
 	graphicsTab.Text = "Graphics"
-	graphicsTab.Font = Enum.Font.GothamSemibold
+	graphicsTab.Font = Enum.Font.GothamMedium
 	graphicsTab.TextSize = 16
 	graphicsTab.TextColor3 = Color3.fromRGB(200, 200, 200)
 	graphicsTab.Parent = tabContainer
@@ -267,9 +270,9 @@ local function createBaseGui()
 	end)
 	
 	-- Tab switching
-	local currentTab = "camera"
+	local _currentTab = "camera"
 	local function switchTab(tabName)
-		currentTab = tabName
+		_currentTab = tabName
 		if tabName == "camera" then
 			cameraTab.BackgroundColor3 = Color3.fromRGB(60, 70, 80)
 			cameraTab.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -285,9 +288,17 @@ local function createBaseGui()
 		rowsFrame:ClearAllChildren()
 		_currentRowY = 0
 		if tabName == "camera" then
-			buildCameraTab(rowsFrame)
+			if buildCameraTab then
+				buildCameraTab(rowsFrame)
+			else
+				warn("[SettingsController] ⚠️ buildCameraTab not yet defined")
+			end
 		else
-			buildGraphicsTab(rowsFrame)
+			if buildGraphicsTab then
+				buildGraphicsTab(rowsFrame)
+			else
+				warn("[SettingsController] ⚠️ buildGraphicsTab not yet defined")
+			end
 		end
 	end
 	
@@ -326,7 +337,7 @@ local function createToggleRow(parent, labelText, settingKey)
 	label.Size = UDim2.new(0.7, -10, 1, 0)
 	label.Position = UDim2.new(0, 10, 0, 0)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamSemibold
+	label.Font = Enum.Font.GothamMedium
 	label.TextSize = 18
 	label.TextColor3 = Color3.fromRGB(220, 230, 240)
 	label.TextXAlignment = Enum.TextXAlignment.Left
@@ -379,7 +390,7 @@ local function createSliderRow(parent, labelText, settingKey, minValue, maxValue
 	label.Size = UDim2.new(0.6, -10, 1, 0)
 	label.Position = UDim2.new(0, 10, 0, 0)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamSemibold
+	label.Font = Enum.Font.GothamMedium
 	label.TextSize = 18
 	label.TextColor3 = Color3.fromRGB(220, 230, 240)
 	label.TextXAlignment = Enum.TextXAlignment.Left
@@ -434,6 +445,9 @@ local function createSliderRow(parent, labelText, settingKey, minValue, maxValue
 	end)
 end
 
+-- Define tab builders after createToggleRow and createSliderRow are defined
+-- Tab builders are defined later in the file (after createSliderRow)
+
 local function loadSettingsFromServer()
 	local folder = getRemoteFolder()
 	if not folder then
@@ -468,13 +482,14 @@ local function loadSettingsFromServer()
 	applyGameSettings()
 end
 
-local function buildCameraTab(parent)
+-- Assign to forward-declared variables (not "local function" which creates new variables)
+buildCameraTab = function(parent)
 	createToggleRow(parent, "Invert Vertical Look", "invertVertical")
 	createSliderRow(parent, "Camera Sensitivity", "cameraSensitivity", SLIDER_MIN_SENSITIVITY, SLIDER_MAX_SENSITIVITY, SLIDER_STEP_SENSITIVITY)
 	createSliderRow(parent, "Camera Blur Intensity", "blurIntensity", SLIDER_MIN_BLUR, SLIDER_MAX_BLUR, SLIDER_STEP_BLUR)
 end
 
-local function buildGraphicsTab(parent)
+buildGraphicsTab = function(parent)
 	createSliderRow(parent, "Shader Quality", "shaderQuality", 0, 1, 0.1)
 	createSliderRow(parent, "Water Quality", "waterQuality", 0, 1, 0.1)
 	createSliderRow(parent, "Grass Quality", "grassQuality", 0, 1, 0.1)
@@ -500,7 +515,7 @@ local function buildGraphicsTab(parent)
 	presetLabel.Size = UDim2.new(0.4, -10, 1, 0)
 	presetLabel.Position = UDim2.new(0, 10, 0, 0)
 	presetLabel.BackgroundTransparency = 1
-	presetLabel.Font = Enum.Font.GothamSemibold
+	presetLabel.Font = Enum.Font.GothamMedium
 	presetLabel.TextSize = 18
 	presetLabel.TextColor3 = Color3.fromRGB(220, 230, 240)
 	presetLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -568,7 +583,7 @@ local function buildGraphicsTab(parent)
 end
 
 local function buildUI()
-	local rowsParent, switchTab = createBaseGui()
+	local rowsParent, _switchTab = createBaseGui()
 	buildCameraTab(rowsParent) -- Start with camera tab
 end
 

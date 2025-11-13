@@ -105,38 +105,166 @@ function IslandGenerator:generatePass(config: {[string]: boolean}?): {any}
 end
 
 --[[
-	Generate tree placements
+	Generate tree placements with even distribution across island
 ]]
 function IslandGenerator:generateTrees()
 	local maxTrees = GenerationRules.Constraints.MAX_TREES_PER_PASS
 	local treesGenerated = 0
 	local attempts = 0
-	local maxAttempts = maxTrees * 10 -- Prevent infinite loop
+	local maxAttempts = maxTrees * 20 -- Increased attempts for better distribution
 	
-	while treesGenerated < maxTrees and attempts < maxAttempts do
+	-- Grid-based distribution to ensure even spread
+	local gridCellSize = GenerationRules.Trees.GRID_CELL_SIZE
+	local treesPerCell = GenerationRules.Trees.TREES_PER_GRID_CELL
+	local usedGridCells = {} -- Track which grid cells have trees
+	local preferredMaterial = GenerationRules.Trees.PREFERRED_MATERIAL
+	local preferredMaterialWeight = GenerationRules.Trees.PREFERRED_MATERIAL_WEIGHT
+	
+	-- Collect all valid grass cells first (prioritize grass)
+	local grassCells = {}
+	local otherValidCells = {}
+	
+	for _, column in pairs(self.analyzer.grid) do
+		for _, cell in pairs(column) do
+			if cell.isFlat and not cell.isWater and cell.material ~= Enum.Material.Water then
+				local validMaterials = {
+					[Enum.Material.Grass] = true,
+					[Enum.Material.Ground] = true,
+					[Enum.Material.Sand] = true,
+					[Enum.Material.Snow] = true,
+					[Enum.Material.Mud] = true,
+				}
+				
+				if validMaterials[cell.material] and cell.slope <= GenerationRules.Trees.MAX_SLOPE then
+					-- Prioritize grass material
+					if cell.material == preferredMaterial then
+						table.insert(grassCells, cell)
+					else
+						table.insert(otherValidCells, cell)
+					end
+				end
+			end
+		end
+	end
+	
+	-- Shuffle cells for random distribution
+	local function shuffleArray(array)
+		local shuffled = {}
+		for i = 1, #array do
+			shuffled[i] = array[i]
+		end
+		for i = #shuffled, 2, -1 do
+			local j = math.random(i)
+			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+		end
+		return shuffled
+	end
+	
+	-- Combine cells with preference for grass (grass appears more frequently)
+	local allCells = {}
+	for i = 1, preferredMaterialWeight do
+		for _, cell in ipairs(grassCells) do
+			table.insert(allCells, cell)
+		end
+	end
+	for _, cell in ipairs(otherValidCells) do
+		table.insert(allCells, cell)
+	end
+	allCells = shuffleArray(allCells)
+	
+	-- Function to get grid cell key for position
+	local function getGridKey(position)
+		local gridX = math.floor(position.X / gridCellSize)
+		local gridZ = math.floor(position.Z / gridCellSize)
+		return gridX .. "," .. gridZ
+	end
+	
+	-- Function to check if position is in a used grid cell
+	local function isGridCellUsed(position)
+		local key = getGridKey(position)
+		return usedGridCells[key] and usedGridCells[key] >= treesPerCell
+	end
+	
+	-- Function to mark grid cell as used
+	local function markGridCellUsed(position)
+		local key = getGridKey(position)
+		usedGridCells[key] = (usedGridCells[key] or 0) + 1
+	end
+	
+	-- Try placing trees with even distribution
+	local cellIndex = 1
+	while treesGenerated < maxTrees and attempts < maxAttempts and cellIndex <= #allCells do
 		attempts = attempts + 1
 		
-		-- Pick a random grid cell
-		local cell = self:getRandomCell({isFlat = true, isWater = false})
+		-- Get next cell from shuffled list
+		local cell = allCells[cellIndex]
+		cellIndex = cellIndex + 1
 		
 		if cell then
-			-- Check if we can place a tree here
+			-- Check if grid cell is already used
+			if isGridCellUsed(cell.position) then
+				-- Skip this grid cell - already has trees
+				continue
+			end
+			
+			-- Verify material is suitable for trees (not water)
+			local validMaterials = {
+				[Enum.Material.Grass] = true,
+				[Enum.Material.Ground] = true,
+				[Enum.Material.Sand] = true,
+				[Enum.Material.Snow] = true,
+				[Enum.Material.Mud] = true,
+			}
+			
+			if not validMaterials[cell.material] then
+				-- Skip invalid materials
+				continue
+			end
+			
+			-- Get position
 			local position = cell.position
 			
-			-- Check spacing from existing trees
+			-- Verify position is not on water using raycast
+			local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+			local rayDirection = Vector3.new(0, -100, 0)
+			
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Include
+			raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+			raycastParams.IgnoreWater = false -- We want to detect water
+			
+			local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+			if rayResult then
+				-- Check if we hit water
+				if rayResult.Material == Enum.Material.Water then
+					-- This is water - skip
+					continue
+				end
+				
+				-- Update position to terrain surface
+				position = rayResult.Position
+			end
+			
+			-- Check spacing from existing trees (INCREASED spacing)
 			local tooClose = false
+			local minSpacing = GenerationRules.Trees.MIN_SPACING
+			
 			for _, existingTree in ipairs(self.analyzer.existingObjects.trees) do
-				if not GenerationRules.checkSpacing(position, existingTree.position, GenerationRules.Trees.MIN_SPACING) then
+				local distance = (position - existingTree.position).Magnitude
+				if distance < minSpacing then
 					tooClose = true
 					break
 				end
 			end
 			
 			-- Check spacing from proposed trees in this pass
-			for _, proposedTree in ipairs(self.currentPass.trees) do
-				if not GenerationRules.checkSpacing(position, proposedTree.position, GenerationRules.Trees.MIN_SPACING) then
-					tooClose = true
-					break
+			if not tooClose then
+				for _, proposedTree in ipairs(self.currentPass.trees) do
+					local distance = (position - proposedTree.position).Magnitude
+					if distance < minSpacing then
+						tooClose = true
+						break
+					end
 				end
 			end
 			
@@ -158,14 +286,69 @@ function IslandGenerator:generateTrees()
 					metadata = {
 						cellX = cell.gridX,
 						cellZ = cell.gridZ,
-						slope = cell.slope
+						slope = cell.slope,
+						material = cell.material
 					}
 				}
 				
 				table.insert(self.currentPass.trees, proposal)
+				markGridCellUsed(position)
 				treesGenerated = treesGenerated + 1
 			end
 		end
+	end
+	
+	print(string.format("[IslandGenerator] ✅ Generated %d trees with even distribution (attempts: %d)", treesGenerated, attempts))
+
+	-- Fallback: if no trees were generated, relax constraints to ensure baseline coverage
+	if treesGenerated == 0 then
+		print("[IslandGenerator] ⚠️ Tree generation produced zero results; running fallback placement...")
+		local fallbackTarget = math.min(30, GenerationRules.Constraints.MAX_TREES_PER_PASS)
+		local placed = 0
+		for _, column in pairs(self.analyzer.grid) do
+			for _, cell in pairs(column) do
+				if placed >= fallbackTarget then break end
+				if cell.isFlat and not cell.isWater then
+					local position = cell.position
+					-- Raycast to terrain and ensure not water
+					local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+					local rayDirection = Vector3.new(0, -100, 0)
+					local rp = RaycastParams.new()
+					rp.FilterType = Enum.RaycastFilterType.Include
+					rp.FilterDescendantsInstances = {workspace.Terrain}
+					rp.IgnoreWater = false
+					local rr = workspace:Raycast(rayOrigin, rayDirection, rp)
+					if rr and rr.Material ~= Enum.Material.Water then
+						position = rr.Position
+						-- Simple spacing check against proposals in this pass only
+						local tooClose = false
+						for _, proposed in ipairs(self.currentPass.trees) do
+							if (position - proposed.position).Magnitude < 8 then
+								tooClose = true
+								break
+							end
+						end
+						if not tooClose then
+							local treeType = GenerationRules.weightedRandom(GenerationRules.Trees.TYPES)
+							-- Avoid palms unless on beach
+							if treeType.name == "Palm Tree" and not self:isBeach(position) then
+								treeType = GenerationRules.Trees.TYPES[1]
+							end
+							table.insert(self.currentPass.trees, {
+								type = "tree",
+								subtype = treeType.name,
+								position = position,
+								rotation = self.random:NextNumber(0, 360),
+								metadata = { fallback = true }
+							})
+							placed += 1
+						end
+					end
+				end
+			end
+			if placed >= fallbackTarget then break end
+		end
+		print(string.format("[IslandGenerator] ✅ Fallback placed %d baseline trees", placed))
 	end
 end
 
@@ -175,9 +358,13 @@ end
 function IslandGenerator:generateRocks()
 	local maxRocks = GenerationRules.Constraints.MAX_ROCKS_PER_PASS
 	local rocksGenerated = 0
+	local attempts = 0
+	local maxAttempts = maxRocks * 20 -- Prevent infinite loop
 	
 	-- Generate in clusters
-	while rocksGenerated < maxRocks do
+	while rocksGenerated < maxRocks and attempts < maxAttempts do
+		attempts = attempts + 1
+		
 		local clusterSize = self.random:NextInteger(
 			GenerationRules.Rocks.MIN_CLUSTER_SIZE,
 			GenerationRules.Rocks.MAX_CLUSTER_SIZE
@@ -187,19 +374,94 @@ function IslandGenerator:generateRocks()
 		clusterSize = math.min(clusterSize, maxRocks - rocksGenerated)
 		
 		-- Find a seed position for the cluster
+		-- RockPatch should only spawn on Sand and Ground (dirt) materials
 		local seedCell = self:getRandomCell({isFlat = true, isWater = false})
 		
-		if seedCell and seedCell.slope <= GenerationRules.Rocks.MAX_SLOPE then
-			-- Generate cluster around seed position
-			local cluster = self:generateRockCluster(seedCell.position, clusterSize)
+		if seedCell then
+			-- CRITICAL: RockPatch should only spawn on Sand and Ground (dirt) materials
+			local validRockMaterials = {
+				[Enum.Material.Sand] = true,
+				[Enum.Material.Ground] = true,  -- Dirt
+				[Enum.Material.Rock] = true,    -- Rock material is also valid
+			}
 			
-			for _, rock in ipairs(cluster) do
-				table.insert(self.currentPass.rocks, rock)
-				rocksGenerated = rocksGenerated + 1
+			-- Check if material is valid for rocks
+			if not validRockMaterials[seedCell.material] then
+				-- Skip invalid materials (like Grass, Water, etc.)
+				continue
+			end
+			
+			-- Verify using raycast
+			local rayOrigin = Vector3.new(seedCell.position.X, seedCell.position.Y + 50, seedCell.position.Z)
+			local rayDirection = Vector3.new(0, -100, 0)
+			
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Include
+			raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+			raycastParams.IgnoreWater = false
+			
+			local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+			if rayResult then
+				-- Check material at hit point
+				local hitMaterial = rayResult.Material
+				if not validRockMaterials[hitMaterial] then
+					-- Not valid material - skip
+					continue
+				end
+			end
+			
+			if seedCell.slope <= GenerationRules.Rocks.MAX_SLOPE then
+				-- Generate cluster around seed position
+				local cluster = self:generateRockCluster(seedCell.position, clusterSize)
+				
+				for _, rock in ipairs(cluster) do
+					table.insert(self.currentPass.rocks, rock)
+					rocksGenerated = rocksGenerated + 1
+				end
 			end
 		else
 			break -- Can't find suitable location
 		end
+	end
+
+	-- Fallback: ensure at least a small number of rocks
+	if rocksGenerated == 0 then
+		print("[IslandGenerator] ⚠️ Rock generation produced zero results; running fallback placement...")
+		local validRockMaterials = {
+			[Enum.Material.Sand] = true,
+			[Enum.Material.Ground] = true,
+			[Enum.Material.Rock] = true,
+		}
+		local target = math.min(6, maxRocks)
+		local placed = 0
+		for _, column in pairs(self.analyzer.grid) do
+			for _, cell in pairs(column) do
+				if placed >= target then break end
+				if cell.isFlat and not cell.isWater then
+					local rayOrigin = Vector3.new(cell.position.X, cell.position.Y + 50, cell.position.Z)
+					local rayDirection = Vector3.new(0, -100, 0)
+					local rp = RaycastParams.new()
+					rp.FilterType = Enum.RaycastFilterType.Include
+					rp.FilterDescendantsInstances = {workspace.Terrain}
+					rp.IgnoreWater = false
+					local rr = workspace:Raycast(rayOrigin, rayDirection, rp)
+					if rr and validRockMaterials[rr.Material] then
+						local pos = rr.Position
+						local rockType = GenerationRules.weightedRandom(GenerationRules.Rocks.TYPES)
+						table.insert(self.currentPass.rocks, {
+							type = "rock",
+							subtype = rockType.name,
+							position = pos,
+							rotation = self.random:NextNumber(0, 360),
+							metadata = { fallback = true }
+						})
+						placed += 1
+					end
+				end
+			end
+			if placed >= target then break end
+		end
+		print(string.format("[IslandGenerator] ✅ Fallback placed %d baseline rocks", placed))
 	end
 end
 
@@ -208,6 +470,11 @@ end
 ]]
 function IslandGenerator:generateRockCluster(seedPosition: Vector3, size: number): {any}
 	local cluster = {}
+	local validRockMaterials = {
+		[Enum.Material.Sand] = true,
+		[Enum.Material.Ground] = true,  -- Dirt
+		[Enum.Material.Rock] = true,    -- Rock material
+	}
 	
 	for i = 1, size do
 		local attempts = 0
@@ -225,6 +492,31 @@ function IslandGenerator:generateRockCluster(seedPosition: Vector3, size: number
 			)
 			
 			local position = seedPosition + offset
+			
+			-- Verify material at this position (RockPatch only on sand/dirt)
+			local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+			local rayDirection = Vector3.new(0, -100, 0)
+			
+			local raycastParams = RaycastParams.new()
+			raycastParams.FilterType = Enum.RaycastFilterType.Include
+			raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+			raycastParams.IgnoreWater = false
+			
+			local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+			if rayResult then
+				-- Check material
+				local hitMaterial = rayResult.Material
+				if not validRockMaterials[hitMaterial] then
+					-- Not valid material - skip this position
+					continue
+				end
+				
+				-- Update position to terrain surface
+				position = rayResult.Position
+			else
+				-- No terrain found - skip
+				continue
+			end
 			
 			-- Check spacing from other rocks in cluster
 			local validSpacing = true
@@ -246,7 +538,8 @@ function IslandGenerator:generateRockCluster(seedPosition: Vector3, size: number
 					rotation = self.random:NextNumber(0, 360),
 					metadata = {
 						cluster = seedPosition,
-						clusterSize = size
+						clusterSize = size,
+						material = rayResult and rayResult.Material or Enum.Material.Ground
 					}
 				}
 				

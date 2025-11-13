@@ -189,7 +189,7 @@ end
 -- Button manipulation functions
 function Local.SetAllButtonsEnabled(enabled: boolean)
 	buttonStates.enabled = enabled
-	print(`[StarterGuiController] All buttons {'enabled' if enabled else 'disabled'}`)
+	print(`[StarterGuiController] All buttons {enabled and 'enabled' or 'disabled'}`)
 end
 
 function Local.SetAllButtonsVisible(visible: boolean)
@@ -197,12 +197,12 @@ function Local.SetAllButtonsVisible(visible: boolean)
 	if mainUI then
 		mainUI.Enabled = visible
 	end
-	print(`[StarterGuiController] All buttons {'visible' if visible else 'hidden'}`)
+	print(`[StarterGuiController] All buttons {visible and 'visible' or 'hidden'}`)
 end
 
 function Local.LockAllButtons(locked: boolean)
 	buttonStates.locked = locked
-	print(`[StarterGuiController] All buttons {'locked' if locked else 'unlocked'}`)
+	print(`[StarterGuiController] All buttons {locked and 'locked' or 'unlocked'}`)
 end
 
 function Local.AddCustomButton(name: string, icon: string, callback: () -> ())

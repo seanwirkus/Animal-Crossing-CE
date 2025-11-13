@@ -122,12 +122,12 @@ function CraftingMenu:createGui()
         end
     end
 
-    -- Main frame - smaller and centered, cream background
+    -- Main frame - smaller and positioned to avoid top-left corner
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0.85, 0, 0.8, 0)  -- 85% width, 80% height
-    mainFrame.Position = UDim2.new(0.075, 0, 0.1, 0)  -- Centered
-    mainFrame.AnchorPoint = Vector2.new(0, 0)
+    mainFrame.Size = UDim2.new(0.7, 0, 0.7, 0)  -- 70% width, 70% height (reduced from 85%, 80%)
+    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    mainFrame.Position = UDim2.new(0.5, 0, 0.55, 0)  -- Lower than center to avoid top-left
     mainFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231)  -- Cream background
     mainFrame.BorderSizePixel = 0
     mainFrame.ZIndex = 2

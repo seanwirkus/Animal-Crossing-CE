@@ -23,8 +23,8 @@
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+local _RunService = game:GetService("RunService") -- (unused currently)
+local _Lighting = game:GetService("Lighting") -- (unused currently)
 
 local CutsceneManager = {}
 CutsceneManager.__index = CutsceneManager
@@ -276,6 +276,18 @@ function CutsceneManager:startSequence(sequence: {{[string]: any}}, onComplete: 
 		self.currentSequence = nil
 		self.currentStep = 0
 		_activeCutscene = nil
+
+		-- Auto-clean fade overlay if it's fully transparent (to prevent lingering half-opaque GUI)
+		if self.fadeGui and self.fadeFrame then
+			local frame = self.fadeFrame
+			-- If we've faded "out" (to clear) and transparency is at or above 0.99, destroy overlay
+			if frame.BackgroundTransparency >= 0.99 then
+				self.fadeGui:Destroy()
+				self.fadeGui = nil
+				self.fadeFrame = nil
+				print("[CutsceneManager] 🧹 Cleaned up fade overlay")
+			end
+		end
 		
 		print("[CutsceneManager] ✅ Sequence complete!")
 		

@@ -168,11 +168,11 @@ function ItemBrowser:createGui()
         self.contextMenu.screenGui = self.screenGui
     end
 
-    -- Main frame with cream background - matching your AC theme
+    -- Main frame with cream background - smaller size with less padding
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0.85, 0, 0.8, 0)  -- Matching existing GUI sizes
-    mainFrame.Position = UDim2.new(0.075, 0, 0.1, 0)  -- Centered
+    mainFrame.Size = UDim2.new(0.75, 0, 0.7, 0)  -- Reduced from 0.85, 0.8
+    mainFrame.Position = UDim2.new(0.125, 0, 0.15, 0)  -- Centered
     mainFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231)  -- CREAM - your defined color
     mainFrame.BackgroundTransparency = 0
     mainFrame.BorderSizePixel = 0
@@ -186,15 +186,15 @@ function ItemBrowser:createGui()
         self.screenGui.Enabled = true
     end
     
-    -- Add UICorner for rounded corners (your standard 8px)
+    -- Add UICorner for rounded corners (smaller radius)
     local mainCorner = Instance.new("UICorner")
-    mainCorner.CornerRadius = UDim.new(0, 8)
+    mainCorner.CornerRadius = UDim.new(0, 6)  -- Reduced from 8
     mainCorner.Parent = mainFrame
     
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.Size = UDim2.new(1, -8, 0, 30)  -- Reduced height from 40 to 30
+    titleBar.Position = UDim2.new(0, 4, 0, 4)  -- Small padding from edges
     titleBar.BackgroundColor3 = Color3.fromRGB(120, 100, 80)  -- BROWN - your defined color
     titleBar.BorderSizePixel = 0
     titleBar.ZIndex = 3
@@ -202,17 +202,17 @@ function ItemBrowser:createGui()
     
     -- Add corner to title bar (top only)
     local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.CornerRadius = UDim.new(0, 4)  -- Reduced from 8
     titleCorner.Parent = titleBar
     
     local titleText = Instance.new("TextLabel")
     titleText.Name = "TitleText"
     titleText.Text = "🎮 Item Browser"
-    titleText.Size = UDim2.new(1, -40, 1, 0)
-    titleText.Position = UDim2.new(0, 10, 0, 0)
+    titleText.Size = UDim2.new(1, -35, 1, 0)
+    titleText.Position = UDim2.new(0, 5, 0, 0)  -- Reduced padding from 10
     titleText.BackgroundTransparency = 1
     titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleText.TextSize = 18
+    titleText.TextSize = 16  -- Reduced from 18
     titleText.Font = Enum.Font.GothamBold
     titleText.TextXAlignment = Enum.TextXAlignment.Left
     titleText.ZIndex = 4
@@ -221,23 +221,23 @@ function ItemBrowser:createGui()
     local itemCount = Instance.new("TextLabel")
     itemCount.Name = "ItemCount"
     itemCount.Text = "Showing " .. #self.allItems .. " items"
-    itemCount.Size = UDim2.new(1, 0, 0, 25)
-    itemCount.Position = UDim2.new(0, 0, 0, 40)
+    itemCount.Size = UDim2.new(1, -8, 0, 20)  -- Reduced height from 25 to 20
+    itemCount.Position = UDim2.new(0, 4, 0, 38)  -- Adjusted position
     itemCount.BackgroundColor3 = Color3.fromRGB(231, 221, 185)  -- BEIGE - your defined color
     itemCount.BorderSizePixel = 0
     itemCount.TextColor3 = Color3.fromRGB(60, 50, 40)  -- DARK - your defined color
-    itemCount.TextSize = 12
+    itemCount.TextSize = 11  -- Reduced from 12
     itemCount.Font = Enum.Font.Gotham
     itemCount.ZIndex = 3
     itemCount.Parent = mainFrame
     self.itemCount = itemCount
     
-    -- Add close button with AC styling
+    -- Add close button with AC styling - smaller
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Text = "✕"
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0, 5)
+    closeButton.Size = UDim2.new(0, 24, 0, 24)  -- Reduced from 30, 30
+    closeButton.Position = UDim2.new(1, -28, 0, 3)  -- Adjusted position
     closeButton.BackgroundColor3 = Color3.fromRGB(4, 175, 166)  -- TEAL - your defined accent color
     closeButton.BorderSizePixel = 0
     closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)  -- WHITE
@@ -258,24 +258,32 @@ function ItemBrowser:createGui()
     
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "ItemsScroll"
-    scrollFrame.Size = UDim2.new(1, -4, 1, -65)
-    scrollFrame.Position = UDim2.new(0, 2, 0, 65)
+    scrollFrame.Size = UDim2.new(1, -8, 1, -58)  -- Adjusted for title bar (30px) + item count (20px) + padding (8px)
+    scrollFrame.Position = UDim2.new(0, 4, 0, 58)  -- Start after title bar + item count
     scrollFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231)  -- CREAM - your defined color
     scrollFrame.BorderColor3 = Color3.fromRGB(200, 180, 160)
     scrollFrame.BorderSizePixel = 0  -- No border for cleaner look
-    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.ScrollBarThickness = 6  -- Reduced from 8
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 300)
     scrollFrame.ScrollingEnabled = true
     scrollFrame.ZIndex = 3
     scrollFrame.Parent = mainFrame
     self.scrollFrame = scrollFrame
     
+    -- Add padding to scroll frame
+    local scrollPadding = Instance.new("UIPadding")
+    scrollPadding.PaddingTop = UDim.new(0, 4)
+    scrollPadding.PaddingBottom = UDim.new(0, 4)
+    scrollPadding.PaddingLeft = UDim.new(0, 4)
+    scrollPadding.PaddingRight = UDim.new(0, 4)
+    scrollPadding.Parent = scrollFrame
+    
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
     gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-    gridLayout.CellSize = UDim2.new(0, 65, 0, 65)
-    gridLayout.CellPadding = UDim2.new(0, 3, 0, 3)
+    gridLayout.CellSize = UDim2.new(0, 60, 0, 60)  -- Reduced from 65, 65
+    gridLayout.CellPadding = UDim2.new(0, 4, 0, 4)  -- Reduced from 3, 3 to 4, 4 for better spacing
     gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
     gridLayout.Parent = scrollFrame
     self.gridLayout = gridLayout
@@ -314,7 +322,7 @@ end
 function ItemBrowser:createItemButton(item)
     local button = Instance.new("TextButton")
     button.Name = item.id or "unknown"
-    button.Size = UDim2.new(0, 70, 0, 70)
+    button.Size = UDim2.new(0, 60, 0, 60)  -- Reduced from 70, 70 to match grid layout
     -- Use your defined slot colors from InventoryStyling
     button.BackgroundColor3 = Color3.fromRGB(200, 200, 200)  -- Default slot color
     button.BackgroundTransparency = 0.2
@@ -324,16 +332,16 @@ function ItemBrowser:createItemButton(item)
     button.Text = ""
     button.ZIndex = 5
     
-    -- Add UICorner for rounded corners (4px to match inventory)
+    -- Add UICorner for rounded corners (smaller radius)
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 4)
+    corner.CornerRadius = UDim.new(0, 3)  -- Reduced from 4
     corner.Parent = button
     
     if item.spriteIndex then
         local spriteImage = Instance.new("ImageLabel")
         spriteImage.Name = "Sprite"
-        spriteImage.Size = UDim2.new(0.85, 0, 0.7, 0)
-        spriteImage.Position = UDim2.new(0.075, 0, 0.05, 0)
+        spriteImage.Size = UDim2.new(0.8, 0, 0.65, 0)  -- Reduced size
+        spriteImage.Position = UDim2.new(0.1, 0, 0.05, 0)  -- Adjusted position
         spriteImage.BackgroundTransparency = 1
         spriteImage.ImageTransparency = 0  -- Ensure visible
         spriteImage.ScaleType = Enum.ScaleType.Fit
@@ -355,11 +363,11 @@ function ItemBrowser:createItemButton(item)
     local indexLabel = Instance.new("TextLabel")
     indexLabel.Name = "Index"
     indexLabel.Text = tostring(item.spriteIndex or "?")
-    indexLabel.Size = UDim2.new(0.4, 0, 0.25, 0)
-    indexLabel.Position = UDim2.new(0.55, 0, 0.02, 0)
+    indexLabel.Size = UDim2.new(0.35, 0, 0.2, 0)  -- Reduced size
+    indexLabel.Position = UDim2.new(0.55, 0, 0.75, 0)  -- Position at bottom
     indexLabel.BackgroundTransparency = 1
+    indexLabel.TextSize = 10  -- Smaller text
     indexLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
-    indexLabel.TextSize = 14  -- Increased from 8
     indexLabel.Font = Enum.Font.GothamBold
     indexLabel.ZIndex = 6
     indexLabel.Parent = button

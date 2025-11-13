@@ -14,7 +14,7 @@ local LOCAL_PLAYER = Players.LocalPlayer
 local HomeScreen = {}
 
 -- Module state references
-local deps = {}
+local deps = {} :: { guiManager: any?, gameMenu: any?, settingsController: any?, onStart: (() -> ())? }
 local refs = {
 	screenGui = nil :: ScreenGui?,
 	overlay = nil :: Frame?,
@@ -709,6 +709,14 @@ executeStartSequence = function(extraAction: (() -> ())?)
 
 	if deps.guiManager then
 		deps.guiManager:hideAll()
+		-- Suppress noisy post-load auto-popups briefly (e.g., settings/keybind guide)
+		local suppressList = {"settings", "keybindGuide"}
+		local ok, err = pcall(function()
+			deps.guiManager:suppress(suppressList, 8)
+		end)
+		if not ok then
+			warn("[HomeScreen] Suppression failed:", err)
+		end
 	end
 
 	task.delay(0.3, function()

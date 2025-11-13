@@ -126,14 +126,16 @@ local function ensureGui()
 	_background.Name = "Background"
 	_background.Size = UDim2.fromScale(1, 1)
 	_background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	_background.BackgroundTransparency = 0.4
+	_background.BackgroundTransparency = 1
 	_background.Visible = true
 	_background.Parent = _screenGui
 
 	_guideFrame = Instance.new("Frame")
 	_guideFrame.Name = "GuideFrame"
-	_guideFrame.Size = UDim2.new(0, 900, 0, 540)
-	_guideFrame.Position = UDim2.new(0.5, -450, 0.5, -270)
+	-- Smaller size to avoid Roblox player GUI in top-left
+	_guideFrame.Size = UDim2.new(0, 800, 0, 500)
+	-- Position lower to avoid top-left corner
+	_guideFrame.Position = UDim2.new(0.5, -400, 0.55, -250)
 	_guideFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231)
 	_guideFrame.BorderSizePixel = 0
 	_guideFrame.Parent = _background
@@ -367,6 +369,16 @@ local function buildQuickActions()
 		end
 	end)
 
+	createQuickActionButton(_quickActionsFrame, "Open Game Menu (`)", function()
+		if _gameMenuModule and (_gameMenuModule.open or _gameMenuModule.openToTab) then
+			if _gameMenuModule.open then
+				_gameMenuModule.open()
+			else
+				_gameMenuModule.openToTab("controls")
+			end
+		end
+	end)
+
 	createQuickActionButton(_quickActionsFrame, "Graphics Presets", function()
 		if _gameMenuModule and _gameMenuModule.openToTab then
 			_gameMenuModule.openToTab("graphics")
@@ -398,13 +410,17 @@ function KeybindGuide:Show()
 	refreshGuide()
 	_onboardingShown = true
 
-	_screenGui.Enabled = true
-	_background.BackgroundTransparency = 0.5
+	local sg = _screenGui :: ScreenGui
+	local bg = _background :: Frame
+	local gf = _guideFrame :: Frame
 
-	_guideFrame.Size = UDim2.new(0, 820, 0, 520)
-	_guideFrame.Position = UDim2.new(0.5, -410, 0.5, -260)
+	sg.Enabled = true
+	bg.BackgroundTransparency = 0.5
 
-	TweenService:Create(_guideFrame, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	gf.Size = UDim2.new(0, 820, 0, 520)
+	gf.Position = UDim2.new(0.5, -410, 0.5, -260)
+
+	TweenService:Create(gf, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 900, 0, 540),
 		Position = UDim2.new(0.5, -450, 0.5, -270),
 	}):Play()
@@ -445,6 +461,11 @@ function KeybindGuide.showOnboardingPrompt()
 		return
 	end
 
+	-- Skip onboarding if pre-start flow already completed
+	if _G.PreStartCompleted == true then
+		return
+	end
+
 	if _guiManager and _guiManager:getCurrentVisible() then
 		task.delay(5, KeybindGuide.showOnboardingPrompt)
 		return
@@ -476,7 +497,11 @@ function KeybindGuide.init(guiManager, keybindManager, gameMenuModule, settingsC
 		_guiManager:registerGUI("keybindGuide", KeybindGuide)
 	end
 
+	-- Delayed onboarding prompt (guarded by pre-start completion flag)
 	task.delay(6, function()
+		if _G.PreStartCompleted == true then
+			return
+		end
 		if not _onboardingShown then
 			KeybindGuide.showOnboardingPrompt()
 		end

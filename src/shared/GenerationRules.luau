@@ -18,20 +18,21 @@ local GenerationRules = {}
 	TREE RULES (Based on ACNH mechanics)
 ]]
 GenerationRules.Trees = {
-	-- Minimum spacing between trees (in studs)
-	MIN_SPACING = 2,
+	-- Minimum spacing between trees (in studs) - INCREASED for better distribution
+	MIN_SPACING = 10, -- Increased from 2 to 10 studs - trees should be spread out
 	
 	-- Trees should be at least this far from buildings
-	BUILDING_CLEARANCE = 4,
+	BUILDING_CLEARANCE = 8, -- Increased from 4
 	
 	-- Trees should be at least this far from water
-	WATER_CLEARANCE = 1,
+	WATER_CLEARANCE = 3, -- Increased from 1
 	
 	-- Trees should be at least this far from cliffs/edges
-	CLIFF_CLEARANCE = 1,
+	CLIFF_CLEARANCE = 2, -- Increased from 1
 	
-	-- Maximum trees per 10x10 stud area (prevents overcrowding)
-	MAX_PER_ZONE = 8,
+	-- Maximum trees per zone (prevents overcrowding) - REDUCED for better distribution
+	MAX_PER_ZONE = 2, -- Reduced from 8 to 2 - prevents clustering
+	ZONE_SIZE = 20, -- Size of zone in studs (20x20 stud area)
 	
 	-- Tree types and their spawn weights
 	TYPES = {
@@ -41,12 +42,21 @@ GenerationRules.Trees = {
 		{name = "Palm Tree", weight = 10}, -- Only near beaches
 	},
 	
-	-- Natural clustering: Trees prefer to be near other trees
-	CLUSTER_PREFERENCE = true,
+	-- Natural clustering: DISABLED - trees should be evenly distributed
+	CLUSTER_PREFERENCE = false, -- Changed to false - no clustering
 	CLUSTER_DISTANCE = 5, -- Trees within 5 studs are considered "clustered"
 	
 	-- Height requirements (terrain slope)
 	MAX_SLOPE = 0.3, -- Cannot plant on steep slopes
+	
+	-- Preferred material for trees (Grass is preferred)
+	PREFERRED_MATERIAL = Enum.Material.Grass,
+	PREFERRED_MATERIAL_WEIGHT = 3, -- 3x more likely to spawn on grass
+	
+	-- Distribution settings
+	USE_GRID_DISTRIBUTION = true, -- Use grid-based distribution for even spread
+	GRID_CELL_SIZE = 25, -- Each grid cell is 25x25 studs
+	TREES_PER_GRID_CELL = 1, -- Max 1 tree per grid cell
 }
 
 --[[
@@ -236,9 +246,9 @@ GenerationRules.Terrain = {
 ]]
 GenerationRules.Constraints = {
 	-- Maximum objects per generation pass
-	MAX_TREES_PER_PASS = 50,
-	MAX_ROCKS_PER_PASS = 20,
-	MAX_FLOWERS_PER_PASS = 100,
+	MAX_TREES_PER_PASS = 100, -- Increased for better island coverage
+	MAX_ROCKS_PER_PASS = 30, -- Increased for better distribution
+	MAX_FLOWERS_PER_PASS = 150, -- Increased for better distribution
 	MAX_FURNITURE_PER_PASS = 30,
 	
 	-- Island boundaries (studs from origin)
@@ -250,8 +260,12 @@ GenerationRules.Constraints = {
 	},
 	
 	-- Performance limits
-	MAX_RAYCAST_OPERATIONS = 500, -- Per generation pass
-	MAX_GENERATION_TIME = 5, -- Seconds per pass
+	MAX_RAYCAST_OPERATIONS = 1000, -- Increased for better distribution
+	MAX_GENERATION_TIME = 10, -- Increased for better distribution
+	
+	-- Distribution settings
+	USE_EVEN_DISTRIBUTION = true, -- Enable even distribution across island
+	DISTRIBUTION_GRID_SIZE = 25, -- Grid cell size for distribution
 }
 
 --[[

@@ -271,47 +271,200 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 	local islandData = self.playerIslands[userId]
 	if not islandData then return end
 	
-	-- Generate 10-20 trees randomly placed
-	local treeCount = math.random(10, 20)
+	-- Generate more trees for better island coverage (distributed across entire island)
+	local treeCount = math.random(30, 50) -- Increased from 10-20 to 30-50
 	local islandFolder = self.islandFolders[userId]
 	
-	for i = 1, treeCount do
-		-- Random position within island (avoiding center plaza)
-		local angle = math.random() * math.pi * 2
-		local distance = math.random(30, size.X * 0.7)
-		
-		local x = math.cos(angle) * distance
-		local z = math.sin(angle) * distance
-		local pos = center + Vector3.new(x, 20, z)
-		
-		-- Raycast to find terrain surface
-		local ray = workspace:Raycast(pos + Vector3.new(0, 100, 0), Vector3.new(0, -200, 0))
-		if ray then
-			pos = ray.Position
+	local treesPlaced = 0
+	local attempts = 0
+	local maxAttempts = treeCount * 30 -- Increased attempts for better distribution
+	
+	-- Minimum spacing between trees (INCREASED for better distribution)
+	local MIN_TREE_SPACING = 10 -- Increased from 2 to 10 studs
+	
+	-- Grid-based distribution to ensure even spread across island
+	local gridCellSize = 25 -- Grid cell size in studs
+	local treesPerCell = 1 -- Max 1 tree per grid cell
+	local usedGridCells = {} -- Track which grid cells have trees
+	
+	-- Function to get grid cell key for position
+	local function getGridKey(position)
+		local gridX = math.floor(position.X / gridCellSize)
+		local gridZ = math.floor(position.Z / gridCellSize)
+		return gridX .. "," .. gridZ
+	end
+	
+	-- Function to check if position is in a used grid cell
+	local function isGridCellUsed(position)
+		local key = getGridKey(position)
+		return usedGridCells[key] and usedGridCells[key] >= treesPerCell
+	end
+	
+	-- Function to mark grid cell as used
+	local function markGridCellUsed(position)
+		local key = getGridKey(position)
+		usedGridCells[key] = (usedGridCells[key] or 0) + 1
+	end
+	
+	-- Valid materials for trees (prioritize Grass)
+	local validTreeMaterials = {
+		[Enum.Material.Grass] = 3, -- Grass is 3x more likely
+		[Enum.Material.Ground] = 1,
+		[Enum.Material.Sand] = 1,
+		[Enum.Material.Snow] = 1,
+		[Enum.Material.Mud] = 1,
+	}
+	
+	-- Collect all potential tree positions across the island
+	local candidatePositions = {}
+	local islandRadius = math.min(size.X, size.Z) * 0.9 -- Use 90% of island size
+	
+	-- Sample positions across the entire island in a grid pattern
+	local sampleSpacing = 15 -- Sample every 15 studs
+	for x = -islandRadius, islandRadius, sampleSpacing do
+		for z = -islandRadius, islandRadius, sampleSpacing do
+			local distanceFromCenter = math.sqrt(x^2 + z^2)
+			-- Skip center plaza area
+			if distanceFromCenter > 20 and distanceFromCenter < islandRadius then
+				local pos = center + Vector3.new(x, 20, z)
+				table.insert(candidatePositions, pos)
+			end
+		end
+	end
+	
+	-- Shuffle candidate positions for random distribution
+	for i = #candidatePositions, 2, -1 do
+		local j = math.random(i)
+		candidatePositions[i], candidatePositions[j] = candidatePositions[j], candidatePositions[i]
+	end
+	
+	-- Try placing trees with even distribution
+	local placedTreePositions = {} -- Track placed tree positions for spacing check
+	
+	for _, candidatePos in ipairs(candidatePositions) do
+		if treesPlaced >= treeCount then
+			break
 		end
 		
-		-- Place tree
-		self:placeTree(islandFolder, pos, "Oak")
+		attempts = attempts + 1
+		if attempts >= maxAttempts then
+			break
+		end
 		
-		-- Save to island data
-		table.insert(islandData.trees, {
-			X = pos.X,
-			Y = pos.Y,
-			Z = pos.Z,
-			type = "Oak"
-		})
+		-- Check if grid cell is already used
+		if isGridCellUsed(candidatePos) then
+			-- Skip this grid cell - already has trees
+			continue
+		end
+		
+		-- Raycast to find terrain surface and check material
+		local rayOrigin = candidatePos + Vector3.new(0, 100, 0)
+		local rayDirection = Vector3.new(0, -200, 0)
+		
+		local raycastParams = RaycastParams.new()
+		raycastParams.FilterType = Enum.RaycastFilterType.Include
+		raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+		raycastParams.IgnoreWater = false -- We want to detect water
+		
+		local ray = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+		if not ray then
+			-- No terrain found - skip
+			continue
+		end
+		
+		-- Check if material is valid for trees (not water)
+		local hitMaterial = ray.Material
+		if hitMaterial == Enum.Material.Water then
+			-- Skip water - don't place trees on water
+			continue
+		end
+		
+		-- Check if material is valid (prioritize Grass)
+		local materialWeight = validTreeMaterials[hitMaterial]
+		if not materialWeight then
+			-- Skip invalid materials
+			continue
+		end
+		
+		-- Prefer grass material (but allow others with lower probability)
+		if hitMaterial ~= Enum.Material.Grass and math.random() > 0.3 then
+			-- 70% chance to skip non-grass materials (prioritize grass)
+			continue
+		end
+		
+		local pos = ray.Position
+		
+		-- Check spacing from already placed trees (INCREASED spacing)
+		local tooClose = false
+		for _, placedPos in ipairs(placedTreePositions) do
+			local distance = (pos - placedPos).Magnitude
+			if distance < MIN_TREE_SPACING then
+				tooClose = true
+				break
+			end
+		end
+		
+		-- Also check spacing from existing trees in workspace
+		if not tooClose then
+			local treeFolder = islandFolder:FindFirstChild("Trees")
+			if treeFolder then
+				for _, existingTree in ipairs(treeFolder:GetChildren()) do
+					if existingTree:IsA("Model") and existingTree.PrimaryPart then
+						local treePos = existingTree.PrimaryPart.Position
+						local distance = (pos - treePos).Magnitude
+						if distance < MIN_TREE_SPACING then
+							tooClose = true
+							break
+						end
+					end
+				end
+			end
+		end
+		
+		if not tooClose then
+			-- Place tree
+			self:placeTree(islandFolder, pos, "Oak")
+			
+			-- Save to island data
+			table.insert(islandData.trees, {
+				X = pos.X,
+				Y = pos.Y,
+				Z = pos.Z,
+				type = "Oak"
+			})
+			
+			-- Track placed position
+			table.insert(placedTreePositions, pos)
+			markGridCellUsed(pos)
+			treesPlaced = treesPlaced + 1
+		end
 	end
+	
+	print("[PlayerIslandService] ✅ Placed", treesPlaced, "trees across island with", MIN_TREE_SPACING, "stud spacing (attempts:", attempts, ")")
 end
 
 function PlayerIslandService:generateInitialRocks(userId, center, size)
 	local islandData = self.playerIslands[userId]
 	if not islandData then return end
 	
-	-- Generate 5-8 rocks
+	-- Generate 5-8 rocks (RockPatch should only spawn on Sand and Ground/dirt)
 	local rockCount = math.random(5, 8)
 	local islandFolder = self.islandFolders[userId]
 	
-	for i = 1, rockCount do
+	local rocksPlaced = 0
+	local attempts = 0
+	local maxAttempts = rockCount * 20 -- Prevent infinite loop
+	
+	-- Valid materials for rocks (only Sand and Ground/dirt, and Rock material)
+	local validRockMaterials = {
+		[Enum.Material.Sand] = true,
+		[Enum.Material.Ground] = true,  -- Dirt
+		[Enum.Material.Rock] = true,    -- Rock material
+	}
+	
+	while rocksPlaced < rockCount and attempts < maxAttempts do
+		attempts = attempts + 1
+		
 		local angle = math.random() * math.pi * 2
 		local distance = math.random(25, size.X * 0.6)
 		
@@ -319,10 +472,28 @@ function PlayerIslandService:generateInitialRocks(userId, center, size)
 		local z = math.sin(angle) * distance
 		local pos = center + Vector3.new(x, 20, z)
 		
-		-- Raycast to terrain
-		local ray = workspace:Raycast(pos + Vector3.new(0, 100, 0), Vector3.new(0, -200, 0))
+		-- Raycast to terrain and check material
+		local rayOrigin = pos + Vector3.new(0, 100, 0)
+		local rayDirection = Vector3.new(0, -200, 0)
+		
+		local raycastParams = RaycastParams.new()
+		raycastParams.FilterType = Enum.RaycastFilterType.Include
+		raycastParams.FilterDescendantsInstances = {workspace.Terrain}
+		raycastParams.IgnoreWater = false
+		
+		local ray = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
 		if ray then
+			-- Check if material is valid for rocks (only Sand and Ground/dirt)
+			local hitMaterial = ray.Material
+			if not validRockMaterials[hitMaterial] then
+				-- Skip invalid materials (like Grass, Water, etc.)
+				continue
+			end
+			
 			pos = ray.Position
+		else
+			-- No terrain found - skip
+			continue
 		end
 		
 		self:placeRock(islandFolder, pos)
@@ -332,7 +503,11 @@ function PlayerIslandService:generateInitialRocks(userId, center, size)
 			Y = pos.Y,
 			Z = pos.Z,
 		})
+		
+		rocksPlaced = rocksPlaced + 1
 	end
+	
+	print("[PlayerIslandService] ✅ Placed", rocksPlaced, "rocks on sand/dirt (attempts:", attempts, ")")
 end
 
 function PlayerIslandService:placeTree(folder, position, treeType)

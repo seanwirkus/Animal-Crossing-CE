@@ -20,6 +20,8 @@ KeybindManager.KEYBINDS = {
 	
 	-- NookPhone
 	NOOK_PHONE = Enum.KeyCode.P,
+	-- NOOK_SHOPPING = Enum.KeyCode.S,  -- REMOVED: S key no longer opens Nook Shopping directly
+	PREMIUM_SHOP = Enum.KeyCode.F2,  -- F2 for Premium Shop (Robux purchases)
 	
 	-- Navigation
 	MAP = Enum.KeyCode.M,
@@ -33,12 +35,14 @@ KeybindManager.KEYBINDS = {
 	
 	-- Future binds (placeholder)
 	EMOTE = Enum.KeyCode.V,
+	
+	-- Item Browser (always available)
+	ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
 }
 
 -- Debug keybinds (only active in debug mode)
 KeybindManager.DEBUG_KEYBINDS = {
 	DEBUG_GUI = Enum.KeyCode.G,         -- G for Debug Manager  
-	ITEM_BROWSER = Enum.KeyCode.B,      -- B for Item Browser
 	DEBUG_DELETE = Enum.KeyCode.X,      -- X for Debug Delete (testing)
 	TEST_PLANE = Enum.KeyCode.F9,       -- F9 to test NookPlane cutscene
 	QUEST_BOARD = Enum.KeyCode.Q,       -- Q for Quest Board (if needed later)

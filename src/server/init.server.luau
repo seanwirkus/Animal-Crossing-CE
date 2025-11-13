@@ -31,16 +31,17 @@ local DataStoreService = game:GetService("DataStoreService")
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
 local BalloonSpawner = require(script:WaitForChild("BalloonSpawner"))
-local BellBagSpawner = require(script:WaitForChild("BellBagSpawner"))
 local ChibiCharacterServer = require(script:WaitForChild("ChibiCharacterServer"))
 local HoleSpawner = require(script:WaitForChild("HoleSpawner"))
 local ShovelSystem = require(script:WaitForChild("ShovelSystem"))
+local FossilSpawner = require(script:WaitForChild("FossilSpawner"))
+local BellSpawner = require(script:WaitForChild("BellSpawner"))
 local WhiteboardService = require(script:WaitForChild("WhiteboardService"))
 local PlayerSettingsService = require(script:WaitForChild("PlayerSettingsService"))
 local DIYWorkBenchService = require(script:WaitForChild("DIYWorkBenchService"))
-local IslandSaveService = require(script:WaitForChild("IslandSaveService"))
+local _IslandSaveService = require(script:WaitForChild("IslandSaveService"))
 local OnboardingService = require(script:WaitForChild("OnboardingService"))
-local HomeBuildingService = require(script:WaitForChild("HomeBuildingService"))
+local _HomeBuildingService = require(script:WaitForChild("HomeBuildingService"))
 local PlayerIslandService = require(script:WaitForChild("PlayerIslandService"))
 
 -- Roblox types and enums
@@ -68,6 +69,12 @@ HoleSpawner.init()
 
 -- Initialize shovel system
 ShovelSystem.init()
+
+-- Initialize fossil spawner (X markers for fossils)
+FossilSpawner.init()
+
+-- Initialize bell spawner (bell markers in ground)
+BellSpawner.init()
 
 -- Initialize whiteboard service (handles Workspace.Whiteboard + markers)
 WhiteboardService.init()
@@ -236,6 +243,104 @@ local nextItemId = 1
 
 local ItemData = ItemDataFetcher.getFallbackData()
 local DisplayItems = ItemDataFetcher.getDisplayItemMap()
+
+-- Bell Bag system configuration
+local BELL_BAG_THRESHOLDS = {
+        small = 500,   -- Items worth less than 500 bells = BellBagSmall
+        medium = 2000, -- Items worth 500-2000 bells = BellBagMedium
+        -- Items worth more than 2000 bells = BellBagLarge
+}
+
+-- Get the appropriate bell bag model name based on item sell price
+local function getBellBagModelName(itemSellPrice: number, itemCount: number): string?
+        local totalValue = itemSellPrice * itemCount
+        
+        if totalValue < BELL_BAG_THRESHOLDS.small then
+                return "BellBagSmall"
+        elseif totalValue < BELL_BAG_THRESHOLDS.medium then
+                return "BellBagMedium"
+        else
+                return "BellBagLarge"
+        end
+end
+
+-- Check if item should spawn as a bell bag
+-- Returns: shouldSpawn (boolean), totalValue (number or nil)
+local function shouldSpawnAsBellBag(itemId: string, count: number)
+        local item = ItemData[itemId]
+        if not item then
+                return false, nil
+        end
+        
+        -- Get sell price (try multiple field names)
+        local sellPrice = item.sell or item.sell_price or item.sellPrice
+        if not sellPrice or sellPrice <= 0 then
+                return false, nil
+        end
+        
+        -- Calculate total value
+        local totalValue = sellPrice * count
+        return true, totalValue
+end
+
+-- Load bell bag model from ReplicatedStorage
+local function loadBellBagModel(modelName: string): Model?
+        -- Try exact match first
+        local bellBagAsset = ReplicatedStorage:FindFirstChild(modelName)
+        if bellBagAsset and bellBagAsset:IsA("Model") then
+                print("[Server] ✅ Found bell bag model:", modelName)
+                return bellBagAsset:Clone()
+        end
+        
+        -- Try case-insensitive search
+        for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+                if child:IsA("Model") and string.lower(child.Name) == string.lower(modelName) then
+                        print("[Server] ✅ Found bell bag model (case-insensitive):", child.Name)
+                        return child:Clone()
+                end
+        end
+        
+        -- Try partial match (e.g., "BellBagMed" -> "BellBagMedium")
+        local lowerName = string.lower(modelName)
+        for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+                if child:IsA("Model") then
+                        local childLower = string.lower(child.Name)
+                        -- Check if model name contains the search term or vice versa
+                        if childLower:find(lowerName, 1, true) or lowerName:find(childLower, 1, true) then
+                                if childLower:find("bell") and childLower:find("bag") then
+                                        print("[Server] ✅ Found bell bag model (partial match):", child.Name, "for", modelName)
+                                        return child:Clone()
+                                end
+                        end
+                end
+        end
+        
+        -- Try common variations
+        local variations = {
+                ["BellBagMed"] = {"BellBagMedium", "BellBag_Medium", "BellBagMedium_Model"},
+                ["BellBagSmall"] = {"BellBag_Small", "BellBagSmall_Model", "SmallBellBag"},
+                ["BellBagLarge"] = {"BellBag_Large", "BellBagLarge_Model", "LargeBellBag"},
+        }
+        
+        if variations[modelName] then
+                for _, variation in ipairs(variations[modelName]) do
+                        local variant = ReplicatedStorage:FindFirstChild(variation)
+                        if variant and variant:IsA("Model") then
+                                print("[Server] ✅ Found bell bag model (variation):", variation, "for", modelName)
+                                return variant:Clone()
+                        end
+                end
+        end
+        
+        warn("[Server] ⚠️ Bell bag model not found in ReplicatedStorage:", modelName)
+        warn("[Server] Available models in ReplicatedStorage:")
+        for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+                if child:IsA("Model") then
+                        warn("  -", child.Name)
+                end
+        end
+        return nil
+end
 
 local function getInventoryForPlayer(player)
         return playerInventories[player.UserId]
@@ -571,7 +676,7 @@ function savePlayerInventory(player)
 	end
 	
 	-- Build serializable inventory data
-	local serialized, snapshot = cloneSlots(inventory.slots, inventory.maxSlots)
+	local serialized, _snapshot = cloneSlots(inventory.slots, inventory.maxSlots)
 	local inventoryData = {
 		slots = serialized,
 		maxSlots = inventory.maxSlots,
@@ -764,8 +869,27 @@ local function createDroppedItem(player, itemId, count, worldPosition)
 		return connection
 	end
 
+	-- Check if this item should spawn as a bell bag
+	local isBellBag, totalValue = shouldSpawnAsBellBag(itemId, count)
+	local bellBagModel: Model? = nil
+	local bellBagModelName: string? = nil
+	
+	if isBellBag and totalValue then
+		bellBagModelName = getBellBagModelName(item.sell or item.sell_price or 0, count)
+		if bellBagModelName then
+			bellBagModel = loadBellBagModel(bellBagModelName)
+			if bellBagModel then
+				print("[Server] 💰 Spawning", bellBagModelName, "for item", item.name, "worth", totalValue, "bells")
+			end
+		end
+	end
+
 	local model = Instance.new("Model")
-	model.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
+	if bellBagModel then
+		model.Name = "BellBag_" .. worldItemId .. "_" .. bellBagModelName
+	else
+		model.Name = "WorldItem_" .. worldItemId .. "_" .. item.name
+	end
 	model.Parent = workspace
 
         -- Simple physics part for gravity
@@ -779,6 +903,269 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         pivot.CFrame = CFrame.new(worldPosition + Vector3.new(0, 3, 0)) -- Start higher
         pivot.AssemblyLinearVelocity = Vector3.new(0, -8, 0) -- Drop down
         pivot.Parent = model
+
+	-- If we have a bell bag model, use it instead of the regular display
+	if bellBagModel then
+		bellBagModel.Name = "BellBag"
+		bellBagModel.Parent = model
+		
+		-- Set up bell bag model
+		-- First, try to find PrimaryPart
+		local bellBagPart = bellBagModel.PrimaryPart
+		
+		-- If no PrimaryPart, try to find it or set it
+		if not bellBagPart then
+			-- Look for a part named "Handle" or "PrimaryPart" or largest part
+			bellBagPart = bellBagModel:FindFirstChild("Handle")
+			if not bellBagPart then
+				bellBagPart = bellBagModel:FindFirstChild("PrimaryPart")
+			end
+			if not bellBagPart then
+				bellBagPart = bellBagModel:FindFirstChildOfClass("BasePart")
+			end
+			
+			-- Find largest part if still no part found
+			if not bellBagPart then
+				local largestPart = nil
+				local largestSize = 0
+				for _, descendant in ipairs(bellBagModel:GetDescendants()) do
+					if descendant:IsA("BasePart") then
+						local size = descendant.Size.X * descendant.Size.Y * descendant.Size.Z
+						if size > largestSize then
+							largestSize = size
+							largestPart = descendant
+						end
+					end
+				end
+				bellBagPart = largestPart
+			end
+			
+			-- Set PrimaryPart if we found one
+			if bellBagPart then
+				bellBagModel.PrimaryPart = bellBagPart
+			end
+		end
+		
+		if bellBagPart then
+			-- Make all parts non-collidable and set up
+			for _, descendant in ipairs(bellBagModel:GetDescendants()) do
+				if descendant:IsA("BasePart") then
+					descendant.CanCollide = false
+					descendant.Anchored = false  -- Will be anchored after landing
+					descendant.Massless = true  -- Make it lighter for physics
+				end
+			end
+			
+			-- Position bell bag at drop position (slightly above ground)
+			local dropPosition = worldPosition + Vector3.new(0, 2, 0)
+			bellBagModel:PivotTo(CFrame.new(dropPosition))
+			
+			-- Make sure PrimaryPart is set
+			if not bellBagModel.PrimaryPart then
+				bellBagModel.PrimaryPart = bellBagPart
+			end
+			
+			print("[Server] ✅ Bell bag model positioned at", dropPosition, "with PrimaryPart:", bellBagPart.Name)
+		else
+			warn("[Server] ⚠️ No BasePart found in bell bag model:", bellBagModelName)
+		end
+		
+		-- Store bell bag info in worldItems
+		worldItems[worldItemId] = {
+			itemId = itemId,
+			count = count,
+			position = worldPosition,
+			droppedBy = player and player.UserId or nil,
+			droppedAt = tick(),
+			model = model,
+			connections = presentationConnections,
+			floatHeight = 1.5,
+			isBellBag = true,
+			bellsValue = totalValue,
+			bellBagModelName = bellBagModelName,
+		}
+		
+		-- Set up bell bag pickup system (will be added after landing)
+		local pickupCooldown = 1 -- 1 second cooldown
+		local lastPickupAttempt = tick()
+		local hasLanded = false
+		local floatConnection = nil
+		local floatTime = 0
+		
+		-- Function to start floating animation
+		local function startFloatingAnimation()
+			if floatConnection then
+				return -- Already floating
+			end
+			
+			floatConnection = RunService.Heartbeat:Connect(function()
+				if not model.Parent or not bellBagModel then
+					if floatConnection then
+						floatConnection:Disconnect()
+						floatConnection = nil
+					end
+					return
+				end
+				
+				floatTime += 0.016 -- Approximate frame time
+				local floatHeight = math.sin(floatTime * 2) * 0.2 -- Gentle floating (reduced from 0.3)
+				local bellBagPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
+				if bellBagPart and pivot.Parent then
+					-- Float above the pivot position
+					local basePosition = pivot.Position + Vector3.new(0, 0.5, 0)
+					bellBagModel:PivotTo(CFrame.new(basePosition + Vector3.new(0, floatHeight, 0)))
+				end
+			end)
+			trackConnection(floatConnection)
+		end
+		
+		-- Wait for bell bag to land
+		local landingConnection
+		landingConnection = RunService.Heartbeat:Connect(function()
+			if not model.Parent or not pivot.Parent then
+				if landingConnection then
+					landingConnection:Disconnect()
+				end
+				return
+			end
+			
+			-- Check if landed (check both pivot and bell bag model velocity)
+			local bellBagPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
+			local bellBagVelocity = bellBagPart and bellBagPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+			local combinedVelocity = pivot.AssemblyLinearVelocity.Magnitude + bellBagVelocity.Magnitude
+			
+			if combinedVelocity < 0.2 and not hasLanded then
+				hasLanded = true
+				-- Anchor bell bag after landing
+				if bellBagModel and bellBagPart then
+					-- Position bell bag on top of pivot (on the ground)
+					local groundPosition = pivot.Position + Vector3.new(0, 0.5, 0)
+					bellBagModel:PivotTo(CFrame.new(groundPosition))
+					
+					-- Anchor all parts
+					for _, descendant in ipairs(bellBagModel:GetDescendants()) do
+						if descendant:IsA("BasePart") then
+							descendant.Anchored = true
+							descendant.CanCollide = false  -- Keep non-collidable
+						end
+					end
+					
+					print("[Server] ✅ Bell bag landed at", groundPosition)
+				end
+				pivot.Anchored = true
+				pivot.CanCollide = false  -- Make pivot non-collidable too
+				
+				-- Start floating animation
+				startFloatingAnimation()
+				
+				-- Add ProximityPrompt for bell bag pickup
+				local prompt = Instance.new("ProximityPrompt")
+				prompt.Name = "PickupBellBag"
+				prompt.ActionText = "Pick Up"
+				-- Format bell bag name (e.g., "BellBagSmall" -> "Small Bell Bag", "BellBagMedium" -> "Medium Bell Bag")
+				local displayName = bellBagModelName or "Bell Bag"
+				if bellBagModelName then
+					-- Remove "BellBag" prefix
+					displayName = bellBagModelName:gsub("^BellBag", "")
+					-- Handle empty result or format nicely
+					if displayName == "" then
+						displayName = "Bell Bag"
+					else
+						-- Capitalize first letter and add " Bell Bag" suffix
+						displayName = displayName:sub(1, 1):upper() .. displayName:sub(2):lower() .. " Bell Bag"
+					end
+				end
+				prompt.ObjectText = displayName .. " (" .. totalValue .. " Bells)"
+				prompt.HoldDuration = 0
+				prompt.MaxActivationDistance = 8
+				prompt.RequiresLineOfSight = false
+				prompt.Parent = pivot
+				
+				-- Connect pickup
+				prompt.Triggered:Connect(function(pickingPlayer)
+					local now = tick()
+					if now - lastPickupAttempt < pickupCooldown then
+						return
+					end
+					lastPickupAttempt = now
+					
+					-- Add bells to player
+					if totalValue and totalValue > 0 then
+						local success = CurrencyManager.addBells(pickingPlayer, totalValue)
+						if success then
+							print("[Server] 💰", pickingPlayer.Name, "picked up", bellBagModelName, "worth", totalValue, "bells")
+							
+							-- Play pickup animation
+							local character = pickingPlayer.Character
+							local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+							if humanoidRootPart and bellBagModel then
+								local targetPosition = humanoidRootPart.Position + Vector3.new(0, 2, 0)
+								
+								-- Animate bell bag flying to player
+								local pickupTween = TweenService:Create(pivot, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+									CFrame = CFrame.new(targetPosition)
+								})
+								
+								-- Scale down effect
+								local bellBagPart = bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart")
+								local scaleDownTween
+								if bellBagPart then
+									scaleDownTween = TweenService:Create(bellBagPart, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+										Size = bellBagPart.Size * 0.1,
+										Transparency = 1
+									})
+								end
+								
+								pickupTween:Play()
+								if scaleDownTween then
+									scaleDownTween:Play()
+								end
+								
+								-- Clean up after animation
+								pickupTween.Completed:Wait()
+								destroyWorldItem(worldItemId)
+							else
+								-- No animation, just destroy
+								destroyWorldItem(worldItemId)
+							end
+						else
+							warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
+						end
+					end
+				end)
+				
+				if landingConnection then
+					landingConnection:Disconnect()
+				end
+			end
+		end)
+		trackConnection(landingConnection)
+		
+		-- Add glow to bell bag (use PrimaryPart or first part)
+		local glowPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
+		if glowPart then
+			-- Remove existing light if any
+			local existingLight = glowPart:FindFirstChild("BellBagGlow")
+			if existingLight then
+				existingLight:Destroy()
+			end
+			
+			local pointLight = Instance.new("PointLight")
+			pointLight.Name = "BellBagGlow"
+			pointLight.Range = 8
+			pointLight.Brightness = 1.2
+			pointLight.Color = Color3.fromRGB(255, 215, 0) -- Gold color
+			pointLight.Shadows = false
+			pointLight.Parent = glowPart
+			print("[Server] ✅ Added glow to bell bag model:", bellBagModelName)
+		else
+			warn("[Server] ⚠️ Could not find part to add glow to bell bag model:", bellBagModelName)
+		end
+		
+		model.PrimaryPart = pivot
+		print("[Server] ✅ Created bell bag:", bellBagModelName, "worth", totalValue, "bells at", worldPosition)
+		return -- Exit early, bell bag is set up
+	end
 
         -- Check if this item has a 3D model (tools, etc.)
         local has3DModel = ToolObjects.hasToolModel(itemId)
@@ -1701,10 +2088,6 @@ task.spawn(function()
 	BalloonSpawner.start()
 end)
 
--- Start BellBag spawner system
-print("[Server] 🎒 Starting BellBag spawner system...")
-BellBagSpawner.init()
-
 -- Handle balloon hit events from client
 balloonHitRemote.OnServerEvent:Connect(function(player, balloonName)
 	print("[Server] 🎈 Received balloon hit for:", balloonName)
@@ -1719,5 +2102,10 @@ balloonHitRemote.OnServerEvent:Connect(function(player, balloonName)
 		warn("[Server] ⚠️ Invalid balloon name:", balloonName)
 	end
 end)
+
+-- Initialize Product Purchase Handler for Robux monetization
+local ProductPurchaseHandler = require(script.ProductPurchaseHandler)
+ProductPurchaseHandler.init()
+print("[Server] ✅ ProductPurchaseHandler initialized")
 
 print("[Server] ✅ All systems initialized!")

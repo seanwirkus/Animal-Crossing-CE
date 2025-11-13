@@ -82,11 +82,12 @@ function ShopGUI:buildGui()
     screenGui.Parent = self.playerGui
     self.gui = screenGui
     
-    -- Main container
+    -- Main container - smaller and positioned to avoid top-left corner
     local container = Instance.new("Frame")
     container.Name = "ShopContainer"
-    container.Size = UDim2.new(0, 800, 0, 600)
-    container.Position = UDim2.new(0.5, -400, 0.5, -300)
+    container.AnchorPoint = Vector2.new(0.5, 0.5)
+    container.Size = UDim2.new(0, 720, 0, 540)  -- Smaller: 720x540 (was 800x600)
+    container.Position = UDim2.new(0.5, 0, 0.55, 0)  -- Lower than center to avoid top-left
     container.BackgroundColor3 = COLORS.BG_PRIMARY
     container.BorderSizePixel = 0
     container.Parent = screenGui

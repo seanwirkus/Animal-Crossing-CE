@@ -113,12 +113,12 @@ function RecipesInventoryGUI:createGui()
 		return
 	end
 	
-	-- Main frame with cream background - smaller size, centered
+	-- Main frame with cream background - smaller size, positioned to avoid top-left corner
 	local mainFrame = Instance.new("Frame")
 	mainFrame.Name = "RecipesInventoryFrame"
-	mainFrame.Size = UDim2.new(0.85, 0, 0.8, 0)  -- 85% width, 80% height
-	mainFrame.Position = UDim2.new(0.075, 0, 0.1, 0)  -- Centered
-	mainFrame.AnchorPoint = Vector2.new(0, 0)
+	mainFrame.Size = UDim2.new(0.7, 0, 0.65, 0)  -- Smaller: 70% width, 65% height
+	mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	mainFrame.Position = UDim2.new(0.5, 0, 0.55, 0)  -- Lower than center to avoid top-left
 	mainFrame.BackgroundColor3 = COLORS.BG_MAIN
 	mainFrame.BorderSizePixel = 0
 	mainFrame.ZIndex = 2
@@ -128,53 +128,53 @@ function RecipesInventoryGUI:createGui()
 	
 	-- Add rounded corners
 	local mainCorner = Instance.new("UICorner")
-	mainCorner.CornerRadius = UDim.new(0, 8)
+	mainCorner.CornerRadius = UDim.new(0, 6)  -- Reduced from 8
 	mainCorner.Parent = mainFrame
 	
 	-- Title bar - smaller
 	local titleBar = Instance.new("Frame")
 	titleBar.Name = "TitleBar"
-	titleBar.Size = UDim2.new(1, 0, 0, 40)  -- Reduced from 50
-	titleBar.Position = UDim2.new(0, 0, 0, 0)
+	titleBar.Size = UDim2.new(1, -8, 0, 30)  -- Reduced height from 40 to 30
+	titleBar.Position = UDim2.new(0, 4, 0, 4)  -- Small padding from edges
 	titleBar.BackgroundColor3 = Color3.fromRGB(120, 100, 80)
 	titleBar.BorderSizePixel = 0
 	titleBar.ZIndex = 3
 	titleBar.Parent = mainFrame
 	
 	local titleCorner = Instance.new("UICorner")
-	titleCorner.CornerRadius = UDim.new(0, 8)
+	titleCorner.CornerRadius = UDim.new(0, 4)  -- Reduced from 8
 	titleCorner.Parent = titleBar
 	
 	local titleText = Instance.new("TextLabel")
 	titleText.Name = "TitleText"
 	titleText.Text = "📋 DIY Recipes"
-	titleText.Size = UDim2.new(1, -20, 1, 0)
-	titleText.Position = UDim2.new(0, 10, 0, 0)
+	titleText.Size = UDim2.new(1, -10, 1, 0)
+	titleText.Position = UDim2.new(0, 5, 0, 0)  -- Reduced padding from 10
 	titleText.BackgroundTransparency = 1
 	titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-	titleText.TextSize = 18  -- Reduced from 20
+	titleText.TextSize = 16  -- Reduced from 18
 	titleText.Font = Enum.Font.GothamBold
 	titleText.TextXAlignment = Enum.TextXAlignment.Left
 	titleText.ZIndex = 4
 	titleText.Parent = titleBar
 	
-	-- Two-panel layout
+	-- Two-panel layout - with reduced padding
 	-- Left: Recipe cards scroll
 	local cardsContainer = Instance.new("Frame")
 	cardsContainer.Name = "CardsContainer"
-	cardsContainer.Size = UDim2.new(0.55, -10, 1, -50)  -- Reduced from 0.6, adjusted position
-	cardsContainer.Position = UDim2.new(0, 10, 0, 50)  -- Adjusted for smaller title bar
+	cardsContainer.Size = UDim2.new(0.55, -6, 1, -38)  -- Adjusted for title bar (30px) + padding (8px)
+	cardsContainer.Position = UDim2.new(0, 4, 0, 38)  -- Start after title bar + padding
 	cardsContainer.BackgroundTransparency = 1
 	cardsContainer.ZIndex = 3
 	cardsContainer.Parent = mainFrame
 	
 	local recipeCardsScroll = Instance.new("ScrollingFrame")
 	recipeCardsScroll.Name = "RecipeCardsScroll"
-	recipeCardsScroll.Size = UDim2.new(1, 0, 1, 0)
-	recipeCardsScroll.Position = UDim2.new(0, 0, 0, 0)
+	recipeCardsScroll.Size = UDim2.new(1, -8, 1, -8)  -- Small padding inside container
+	recipeCardsScroll.Position = UDim2.new(0, 4, 0, 4)
 	recipeCardsScroll.BackgroundTransparency = 1
 	recipeCardsScroll.BorderSizePixel = 0
-	recipeCardsScroll.ScrollBarThickness = 8
+	recipeCardsScroll.ScrollBarThickness = 6  -- Reduced from 8
 	recipeCardsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 	recipeCardsScroll.ScrollingEnabled = true
 	recipeCardsScroll.ZIndex = 3
@@ -185,21 +185,21 @@ function RecipesInventoryGUI:createGui()
 	gridLayout.FillDirection = Enum.FillDirection.Horizontal
 	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-	gridLayout.CellSize = UDim2.new(0, 70, 0, 110)  -- Properly sized recipe cards
-	gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)  -- Better spacing
+	gridLayout.CellSize = UDim2.new(0, 65, 0, 100)  -- Reduced from 70, 110
+	gridLayout.CellPadding = UDim2.new(0, 6, 0, 6)  -- Reduced from 10, 10
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	gridLayout.Parent = recipeCardsScroll
 	
 	-- Auto-update canvas size
 	gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		recipeCardsScroll.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20)
+		recipeCardsScroll.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 8)  -- Reduced from 20
 	end)
 	
 	-- Right: Recipe details panel
 	local detailsPanel = Instance.new("Frame")
 	detailsPanel.Name = "DetailsPanel"
-	detailsPanel.Size = UDim2.new(0.45, -10, 1, -50)  -- Adjusted size and position
-	detailsPanel.Position = UDim2.new(0.55, 0, 0, 50)  -- Adjusted for smaller title bar
+	detailsPanel.Size = UDim2.new(0.45, -6, 1, -38)  -- Adjusted for title bar (30px) + padding (8px)
+	detailsPanel.Position = UDim2.new(0.55, 2, 0, 38)  -- Start after title bar + padding, gap from left panel
 	detailsPanel.BackgroundColor3 = COLORS.BG_RECIPE_INFO
 	detailsPanel.BackgroundTransparency = 0.5
 	detailsPanel.BorderSizePixel = 0
@@ -208,7 +208,7 @@ function RecipesInventoryGUI:createGui()
 	self.detailsPanel = detailsPanel
 	
 	local detailsCorner = Instance.new("UICorner")
-	detailsCorner.CornerRadius = UDim.new(0, 27)
+	detailsCorner.CornerRadius = UDim.new(0, 6)  -- Reduced from 27
 	detailsCorner.Parent = detailsPanel
 	
 	-- Initially show placeholder
@@ -424,14 +424,14 @@ function RecipesInventoryGUI:showRecipeDetails(recipe)
 		end
 	end
 	
-	-- Scroll frame for details content
+	-- Scroll frame for details content - with padding
 	local detailsScroll = Instance.new("ScrollingFrame")
 	detailsScroll.Name = "DetailsScroll"
-	detailsScroll.Size = UDim2.new(1, -20, 1, -20)
-	detailsScroll.Position = UDim2.new(0, 10, 0, 10)
+	detailsScroll.Size = UDim2.new(1, -8, 1, -8)  -- Small padding inside panel
+	detailsScroll.Position = UDim2.new(0, 4, 0, 4)
 	detailsScroll.BackgroundTransparency = 1
 	detailsScroll.BorderSizePixel = 0
-	detailsScroll.ScrollBarThickness = 6
+	detailsScroll.ScrollBarThickness = 5  -- Reduced from 6
 	detailsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 	detailsScroll.ZIndex = 4
 	detailsScroll.Parent = self.detailsPanel
@@ -440,24 +440,24 @@ function RecipesInventoryGUI:showRecipeDetails(recipe)
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.Name = "RecipeName"
 	nameLabel.Text = recipe.name or recipe.result.name or "Unknown Recipe"
-	nameLabel.Size = UDim2.new(1, 0, 0, 50)  -- Reduced from 70
+	nameLabel.Size = UDim2.new(1, 0, 0, 40)  -- Reduced from 50
 	nameLabel.Position = UDim2.new(0, 0, 0, 0)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.TextColor3 = COLORS.TEXT_BROWN
-	nameLabel.TextSize = 24  -- Reduced from 32
+	nameLabel.TextSize = 20  -- Reduced from 24
 	nameLabel.Font = Enum.Font.GothamBold
 	nameLabel.TextWrapped = true
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
 	nameLabel.ZIndex = 5
 	nameLabel.Parent = detailsScroll
 	
-	local yOffset = 60  -- Reduced from 80
+	local yOffset = 45  -- Reduced from 60
 	
-	-- Result item sprite - properly sized for details panel
+	-- Result item sprite - smaller
 	if recipe.result and recipe.result.spriteIndex then
 		local resultSpriteFrame = Instance.new("Frame")
 		resultSpriteFrame.Name = "ResultSprite"
-		resultSpriteFrame.Size = UDim2.new(0, 60, 0, 60)  -- Compact size for details
+		resultSpriteFrame.Size = UDim2.new(0, 50, 0, 50)  -- Reduced from 60, 60
 		resultSpriteFrame.Position = UDim2.new(0, 0, 0, yOffset)
 		resultSpriteFrame.BackgroundTransparency = 1
 		resultSpriteFrame.ZIndex = 5
@@ -488,7 +488,7 @@ function RecipesInventoryGUI:showRecipeDetails(recipe)
 			warn("[RecipesInventoryGUI] Failed to apply sprite for recipe", recipe.itemId)
 		end
 		
-		yOffset = yOffset + 70  -- Tighter spacing
+		yOffset = yOffset + 55  -- Tighter spacing
 	end
 	
 	-- Materials section header - smaller

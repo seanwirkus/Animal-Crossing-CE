@@ -875,6 +875,11 @@ function ToolRingGUI:isVisible()
     return self.visible
 end
 
+-- Alias methods for GUIManager compatibility
+ToolRingGUI.Show = ToolRingGUI.show
+ToolRingGUI.Hide = ToolRingGUI.hide
+ToolRingGUI.Toggle = ToolRingGUI.toggle
+
 function ToolRingGUI:getSelectedTool()
     return cloneToolEntry(self.tools[self.selectedSlot] or {})
 end

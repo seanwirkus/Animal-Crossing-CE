@@ -1,5 +1,5 @@
 {
-    "diagnostics.globals": [
+    "globals": [
         "game",
         "script",
         "workspace",
@@ -7,10 +7,13 @@
         "Vector2",
         "Vector3",
         "Color3",
+        "UDim",
         "UDim2",
         "Enum",
+        "CFrame",
         "typeof",
         "plugin",
+        "task",
         "TweenInfo"
-    ]
+        ]
 }

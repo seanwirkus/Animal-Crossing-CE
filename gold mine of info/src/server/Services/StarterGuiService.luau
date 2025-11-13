@@ -12,7 +12,8 @@ local Shared = {}
 
 -- Button manipulation functions
 function Local.EnableAllButtons(enabled: boolean)
-	print(`[StarterGuiService] {'Enabling' if enabled else 'Disabling'} all buttons for all players`)
+	local action = enabled and "Enabling" or "Disabling"
+	print(`[StarterGuiService] {action} all buttons for all players`)
 	
 	local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
 	if remotes then
@@ -26,7 +27,8 @@ function Local.EnableAllButtons(enabled: boolean)
 end
 
 function Local.ShowAllButtons(visible: boolean)
-	print(`[StarterGuiService] {'Showing' if visible else 'Hiding'} all buttons for all players`)
+	local action = visible and "Showing" or "Hiding"
+	print(`[StarterGuiService] {action} all buttons for all players`)
 	
 	local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
 	if remotes then
@@ -40,7 +42,8 @@ function Local.ShowAllButtons(visible: boolean)
 end
 
 function Local.LockAllButtons(locked: boolean)
-	print(`[StarterGuiService] {'Locking' if locked else 'Unlocking'} all buttons for all players`)
+	local action = locked and "Locking" or "Unlocking"
+	print(`[StarterGuiService] {action} all buttons for all players`)
 	
 	local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
 	if remotes then

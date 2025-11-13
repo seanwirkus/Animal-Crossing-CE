@@ -8,6 +8,7 @@ KeybindDescriptions.NORMAL = {
 	CRAFTING = "Open the crafting menu to build items.",
 	TOOL_WHEEL = "Open the tool wheel for quick tool selection.",
 	NOOK_PHONE = "Pull up the NookPhone interface with all apps.",
+	PREMIUM_SHOP = "Open the Premium Shop to purchase Bells and Nook Miles with Robux.",
 	MAP = "Open the island map (coming soon).",
 	SETTINGS = "Open the settings menu.",
 	GAME_MENU = "Open the unified game menu with tabs for inventory, settings, and more.",

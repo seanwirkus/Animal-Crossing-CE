@@ -16,30 +16,8 @@ local TestSystem = {}
 -- Create global reference for Command Bar access
 _G.testSystem = TestSystem
 
--- Print instructions on load
-print("\n")
-print("═══════════════════════════════════════════")
-print("  AI ISLAND GENERATION TEST SYSTEM LOADED")
-print("═══════════════════════════════════════════")
-print("")
-print("Available Commands (from Command Bar):")
-print("  _G.testSystem.quickTest()              -- Quick 10-tree test")
-print("  _G.testSystem.fullGeneration()         -- Full island generation")
-print("  _G.testSystem.watchLearning()          -- Watch AI learn")
-print("  _G.testSystem.highQualityTrees()       -- Strict tree placement")
-print("  _G.testSystem.generateRockClusters()   -- Rock formations")
-print("  _G.testSystem.generateFlowerGardens()  -- Flower patches")
-print("  _G.testSystem.analyzeOnly()            -- Just scan terrain")
-print("  _G.testSystem.clearAll()               -- Delete generated objects")
-print("═══════════════════════════════════════════")
-print("")
-print("⚠️  IMPORTANT: Use COMMAND BAR in SERVER CONTEXT!")
-print("   (Change dropdown from 'Client' to 'Server')")
-print("")
-print("   Or edit QuickTestRunner.server.luau and press F5")
-print("")
-print("📚 Full guide: docs/TESTING_AI_GENERATION.md")
-print("")
+-- Note: Instructions are available via _G.testSystem.help() or in docs/TESTING_AI_GENERATION.md
+-- Removed automatic print statements to reduce console spam
 
 --[[
 	Quick test: Generate and apply 10 trees
@@ -235,18 +213,25 @@ end
 -- Auto-run on server start (comment out if you want manual control)
 -- TestSystem.quickTest()
 
-print("\n═══════════════════════════════════════════")
-print("  AI ISLAND GENERATION TEST SYSTEM LOADED")
-print("═══════════════════════════════════════════")
-print("\nAvailable Commands (from Command Bar):")
-print("  _G.testSystem.quickTest()              -- Quick 10-tree test")
-print("  _G.testSystem.fullGeneration()         -- Full island generation")
-print("  _G.testSystem.watchLearning()          -- Watch AI learn")
-print("  _G.testSystem.highQualityTrees()       -- Strict tree placement")
-print("  _G.testSystem.generateRockClusters()   -- Rock formations")
-print("  _G.testSystem.generateFlowerGardens()  -- Flower patches")
-print("  _G.testSystem.analyzeOnly()            -- Just scan terrain")
-print("  _G.testSystem.clearAll()               -- Delete generated objects")
-print("═══════════════════════════════════════════\n")
+-- Help function to show available commands
+function TestSystem.help()
+	print("\n═══════════════════════════════════════════")
+	print("  AI ISLAND GENERATION TEST SYSTEM")
+	print("═══════════════════════════════════════════")
+	print("\nAvailable Commands (from Command Bar):")
+	print("  _G.testSystem.quickTest()              -- Quick 10-tree test")
+	print("  _G.testSystem.fullGeneration()         -- Full island generation")
+	print("  _G.testSystem.watchLearning()          -- Watch AI learn")
+	print("  _G.testSystem.highQualityTrees()       -- Strict tree placement")
+	print("  _G.testSystem.generateRockClusters()   -- Rock formations")
+	print("  _G.testSystem.generateFlowerGardens()  -- Flower patches")
+	print("  _G.testSystem.analyzeOnly()            -- Just scan terrain")
+	print("  _G.testSystem.clearAll()               -- Delete generated objects")
+	print("  _G.testSystem.help()                   -- Show this help")
+	print("═══════════════════════════════════════════")
+	print("\n⚠️  IMPORTANT: Use COMMAND BAR in SERVER CONTEXT!")
+	print("   (Change dropdown from 'Client' to 'Server')")
+	print("\n📚 Full guide: docs/TESTING_AI_GENERATION.md\n")
+end
 
 return TestSystem

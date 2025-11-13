@@ -34,6 +34,7 @@ local _currentTab = "inventory"
 local _guiManager = nil
 local _settingsController = nil
 local _inventoryClient = nil
+local _escapeConnection = nil -- Track escape key connection
 
 -- Colors matching Animal Crossing theme
 local COLORS = {
@@ -90,28 +91,30 @@ local function createGUI()
 	_screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	_screenGui.Parent = playerGui
 	
-	-- Background darkener
+	-- Background layer (no darkener per request; fully transparent but still captures clicks to close)
 	local darkener = Instance.new("Frame")
 	darkener.Name = "Darkener"
 	darkener.Size = UDim2.fromScale(1, 1)
 	darkener.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	darkener.BackgroundTransparency = 0.3
+	darkener.BackgroundTransparency = 1
 	darkener.BorderSizePixel = 0
 	darkener.Parent = _screenGui
 
-        -- Main container
+        -- Main container - Smaller size to avoid Roblox player GUI in top-left
         _mainFrame = Instance.new("Frame")
         _mainFrame.Name = "MainFrame"
         _mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-        _mainFrame.Size = UDim2.fromScale(0.85, 0.8)
-        _mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+        -- Smaller size: 70% width, 70% height (was 85%, 80%)
+        _mainFrame.Size = UDim2.fromScale(0.7, 0.7)
+        -- Offset down and right to avoid top-left corner (Roblox player GUI)
+        _mainFrame.Position = UDim2.new(0.5, 0, 0.55, 0) -- Slightly lower than center
         _mainFrame.BackgroundColor3 = COLORS.background
         _mainFrame.BorderSizePixel = 0
         _mainFrame.Parent = darkener
 
         local sizeConstraint = Instance.new("UISizeConstraint")
-        sizeConstraint.MinSize = Vector2.new(640, 420)
-        sizeConstraint.MaxSize = Vector2.new(1024, 720)
+        sizeConstraint.MinSize = Vector2.new(600, 400)
+        sizeConstraint.MaxSize = Vector2.new(900, 650)
         sizeConstraint.Parent = _mainFrame
 
         local mainCorner = Instance.new("UICorner")
@@ -191,7 +194,7 @@ local function createGUI()
         local bodyLayout = Instance.new("UIListLayout")
         bodyLayout.FillDirection = Enum.FillDirection.Horizontal
         bodyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-        bodyLayout.VerticalAlignment = Enum.VerticalAlignment.Stretch
+        -- VerticalAlignment not needed for Horizontal FillDirection
         bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
         bodyLayout.Padding = UDim.new(0, 16)
         bodyLayout.Parent = bodyFrame
@@ -228,6 +231,9 @@ local function createGUI()
 		GameMenu.hide()
 	end)
 	
+	-- Close on Escape key
+	local UserInputService = game:GetService("UserInputService")
+	
 	-- Close on background click (using InputBegan for Frame)
 	darkener.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -241,6 +247,35 @@ local function createGUI()
 			-- Intentionally empty; Roblox InputObject has no Handled property. We just ignore the click.
 		end
 	end)
+	
+	-- Handle Escape key - connect when menu opens, disconnect when closed
+	local function setupEscapeHandler()
+		if _screenGui.Enabled then
+			-- Connect Escape key when menu opens
+			if _escapeConnection then
+				_escapeConnection:Disconnect()
+			end
+			_escapeConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+				if not gameProcessed and input.KeyCode == Enum.KeyCode.Escape and _isOpen then
+					GameMenu.hide()
+				end
+			end)
+		else
+			-- Disconnect when menu closes
+			if _escapeConnection then
+				_escapeConnection:Disconnect()
+				_escapeConnection = nil
+			end
+		end
+	end
+	
+	-- Set up escape handler when enabled state changes
+	_screenGui:GetPropertyChangedSignal("Enabled"):Connect(setupEscapeHandler)
+	
+	-- Also set up initially if already enabled
+	if _screenGui.Enabled then
+		setupEscapeHandler()
+	end
 end
 
 local function createTabButtons()
@@ -938,7 +973,12 @@ end
 function GameMenu.switchTab(tabId)
 	_currentTab = tabId
 	
-	-- Update sidebar button appearance
+	-- Update sidebar button appearance (check if sidebar exists)
+	if not _sidebarFrame then
+		warn("[GameMenu] switchTab called before GUI created")
+		return
+	end
+	
 	for _, child in ipairs(_sidebarFrame:GetChildren()) do
 		if child:IsA("TextButton") then
 			local isSelected = child.Name:find(tabId)
@@ -992,13 +1032,16 @@ function GameMenu.show()
 	-- Load current tab content
 	GameMenu.switchTab(_currentTab)
 	
-	-- Animation
+	-- Animation - use scale-based sizing
+	local targetSize = UDim2.fromScale(0.7, 0.7)
+	local targetPosition = UDim2.new(0.5, 0, 0.55, 0)
+	
 	_mainFrame.Size = UDim2.new(0, 50, 0, 50)
-	_mainFrame.Position = UDim2.new(0.5, -25, 0.5, -25)
+	_mainFrame.Position = UDim2.new(0.5, -25, 0.55, -25)
 	
 	TweenService:Create(_mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-		Size = UDim2.new(0, 900, 0, 600),
-		Position = UDim2.new(0.5, -450, 0.5, -300)
+		Size = targetSize,
+		Position = targetPosition
 	}):Play()
 	
 	print("[GameMenu] 📱 Game menu opened")
@@ -1009,9 +1052,15 @@ function GameMenu.hide()
 	
 	_isOpen = false
 	
+	-- Disconnect escape handler
+	if _escapeConnection then
+		_escapeConnection:Disconnect()
+		_escapeConnection = nil
+	end
+	
 	TweenService:Create(_mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
 		Size = UDim2.new(0, 50, 0, 50),
-		Position = UDim2.new(0.5, -25, 0.5, -25)
+		Position = UDim2.new(0.5, -25, 0.55, -25)
 	}):Play()
 	
 	task.wait(0.2)
