@@ -117,6 +117,9 @@ print("[Client] ✅ ToolRingGUI module loaded")
 local ShopGUIModule = require(script.Modules.ShopGUI)
 print("[Client] ✅ ShopGUI module loaded")
 
+local BuildingGUIModule = require(script.Modules.BuildingGUI)
+print("[Client] ✅ BuildingGUI module loaded")
+
 local NookPhoneGUIModule = require(script.Modules.NookPhoneGUI)
 print("[Client] ✅ NookPhoneGUI module loaded")
 
@@ -392,6 +395,11 @@ local shopGUI = ShopGUIModule.new()
 guiManager:registerGUI("shop", shopGUI)
 print("[Client] ✅ ShopGUI initialized")
 
+-- Initialize Building GUI
+local buildingGUI = BuildingGUIModule.new()
+guiManager:registerGUI("building", buildingGUI)
+print("[Client] ✅ BuildingGUI initialized")
+
 -- Initialize NookShoppingGUI first
 local nookShoppingGUI = NookShoppingGUIModule.new()
 guiManager:registerGUI("nookShopping", nookShoppingGUI)
@@ -405,12 +413,22 @@ print("[Client] ✅ NookPhoneGUI initialized")
 
 -- Register NOOK_PHONE keybind (P key)
 keybindManager:registerBind("NOOK_PHONE", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] NookPhone triggered (P key)")
-		guiManager:toggleGUI("nookPhone")
-	end
+        if inputState == "began" then
+                print("[Keybind] NookPhone triggered (P key)")
+                guiManager:toggleGUI("nookPhone")
+        end
 end)
 print("[Client] ✅ NookPhone keybind registered (P key)")
+
+-- Register BUILD keybind (H key)
+keybindManager:registerBind("BUILD", function(inputState)
+        if inputState == "began" then
+                guiManager:hideGUI("nookPhone")
+                guiManager:hideGUI("nookShopping")
+                guiManager:toggleGUI("building")
+        end
+end)
+print("[Client] ✅ Building interface keybind registered (H key)")
 
 -- NOOK_SHOPPING keybind (S key) removed - Nook Shopping can only be accessed through NookPhone (P key)
 

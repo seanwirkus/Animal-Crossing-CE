@@ -43,6 +43,7 @@ local _IslandSaveService = require(script:WaitForChild("IslandSaveService"))
 local OnboardingService = require(script:WaitForChild("OnboardingService"))
 local _HomeBuildingService = require(script:WaitForChild("HomeBuildingService"))
 local PlayerIslandService = require(script:WaitForChild("PlayerIslandService"))
+local BuildingService = require(script:WaitForChild("BuildingService"))
 
 -- Roblox types and enums
 local Instance = Instance
@@ -813,6 +814,12 @@ CraftingSystem.configure({
 })
 
 -- FishingSystem is ready to use (no init needed)
+
+local _buildingService = BuildingService.new({
+        hasMaterials = hasCraftingMaterials,
+        consumeMaterials = consumeCraftingMaterials,
+        currencyManager = CurrencyManager,
+})
 
 local function cleanupWorldItemConnections(connections)
 	if not connections then
