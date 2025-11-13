@@ -8,131 +8,19 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local avatarKitFolder = ReplicatedStorage:FindFirstChild("AvatarKit")
+if not avatarKitFolder then
+    avatarKitFolder = Instance.new("Folder")
+    avatarKitFolder.Name = "AvatarKit"
+    avatarKitFolder.Parent = ReplicatedStorage
+end
+
+local ChibiRigBuilder = require(avatarKitFolder:WaitForChild("ChibiRigBuilder"))
+
 local ChibiCharacterServer = {}
 
--- Helper functions for creating ChibiRig model
-local function createPart(name, size, position, color)
-    local part = Instance.new("Part")
-    part.Name = name
-    part.Size = size
-    part.Position = position
-    part.Anchored = false
-    part.CanCollide = true
-    part.Color = color or Color3.fromRGB(255, 228, 200)
-    part.Material = Enum.Material.SmoothPlastic
-    return part
-end
-
-local function createSphereMesh(scale)
-    local mesh = Instance.new("SpecialMesh")
-    mesh.MeshType = Enum.MeshType.Sphere
-    mesh.Scale = scale
-    return mesh
-end
-
 local function ensureChibiRigExists()
-    local avatarKitFolder = ReplicatedStorage:FindFirstChild("AvatarKit")
-    if not avatarKitFolder then
-        avatarKitFolder = Instance.new("Folder")
-        avatarKitFolder.Name = "AvatarKit"
-        avatarKitFolder.Parent = ReplicatedStorage
-    end
-
-    local existing = avatarKitFolder:FindFirstChild("ChibiRig")
-    if existing then
-        return existing
-    end
-
-    print("[ChibiCharacterServer] Creating ChibiRig model...")
-
-    local rig = Instance.new("Model")
-    rig.Name = "ChibiRig"
-
-    local humanoidRootPart = createPart("HumanoidRootPart", Vector3.new(2, 1, 1), Vector3.new(0, 2.5, 0))
-    humanoidRootPart.Transparency = 1
-    humanoidRootPart.Parent = rig
-
-    rig.PrimaryPart = humanoidRootPart
-
-    local humanoid = Instance.new("Humanoid")
-    humanoid.Name = "Humanoid"
-    humanoid.Parent = rig
-
-    local head = createPart("Head", Vector3.new(1.4, 1.4, 1.4), Vector3.new(0, 4.3, 0))
-    local headMesh = createSphereMesh(Vector3.new(1.25, 1.3, 1.25))
-    headMesh.Parent = head
-    head.Parent = rig
-
-    local torso = createPart("UpperTorso", Vector3.new(1.8, 1.6, 1.4), Vector3.new(0, 3, 0))
-    torso.Parent = rig
-
-    local lowerTorso = createPart("LowerTorso", Vector3.new(1.7, 1.2, 1.4), Vector3.new(0, 1.8, 0))
-    lowerTorso.Parent = rig
-
-    local leftArm = createPart("LeftUpperArm", Vector3.new(0.55, 1.2, 0.55), Vector3.new(-1.2, 3.2, 0))
-    leftArm.Parent = rig
-    local rightArm = createPart("RightUpperArm", Vector3.new(0.55, 1.2, 0.55), Vector3.new(1.2, 3.2, 0))
-    rightArm.Parent = rig
-
-    -- Add forearms
-    local leftForearm = createPart("LeftLowerArm", Vector3.new(0.5, 1.0, 0.5), Vector3.new(-1.2, 1.9, 0))
-    leftForearm.Parent = rig
-    local rightForearm = createPart("RightLowerArm", Vector3.new(0.5, 1.0, 0.5), Vector3.new(1.2, 1.9, 0))
-    rightForearm.Parent = rig
-
-    -- Add bigger spherical hands (more chibi-like) - proper spheres
-    local leftHand = createPart("LeftHand", Vector3.new(0.3, 0.3, 0.3), Vector3.new(-1.2, 1.3, 0))
-    local leftHandMesh = createSphereMesh(Vector3.new(4, 4, 4))  -- Larger scale for more prominent spheres
-    leftHandMesh.Parent = leftHand
-    leftHand.Parent = rig
-
-    local rightHand = createPart("RightHand", Vector3.new(0.3, 0.3, 0.3), Vector3.new(1.2, 1.3, 0))
-    local rightHandMesh = createSphereMesh(Vector3.new(4, 4, 4))  -- Larger scale for more prominent spheres
-    rightHandMesh.Parent = rightHand
-    rightHand.Parent = rig
-
-    local leftLeg = createPart("LeftUpperLeg", Vector3.new(0.6, 1.3, 0.6), Vector3.new(-0.5, 0.6, 0))
-    leftLeg.Color = Color3.fromRGB(92, 159, 115)
-    leftLeg.Parent = rig
-    local rightLeg = createPart("RightUpperLeg", Vector3.new(0.6, 1.3, 0.6), Vector3.new(0.5, 0.6, 0))
-    rightLeg.Color = Color3.fromRGB(92, 159, 115)
-    rightLeg.Parent = rig
-
-    local bodyColors = Instance.new("BodyColors")
-    bodyColors.HeadColor3 = Color3.fromRGB(255, 228, 200)
-    bodyColors.LeftArmColor3 = Color3.fromRGB(255, 228, 200)
-    bodyColors.RightArmColor3 = Color3.fromRGB(255, 228, 200)
-    bodyColors.LeftHandColor3 = Color3.fromRGB(255, 228, 200)
-    bodyColors.RightHandColor3 = Color3.fromRGB(255, 228, 200)
-    bodyColors.TorsoColor3 = Color3.fromRGB(255, 228, 200)
-    bodyColors.LeftLegColor3 = Color3.fromRGB(92, 159, 115)
-    bodyColors.RightLegColor3 = Color3.fromRGB(92, 159, 115)
-    bodyColors.Parent = rig
-
-    local welds = {
-        { humanoidRootPart, head },
-        { humanoidRootPart, torso },
-        { humanoidRootPart, lowerTorso },
-        { humanoidRootPart, leftArm },
-        { humanoidRootPart, rightArm },
-        { leftArm, leftForearm },
-        { rightArm, rightForearm },
-        { leftForearm, leftHand },
-        { rightForearm, rightHand },
-        { humanoidRootPart, leftLeg },
-        { humanoidRootPart, rightLeg },
-    }
-
-    for _, pair in ipairs(welds) do
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = pair[1]
-        weld.Part1 = pair[2]
-        weld.Parent = pair[1]
-    end
-
-    rig.Parent = avatarKitFolder
-    print("[ChibiCharacterServer] ✅ ChibiRig model created")
-    return rig
+    return ChibiRigBuilder.ensureRig()
 end
 
 -- Track which characters have already been processed to prevent infinite loops
@@ -260,12 +148,16 @@ local function replaceWithChibiRig(character, player)
 	chibiRig.Parent = workspace
 	
 	-- Ensure all parts are visible and not transparent
-	for _, part in ipairs(chibiRig:GetDescendants()) do
-		if part:IsA("BasePart") then
-			part.Transparency = 0
-			part.CanCollide = true
-		end
-	end
+        for _, part in ipairs(chibiRig:GetDescendants()) do
+                if part:IsA("BasePart") then
+                        part.Transparency = 0
+                        if part.Name == "HumanoidRootPart" then
+                                part.CanCollide = true
+                        else
+                                part.CanCollide = false
+                        end
+                end
+        end
 
 	-- Mark as processed BEFORE setting character to prevent loop
 	processedCharacters[chibiRig] = true
