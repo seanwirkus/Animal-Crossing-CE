@@ -3,24 +3,24 @@ local SpriteConfig = {
     SHEET_ASSET = "rbxassetid://79857338226248",
     COLUMNS = 21,
     ROWS = 24,
-    
+
     -- Sprite dimensions (direct values)
-    SPRITE_SIZE = 33.6667, 
-    PADDING = 8.9,  -- Reduced padding to compensate for larger sprite
-    
+    SPRITE_SIZE = 33.6667,
+    PADDING = 8.9, -- Reduced padding to compensate for larger sprite
+
     -- Outer padding around the edges of the spritesheet (individual control)
     OUTER_PADDING_LEFT = 6,
     OUTER_PADDING_RIGHT = 5,
     OUTER_PADDING_TOP = 4.5,
     OUTER_PADDING_BOTTOM = 11,
-    
+
     -- DIY Recipe icons spritesheet
     DIY_SHEET_ASSET = "rbxassetid://97942095241212",
     DIY_COLUMNS = 26,
     DIY_ROWS = 23,
-    DIY_SPRITE_SIZE = 33.6667,  -- Each icon is 36px × 36px
-    DIY_PADDING = 6,  -- Padding between icons (will need fine-tuning)
-    
+    DIY_SPRITE_SIZE = 33.6667, -- Each icon is 36px × 36px
+    DIY_PADDING = 6, -- Padding between icons (will need fine-tuning)
+
     -- DIY outer padding (individual control for precise alignment)
     DIY_OUTER_PADDING_LEFT = 0,
     DIY_OUTER_PADDING_RIGHT = 5,
@@ -33,10 +33,7 @@ local function round(value: number): number
 end
 
 SpriteConfig.DEFAULT_SPRITE_SIZE = SpriteConfig.SPRITE_SIZE
-SpriteConfig.DEFAULT_IMAGE_RECT_SIZE = Vector2.new(
-    SpriteConfig.SPRITE_SIZE,
-    SpriteConfig.SPRITE_SIZE
-)
+SpriteConfig.DEFAULT_IMAGE_RECT_SIZE = Vector2.new(SpriteConfig.SPRITE_SIZE, SpriteConfig.SPRITE_SIZE)
 
 local function validateIndex(index: number?): number?
     if typeof(index) ~= "number" then
@@ -66,14 +63,11 @@ function SpriteConfig.getSpriteRect(index: number?)
     -- Starting position = OUTER_PADDING (L/T)
     local cellWidth = SpriteConfig.SPRITE_SIZE + SpriteConfig.PADDING
     local cellHeight = SpriteConfig.SPRITE_SIZE + SpriteConfig.PADDING
-    
+
     local offsetX = SpriteConfig.OUTER_PADDING_LEFT + col * cellWidth
     local offsetY = SpriteConfig.OUTER_PADDING_TOP + row * cellHeight
 
-    local offset = Vector2.new(
-        round(offsetX),
-        round(offsetY)
-    )
+    local offset = Vector2.new(round(offsetX), round(offsetY))
 
     local rectSize = Vector2.new(SpriteConfig.SPRITE_SIZE, SpriteConfig.SPRITE_SIZE)
 
@@ -145,7 +139,7 @@ function SpriteConfig.applyDIYIcon(imageObject: Instance?, recipeIndex: number?)
     -- Calculate DIY icon position using fixed dimensions with individual outer padding
     local cellWidth = SpriteConfig.DIY_SPRITE_SIZE + SpriteConfig.DIY_PADDING
     local cellHeight = SpriteConfig.DIY_SPRITE_SIZE + SpriteConfig.DIY_PADDING
-    
+
     local offsetX = SpriteConfig.DIY_OUTER_PADDING_LEFT + col * cellWidth
     local offsetY = SpriteConfig.DIY_OUTER_PADDING_TOP + row * cellHeight
 

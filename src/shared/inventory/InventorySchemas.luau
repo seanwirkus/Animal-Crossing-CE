@@ -13,12 +13,14 @@ end
 
 function InventorySchemas.createSlotFromStack(index, stack)
     local slot = InventorySchemas.createEmptySlot(index)
-    slot.stack = stack and {
-        id = stack.id,
-        count = stack.count or 0,
-        metadata = stack.metadata,
-        createdAt = stack.createdAt,
-    } or nil
+    slot.stack = stack
+            and {
+                id = stack.id,
+                count = stack.count or 0,
+                metadata = stack.metadata,
+                createdAt = stack.createdAt,
+            }
+        or nil
     if stack and stack.maxStack then
         slot.maxStack = stack.maxStack
     end

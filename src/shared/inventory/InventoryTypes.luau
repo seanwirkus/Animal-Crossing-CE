@@ -1,7 +1,7 @@
 export type ItemStack = {
     id: string,
     count: number,
-    metadata: {[string]: any}?,
+    metadata: { [string]: any }?,
     createdAt: number?,
 }
 
@@ -10,14 +10,14 @@ export type InventorySlot = {
     stack: ItemStack?,
     locked: boolean?,
     maxStack: number?,
-    tags: {string}?,
+    tags: { string }?,
 }
 
 export type InventorySnapshot = {
     id: string?,
     dataset: string?,
     maxSlots: number,
-    slots: {InventorySlot},
+    slots: { InventorySlot },
     version: string?,
     updatedAt: number?,
     source: string?,
@@ -27,21 +27,21 @@ export type LegacySlot = {
     slot: number?,
     itemId: string?,
     amount: number?,
-    data: {[string]: any}?,
+    data: { [string]: any }?,
 }
 
 export type LegacySnapshot = {
-    inventory: {LegacySlot}?,
+    inventory: { LegacySlot }?,
     capacity: number?,
     updatedAt: number?,
     version: string?,
 }
 
 export type InventoryDiff = {
-    added: {InventorySlot},
-    removed: {InventorySlot},
-    updated: {InventorySlot},
-    metadata: {[string]: any}?,
+    added: { InventorySlot },
+    removed: { InventorySlot },
+    updated: { InventorySlot },
+    metadata: { [string]: any }?,
 }
 
 return {}

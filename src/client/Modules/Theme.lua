@@ -1,344 +1,509 @@
 --[[
 	Theme.lua
 
-	Comprehensive Animal Crossing-style theme system for all GUI components.
-	Provides centralized tokens for colors, radii, shadows, typography, and spacing.
-
-	Based on the 100-point AC style guide specification.
+	Centralized Animal Crossing-inspired design system.
+	Provides typed tokens, reusable component styles, and helpers to keep
+	every GUI aligned with the AC aesthetic.
 ]]
 
-local Theme = {}
-
--- =============================================================================
--- COLOR PALETTE - AC-Inspired Warm, Soft Colors
--- =============================================================================
-
-Theme.colors = {
-	-- Core Backgrounds
-	offWhite = Color3.fromRGB(252, 250, 242),      -- #FCFAF2 - Main background
-	eggshell = Color3.fromRGB(240, 237, 228),      -- #F0EDE4 - Secondary background
-	cream = Color3.fromRGB(255, 251, 231),         -- #FFFBE7 - Alternative cream
-
-	-- Warm Yellows & Golds
-	warmYellow = Color3.fromRGB(255, 223, 128),    -- #FFDF80 - Button highlights
-	bellGold = Color3.fromRGB(255, 193, 77),       -- #FFC14D - Accents and borders
-
-	-- Greens (Nature, Growth)
-	leafGreen = Color3.fromRGB(156, 204, 101),     -- #9CCC65 - Success, nature
-	skyBlue = Color3.fromRGB(129, 212, 250),      -- #81D4FA - Water, sky
-
-	-- Browns (Wood, Earth)
-	buttonBrown = Color3.fromRGB(121, 85, 72),     -- #795548 - Primary buttons
-	darkBrown = Color3.fromRGB(62, 39, 35),        -- #3E2723 - Text, borders
-	lightBrown = Color3.fromRGB(141, 110, 99),     -- #8E6E63 - Secondary elements
-
-	-- Accent Colors
-	notificationRed = Color3.fromRGB(244, 67, 54), -- #F44336 - Errors, warnings
-	teal = Color3.fromRGB(4, 175, 166),            -- #04AFA6 - Selected, active states
-
-	-- Text Colors
-	textPrimary = Color3.fromRGB(33, 33, 33),      -- #212121 - Primary text
-	textSecondary = Color3.fromRGB(117, 117, 117), -- #757575 - Secondary text
-	textLight = Color3.fromRGB(255, 255, 255),     -- #FFFFFF - Light text on dark
+export type ShadowConfig = {
+    Color: Color3,
+    Transparency: number,
+    Offset: Vector2,
+    Blur: number,
 }
 
--- =============================================================================
--- BORDER RADIUS - Large, Soft Corners (20-36px)
--- =============================================================================
-
-Theme.radius = {
-	small = UDim.new(0, 8),     -- Small elements
-	medium = UDim.new(0, 16),   -- Medium elements
-	large = UDim.new(0, 24),    -- Main panels, dialogs
-	xlarge = UDim.new(0, 32),   -- Large containers
-	xxlarge = UDim.new(0, 36),  -- Special elements
+export type StatePalette = {
+    default: Color3,
+    hover: Color3?,
+    pressed: Color3?,
+    textDefault: Color3?,
+    textHover: Color3?,
+    textPressed: Color3?,
 }
 
--- =============================================================================
--- SHADOWS - Soft Drop Shadows with Brown/Black Tints
--- =============================================================================
-
-Theme.shadows = {
-	small = {
-		Color = Color3.fromRGB(0, 0, 0),
-		Transparency = 0.3,
-		Offset = Vector2.new(0, 2),
-		Blur = 4,
-	},
-	medium = {
-		Color = Color3.fromRGB(62, 39, 35),  -- Dark brown tint
-		Transparency = 0.25,
-		Offset = Vector2.new(0, 4),
-		Blur = 8,
-	},
-	large = {
-		Color = Color3.fromRGB(62, 39, 35),  -- Dark brown tint
-		Transparency = 0.2,
-		Offset = Vector2.new(0, 6),
-		Blur = 12,
-	},
+export type ComponentStyle = {
+    className: string?,
+    size: UDim2?,
+    anchorPoint: Vector2?,
+    position: UDim2?,
+    backgroundColor: Color3?,
+    backgroundTransparency: number?,
+    textColor: Color3?,
+    font: Enum.Font?,
+    textSize: number?,
+    text: string?,
+    autoButtonColor: boolean?,
+    borderColor: Color3?,
+    borderWidth: number?,
+    radius: string?,
+    shadow: string?,
+    padding: string?,
+    stateColors: StatePalette?,
 }
 
+local Theme: { [string]: any } = {}
+
 -- =============================================================================
--- TYPOGRAPHY - Friendly, Rounded Sans-Serif
+-- TOKEN DEFINITIONS
 -- =============================================================================
 
-Theme.fonts = {
-	primary = Enum.Font.Gotham,           -- Main UI font
-	secondary = Enum.Font.GothamMedium,   -- Medium weight
-	bold = Enum.Font.GothamBold,          -- Bold weight
-	black = Enum.Font.GothamBlack,        -- Extra bold
+local colors = {
+    offWhite = Color3.fromRGB(252, 250, 242),
+    eggshell = Color3.fromRGB(240, 237, 228),
+    cream = Color3.fromRGB(255, 251, 231),
+    warmYellow = Color3.fromRGB(255, 223, 128),
+    bellGold = Color3.fromRGB(255, 193, 77),
+    leafGreen = Color3.fromRGB(156, 204, 101),
+    skyBlue = Color3.fromRGB(129, 212, 250),
+    buttonBrown = Color3.fromRGB(121, 85, 72),
+    darkBrown = Color3.fromRGB(62, 39, 35),
+    lightBrown = Color3.fromRGB(141, 110, 99),
+    notificationRed = Color3.fromRGB(244, 67, 54),
+    teal = Color3.fromRGB(4, 175, 166),
+    textPrimary = Color3.fromRGB(33, 33, 33),
+    textSecondary = Color3.fromRGB(117, 117, 117),
+    textLight = Color3.fromRGB(255, 255, 255),
 }
 
-Theme.textSizes = {
-	xsmall = 12,   -- Small labels
-	small = 14,    -- Body text minimum
-	medium = 16,   -- Standard body
-	large = 18,    -- Large body
-	xlarge = 20,   -- Subtitles
-	xxlarge = 24,  -- Titles
-	xxxlarge = 32, -- Hero text
+local radius = {
+    small = UDim.new(0, 8),
+    medium = UDim.new(0, 16),
+    large = UDim.new(0, 24),
+    xlarge = UDim.new(0, 32),
+    xxlarge = UDim.new(0, 36),
 }
 
--- =============================================================================
--- SPACING - Consistent Scale (4/8/12/16/24/32px)
--- =============================================================================
-
-Theme.spacing = {
-	xs = 4,    -- Extra small gaps
-	sm = 8,    -- Small gaps
-	md = 12,   -- Medium gaps
-	lg = 16,   -- Large gaps
-	xl = 24,   -- Extra large gaps
-	xxl = 32,  -- Double extra large
+local shadows: { [string]: ShadowConfig } = {
+    small = {
+        Color = Color3.fromRGB(0, 0, 0),
+        Transparency = 0.3,
+        Offset = Vector2.new(0, 2),
+        Blur = 4,
+    },
+    medium = {
+        Color = Color3.fromRGB(62, 39, 35),
+        Transparency = 0.25,
+        Offset = Vector2.new(0, 4),
+        Blur = 8,
+    },
+    large = {
+        Color = Color3.fromRGB(62, 39, 35),
+        Transparency = 0.2,
+        Offset = Vector2.new(0, 6),
+        Blur = 12,
+    },
 }
 
--- =============================================================================
--- COMPONENT THEMES - Pre-configured Styles
--- =============================================================================
-
--- Dialog Panels (main UI surfaces)
-Theme.components = {
-	dialogPanel = {
-		backgroundColor = Theme.colors.offWhite,
-		borderColor = Theme.colors.bellGold,
-		borderWidth = 3,
-		cornerRadius = Theme.radius.large,
-		shadow = Theme.shadows.large,
-	},
-
-	-- Primary Buttons (AC dialog choices)
-	primaryButton = {
-		backgroundColor = Theme.colors.buttonBrown,
-		textColor = Theme.colors.textLight,
-		hoverColor = Color3.fromRGB(141, 110, 99),  -- Lighter brown
-		pressedColor = Color3.fromRGB(93, 64, 55),  -- Darker brown
-		cornerRadius = Theme.radius.medium,
-		font = Theme.fonts.bold,
-		textSize = Theme.textSizes.medium,
-		padding = UDim.new(0, Theme.spacing.lg),
-	},
-
-	-- Secondary Buttons
-	secondaryButton = {
-		backgroundColor = Theme.colors.eggshell,
-		borderColor = Theme.colors.buttonBrown,
-		borderWidth = 2,
-		textColor = Theme.colors.buttonBrown,
-		hoverColor = Theme.colors.cream,
-		pressedColor = Theme.colors.warmYellow,
-		cornerRadius = Theme.radius.medium,
-		font = Theme.fonts.primary,
-		textSize = Theme.textSizes.medium,
-		padding = UDim.new(0, Theme.spacing.lg),
-	},
-
-	-- Close Buttons (consistent red X)
-	closeButton = {
-		backgroundColor = Theme.colors.notificationRed,
-		textColor = Theme.colors.textLight,
-		hoverColor = Color3.fromRGB(211, 47, 47),  -- Darker red
-		pressedColor = Color3.fromRGB(183, 28, 28), -- Even darker red
-		cornerRadius = Theme.radius.small,
-		font = Theme.fonts.bold,
-		textSize = Theme.textSizes.medium,
-		size = UDim2.new(0, 32, 0, 32),
-	},
-
-	-- Loading Indicators
-	loadingIndicator = {
-		backgroundColor = Theme.colors.skyBlue,
-		progressColor = Theme.colors.leafGreen,
-		textColor = Theme.colors.textPrimary,
-		cornerRadius = Theme.radius.medium,
-		font = Theme.fonts.primary,
-		textSize = Theme.textSizes.small,
-	},
-
-	-- Toast Notifications
-	toastCard = {
-		backgroundColor = Theme.colors.eggshell,
-		borderColor = Theme.colors.lightBrown,
-		borderWidth = 2,
-		textColor = Theme.colors.textPrimary,
-		cornerRadius = Theme.radius.medium,
-		font = Theme.fonts.primary,
-		textSize = Theme.textSizes.small,
-		shadow = Theme.shadows.medium,
-	},
-
-	-- Speaker Name Tags (dialog)
-	speakerTag = {
-		backgroundColor = Theme.colors.warmYellow,
-		textColor = Theme.colors.buttonBrown,
-		cornerRadius = Theme.radius.small,
-		font = Theme.fonts.bold,
-		textSize = Theme.textSizes.small,
-		shadow = Theme.shadows.small,
-	},
-
-	-- HUD Elements (time, currency, etc.)
-	hudPanel = {
-		backgroundColor = Theme.colors.eggshell,
-		borderColor = Theme.colors.lightBrown,
-		borderWidth = 2,
-		textColor = Theme.colors.textPrimary,
-		cornerRadius = Theme.radius.medium,
-		font = Theme.fonts.primary,
-		textSize = Theme.textSizes.small,
-		shadow = Theme.shadows.small,
-	},
+local fonts = {
+    primary = Enum.Font.Gotham,
+    secondary = Enum.Font.GothamMedium,
+    bold = Enum.Font.GothamBold,
+    black = Enum.Font.GothamBlack,
 }
 
+local textSizes = {
+    xsmall = 12,
+    small = 14,
+    medium = 16,
+    large = 18,
+    xlarge = 20,
+    xxlarge = 24,
+    xxxlarge = 32,
+}
+
+local spacing = {
+    xs = 4,
+    sm = 8,
+    md = 12,
+    lg = 16,
+    xl = 24,
+    xxl = 32,
+}
+
+Theme.tokens = {
+    colors = colors,
+    radius = radius,
+    shadows = shadows,
+    fonts = fonts,
+    textSizes = textSizes,
+    spacing = spacing,
+}
+
+Theme.colors = colors
+Theme.radius = radius
+Theme.shadows = shadows
+Theme.fonts = fonts
+Theme.textSizes = textSizes
+Theme.spacing = spacing
+
 -- =============================================================================
--- UTILITY FUNCTIONS
+-- COMPONENT PRESETS
 -- =============================================================================
 
--- Apply standard shadow to a frame
-function Theme.applyShadow(frame: Frame, shadowType: string)
-	local shadow = Instance.new("Frame")
-	shadow.Name = "ThemeShadow"
-	shadow.Size = UDim2.new(1, Theme.shadows[shadowType].Blur * 2, 1, Theme.shadows[shadowType].Blur * 2)
-	shadow.Position = UDim2.new(0.5, Theme.shadows[shadowType].Offset.X, 0.5, Theme.shadows[shadowType].Offset.Y)
-	shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-	shadow.BackgroundColor3 = Theme.shadows[shadowType].Color
-	shadow.BackgroundTransparency = Theme.shadows[shadowType].Transparency
-	shadow.BorderSizePixel = 0
-	shadow.ZIndex = -1
-	shadow.Parent = frame
+local components: { [string]: ComponentStyle } = {
+    dialogPanel = {
+        className = "Frame",
+        size = UDim2.fromScale(0.8, 0.6),
+        anchorPoint = Vector2.new(0.5, 0.5),
+        position = UDim2.fromScale(0.5, 0.5),
+        backgroundColor = colors.offWhite,
+        backgroundTransparency = 0.05,
+        borderColor = colors.bellGold,
+        borderWidth = 3,
+        radius = "large",
+        shadow = "large",
+        padding = "lg",
+    },
+    primaryButton = {
+        className = "TextButton",
+        size = UDim2.new(0, 200, 0, 48),
+        backgroundColor = colors.buttonBrown,
+        textColor = colors.textLight,
+        font = fonts.bold,
+        textSize = textSizes.medium,
+        autoButtonColor = false,
+        radius = "medium",
+        stateColors = {
+            default = colors.buttonBrown,
+            hover = colors.lightBrown,
+            pressed = Color3.fromRGB(93, 64, 55),
+            textDefault = colors.textLight,
+            textHover = colors.textLight,
+            textPressed = colors.textLight,
+        },
+    },
+    secondaryButton = {
+        className = "TextButton",
+        size = UDim2.new(0, 200, 0, 48),
+        backgroundColor = colors.eggshell,
+        textColor = colors.buttonBrown,
+        borderColor = colors.buttonBrown,
+        borderWidth = 2,
+        font = fonts.primary,
+        textSize = textSizes.medium,
+        autoButtonColor = false,
+        radius = "medium",
+        stateColors = {
+            default = colors.eggshell,
+            hover = colors.cream,
+            pressed = colors.warmYellow,
+            textDefault = colors.buttonBrown,
+            textHover = colors.buttonBrown,
+            textPressed = colors.darkBrown,
+        },
+    },
+    closeButton = {
+        className = "TextButton",
+        size = UDim2.new(0, 32, 0, 32),
+        anchorPoint = Vector2.new(1, 0),
+        position = UDim2.new(1, -40, 0, 10),
+        backgroundColor = colors.notificationRed,
+        textColor = colors.textLight,
+        font = fonts.bold,
+        textSize = textSizes.medium,
+        text = "✕",
+        autoButtonColor = false,
+        radius = "small",
+        stateColors = {
+            default = colors.notificationRed,
+            hover = Color3.fromRGB(211, 47, 47),
+            pressed = Color3.fromRGB(183, 28, 28),
+        },
+    },
+    toastCard = {
+        className = "Frame",
+        size = UDim2.new(0, 320, 0, 80),
+        backgroundColor = colors.eggshell,
+        borderColor = colors.lightBrown,
+        borderWidth = 2,
+        radius = "medium",
+        shadow = "medium",
+        padding = "md",
+    },
+    hudPanel = {
+        className = "Frame",
+        size = UDim2.new(0, 300, 0, 80),
+        backgroundColor = colors.eggshell,
+        borderColor = colors.lightBrown,
+        borderWidth = 2,
+        radius = "medium",
+        shadow = "small",
+        padding = "sm",
+    },
+}
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = Theme.radius.large
-	corner.Parent = shadow
+Theme.components = components
+
+-- =============================================================================
+-- INTERNAL HELPERS
+-- =============================================================================
+
+local function ensureUICorner(instance: GuiObject, radiusKey: string)
+    local key = radius[radiusKey]
+    if not key then
+        warn(string.format("[Theme] Unknown radius '%s'", radiusKey))
+        return
+    end
+
+    local corner = instance:FindFirstChildOfClass("UICorner")
+    if not corner then
+        corner = Instance.new("UICorner")
+        corner.Name = "ThemeCorner"
+        corner.Parent = instance
+    end
+    corner.CornerRadius = key
 end
 
--- Apply standard stroke to a frame
-function Theme.applyStroke(frame: Frame, color: Color3, thickness: number)
-	local stroke = frame:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
-	stroke.Color = color
-	stroke.Thickness = thickness or 2
-	stroke.Parent = frame
-	return stroke
+local function ensureUIStroke(instance: GuiObject, color: Color3?, thickness: number?)
+    if not color then
+        return
+    end
+    local stroke = instance:FindFirstChildOfClass("UIStroke")
+    if not stroke then
+        stroke = Instance.new("UIStroke")
+        stroke.Name = "ThemeStroke"
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = instance
+    end
+    stroke.Color = color
+    stroke.Thickness = thickness or 2
+    return stroke
 end
 
--- Apply standard corner radius to a frame
-function Theme.applyCornerRadius(frame: Frame, radiusType: string)
-	local corner = frame:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
-	corner.CornerRadius = Theme.radius[radiusType]
-	corner.Parent = frame
-	return corner
+local function ensurePadding(instance: GuiObject, spacingKey: string)
+    local padValue = spacing[spacingKey]
+    if not padValue then
+        warn(string.format("[Theme] Unknown padding '%s'", spacingKey))
+        return
+    end
+
+    local paddingInstance = instance:FindFirstChildOfClass("UIPadding")
+    if not paddingInstance then
+        paddingInstance = Instance.new("UIPadding")
+        paddingInstance.Name = "ThemePadding"
+        paddingInstance.Parent = instance
+    end
+    paddingInstance.PaddingTop = UDim.new(0, padValue)
+    paddingInstance.PaddingBottom = UDim.new(0, padValue)
+    paddingInstance.PaddingLeft = UDim.new(0, padValue)
+    paddingInstance.PaddingRight = UDim.new(0, padValue)
 end
 
--- Create a standard dialog panel
+local function attachButtonStates(button: GuiButton, palette: StatePalette)
+    if button:GetAttribute("ThemeHasMouseHooks") then
+        return
+    end
+
+    button:SetAttribute("ThemeHasMouseHooks", true)
+    local defaultColor = palette.default
+    local hoverColor = palette.hover or defaultColor
+    local pressedColor = palette.pressed or hoverColor
+    local textDefault = palette.textDefault
+    local textHover = palette.textHover or textDefault
+    local textPressed = palette.textPressed or textHover
+
+    local function setState(state: string)
+        if state == "default" then
+            button.BackgroundColor3 = defaultColor
+            if textDefault then
+                button.TextColor3 = textDefault
+            end
+        elseif state == "hover" then
+            button.BackgroundColor3 = hoverColor
+            if textHover then
+                button.TextColor3 = textHover
+            end
+        elseif state == "pressed" then
+            button.BackgroundColor3 = pressedColor
+            if textPressed then
+                button.TextColor3 = textPressed
+            end
+        end
+    end
+
+    button.MouseEnter:Connect(function()
+        setState("hover")
+    end)
+    button.MouseLeave:Connect(function()
+        setState("default")
+    end)
+    button.MouseButton1Down:Connect(function()
+        setState("pressed")
+    end)
+    button.MouseButton1Up:Connect(function()
+        setState("hover")
+    end)
+
+    setState("default")
+end
+
+-- =============================================================================
+-- PUBLIC HELPERS
+-- =============================================================================
+
+function Theme.applyShadow(instance: GuiObject, shadowKey: string)
+    local config = shadows[shadowKey]
+    if not config then
+        warn(string.format("[Theme] Unknown shadow '%s'", shadowKey))
+        return
+    end
+
+    local shadow = instance:FindFirstChild("ThemeShadow")
+    if not shadow then
+        shadow = Instance.new("Frame")
+        shadow.Name = "ThemeShadow"
+        shadow.ZIndex = math.max(0, instance.ZIndex - 1)
+        shadow.Parent = instance
+    end
+
+    shadow.Size = UDim2.new(1, config.Blur * 2, 1, config.Blur * 2)
+    shadow.Position = UDim2.new(0.5, config.Offset.X, 0.5, config.Offset.Y)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundColor3 = config.Color
+    shadow.BackgroundTransparency = config.Transparency
+    shadow.BorderSizePixel = 0
+    ensureUICorner(shadow, "large")
+end
+
+function Theme.applyStroke(instance: GuiObject, color: Color3, thickness: number?)
+    return ensureUIStroke(instance, color, thickness)
+end
+
+function Theme.applyCornerRadius(instance: GuiObject, radiusKey: string)
+    ensureUICorner(instance, radiusKey)
+end
+
+function Theme.applyPadding(instance: GuiObject, paddingKey: string)
+    ensurePadding(instance, paddingKey)
+end
+
+function Theme.applyTextStyle(label: TextLabel | TextButton, variant: string)
+    local size = textSizes[variant]
+    if not size then
+        warn(string.format("[Theme] Unknown text variant '%s'", variant))
+        return
+    end
+    label.Font = fonts.primary
+    label.TextSize = size
+    label.TextColor3 = colors.textPrimary
+end
+
+function Theme.applyComponent(instance: GuiObject, componentKey: string)
+    local style = components[componentKey]
+    if not style then
+        warn(string.format("[Theme] Unknown component '%s'", componentKey))
+        return instance
+    end
+
+    if style.size then
+        instance.Size = style.size
+    end
+    if style.anchorPoint then
+        instance.AnchorPoint = style.anchorPoint
+    end
+    if style.position then
+        instance.Position = style.position
+    end
+    if style.backgroundColor then
+        instance.BackgroundColor3 = style.backgroundColor
+    end
+    if style.backgroundTransparency ~= nil then
+        instance.BackgroundTransparency = style.backgroundTransparency
+    end
+
+    local isTextObject = instance:IsA("TextLabel") or instance:IsA("TextButton")
+    if isTextObject and style.textColor then
+        (instance :: TextLabel).TextColor3 = style.textColor
+    end
+    if isTextObject and style.font then
+        (instance :: TextLabel).Font = style.font
+    end
+    if isTextObject and style.textSize then
+        (instance :: TextLabel).TextSize = style.textSize
+    end
+    if isTextObject and style.text then
+        (instance :: TextLabel).Text = style.text
+    end
+    if instance:IsA("TextButton") and style.autoButtonColor ~= nil then
+        instance.AutoButtonColor = style.autoButtonColor
+    end
+
+    if style.borderColor or style.borderWidth then
+        ensureUIStroke(instance, style.borderColor or colors.darkBrown, style.borderWidth or 2)
+    end
+    if style.radius then
+        ensureUICorner(instance, style.radius)
+    end
+    if style.shadow then
+        Theme.applyShadow(instance, style.shadow)
+    end
+    if style.padding then
+        ensurePadding(instance, style.padding)
+    end
+    if style.stateColors and instance:IsA("GuiButton") then
+        attachButtonStates(instance, style.stateColors)
+    end
+
+    return instance
+end
+
+function Theme.createComponent(componentKey: string, parent: Instance?): GuiObject?
+    local style = components[componentKey]
+    if not style then
+        warn(string.format("[Theme] Cannot create unknown component '%s'", componentKey))
+        return nil
+    end
+
+    local instance = Instance.new(style.className or "Frame") :: GuiObject
+    Theme.applyComponent(instance, componentKey)
+    if parent then
+        instance.Parent = parent
+    end
+    return instance
+end
+
 function Theme.createDialogPanel(parent: Instance): Frame
-	local panel = Instance.new("Frame")
-	panel.Name = "DialogPanel"
-	panel.Size = UDim2.new(0.8, 0, 0.6, 0)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.BackgroundColor3 = Theme.components.dialogPanel.backgroundColor
-	panel.BackgroundTransparency = 0.05
-	panel.BorderSizePixel = 0
-	panel.Parent = parent
-
-	-- Apply theme styling
-	Theme.applyCornerRadius(panel, "large")
-	Theme.applyStroke(panel, Theme.components.dialogPanel.borderColor, Theme.components.dialogPanel.borderWidth)
-	Theme.applyShadow(panel, "large")
-
-	return panel
+    local panel = Theme.createComponent("dialogPanel", parent)
+    return panel :: Frame
 end
 
--- Create a standard primary button
 function Theme.createPrimaryButton(parent: Instance, text: string): TextButton
-	local button = Instance.new("TextButton")
-	button.Name = "PrimaryButton"
-	button.Size = UDim2.new(0, 200, 0, 48)
-	button.BackgroundColor3 = Theme.components.primaryButton.backgroundColor
-	button.Text = text
-	button.TextColor3 = Theme.components.primaryButton.textColor
-	button.Font = Theme.components.primaryButton.font
-	button.TextSize = Theme.components.primaryButton.textSize
-	button.AutoButtonColor = false
-	button.BorderSizePixel = 0
-	button.Parent = parent
-
-	-- Apply theme styling
-	Theme.applyCornerRadius(button, "medium")
-
-	-- Add hover/press effects
-	local originalColor = button.BackgroundColor3
-	button.MouseEnter:Connect(function()
-		button.BackgroundColor3 = Theme.components.primaryButton.hoverColor
-	end)
-	button.MouseLeave:Connect(function()
-		button.BackgroundColor3 = originalColor
-	end)
-	button.MouseButton1Down:Connect(function()
-		button.BackgroundColor3 = Theme.components.primaryButton.pressedColor
-	end)
-	button.MouseButton1Up:Connect(function()
-		button.BackgroundColor3 = Theme.components.primaryButton.hoverColor
-	end)
-
-	return button
+    local button = Theme.createComponent("primaryButton", parent)
+    if button then
+        (button :: TextButton).Text = text
+    end
+    return button :: TextButton
 end
 
--- Create a standard close button
+function Theme.createSecondaryButton(parent: Instance, text: string): TextButton
+    local button = Theme.createComponent("secondaryButton", parent)
+    if button then
+        (button :: TextButton).Text = text
+    end
+    return button :: TextButton
+end
+
 function Theme.createCloseButton(parent: Instance): TextButton
-	local button = Instance.new("TextButton")
-	button.Name = "CloseButton"
-	button.Size = Theme.components.closeButton.size
-	button.Position = UDim2.new(1, -40, 0, 10)
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.BackgroundColor3 = Theme.components.closeButton.backgroundColor
-	button.Text = "✕"
-	button.TextColor3 = Theme.components.closeButton.textColor
-	button.Font = Theme.components.closeButton.font
-	button.TextSize = Theme.components.closeButton.textSize
-	button.AutoButtonColor = false
-	button.BorderSizePixel = 0
-	button.Parent = parent
+    local button = Theme.createComponent("closeButton", parent)
+    return button :: TextButton
+end
 
-	-- Apply theme styling
-	Theme.applyCornerRadius(button, "small")
-
-	-- Add hover/press effects
-	local originalColor = button.BackgroundColor3
-	button.MouseEnter:Connect(function()
-		button.BackgroundColor3 = Theme.components.closeButton.hoverColor
-	end)
-	button.MouseLeave:Connect(function()
-		button.BackgroundColor3 = originalColor
-	end)
-	button.MouseButton1Down:Connect(function()
-		button.BackgroundColor3 = Theme.components.closeButton.pressedColor
-	end)
-	button.MouseButton1Up:Connect(function()
-		button.BackgroundColor3 = Theme.components.closeButton.hoverColor
-	end)
-
-	return button
+function Theme.createToast(parent: Instance, copy: string): Frame
+    local toast = Theme.createComponent("toastCard", parent)
+    if toast then
+        local label = Instance.new("TextLabel")
+        label.Name = "ToastText"
+        label.Size = UDim2.fromScale(1, 1)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = colors.textPrimary
+        label.TextWrapped = true
+        label.Font = fonts.secondary
+        label.TextSize = textSizes.medium
+        label.Text = copy
+        label.Parent = toast
+    end
+    return toast :: Frame
 end
 
 return Theme

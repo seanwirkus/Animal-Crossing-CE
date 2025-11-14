@@ -9,6 +9,9 @@
 task.wait(1)
 
 -- Choose which test to run (uncomment the one you want):
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TestRegistry = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("TestRegistry"))
+
 local activeTest = "none" -- Change this!
 
 --[[ Available tests:
@@ -23,7 +26,7 @@ local activeTest = "none" -- Change this!
 ]]
 
 if activeTest == "none" then
-	print([[
+    print([[
 		
 🎮 QUICK TEST RUNNER LOADED!
 
@@ -37,20 +40,22 @@ Available tests: quickTest, fullGeneration, watchLearning,
                 analyzeOnly, clearAll
 
 Or use Server Command Bar:
-	_G.testSystem.quickTest()
-	_G.testSystem.fullGeneration()
-	_G.testSystem.clearAll()
+		local registry = require(game:GetService("ReplicatedStorage").Shared.TestRegistry)
+		local system = registry.get("testSystem")
+		if system then
+			system.quickTest()
+		end
 	
 Make sure Command Bar is set to SERVER context!
 	]])
-	return
+    return
 end
 
--- Run the selected test
-if _G.testSystem and _G.testSystem[activeTest] then
-	print("\n🚀 Running test:", activeTest, "\n")
-	_G.testSystem[activeTest]()
+local testSystem = TestRegistry.get("testSystem")
+if testSystem and testSystem[activeTest] then
+    print("\n🚀 Running test:", activeTest, "\n")
+    testSystem[activeTest]()
 else
-	warn("❌ Test system not found! Make sure IslandGenerationTest.server.luau loaded.")
-	warn("   Available:", _G.testSystem and "✅ _G.testSystem exists" or "❌ _G.testSystem missing")
+    warn("❌ Test system not found! Make sure IslandGenerationTest.server.luau loaded.")
+    warn("   Available:", testSystem and "✅ testSystem exists" or "❌ testSystem missing")
 end

@@ -10,5 +10,7 @@
   "files.associations": {
     "*.luau": "luau",
     "*.lua": "luau"
-  }
+  },
+  "stylua.targetReleaseVersion": "latest",
+  "liveServer.settings.port": 5501
 }

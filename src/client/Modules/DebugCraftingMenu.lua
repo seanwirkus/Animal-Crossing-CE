@@ -11,44 +11,44 @@ CraftingMenu._instance = nil
 
 function CraftingMenu.new()
     local self = setmetatable({}, CraftingMenu)
-    
+
     print("[CraftingMenu] Creating new instance...")
-    
+
     self.player = Players.LocalPlayer
     print("[CraftingMenu] LocalPlayer:", self.player)
-    
+
     self.gui = self.player:FindFirstChild("PlayerGui") or self.player:WaitForChild("PlayerGui", 3)
     if not self.gui then
         warn("[CraftingMenu] Could not find PlayerGui!")
         return nil
     end
     print("[CraftingMenu] ✅ Found PlayerGui")
-    
+
     self.sharedFolder = ReplicatedStorage:WaitForChild("Shared", 5)
     print("[CraftingMenu] ✅ Found Shared folder")
-    
+
     self.itemDataFetcher = require(self.sharedFolder:WaitForChild("ItemDataFetcher", 5))
     print("[CraftingMenu] ✅ Loaded ItemDataFetcher")
-    
+
     self.spriteConfig = require(self.sharedFolder:WaitForChild("SpriteConfig", 5))
     print("[CraftingMenu] ✅ Loaded SpriteConfig")
-    
+
     self.craftingSystem = require(self.sharedFolder:WaitForChild("CraftingSystem", 5))
     print("[CraftingMenu] ✅ Loaded CraftingSystem")
-    
+
     self.inventoryRemote = ReplicatedStorage:WaitForChild("InventoryEvent", 5)
     print("[CraftingMenu] ✅ Found InventoryEvent")
-    
+
     self.screenGui = nil
     self.mainFrame = nil
     self.isOpen = false
-    self.currentTab = "RECIPES"  -- RECIPES or STATIONS
-    
+    self.currentTab = "RECIPES" -- RECIPES or STATIONS
+
     -- Get all craftable recipes
     self:loadRecipes()
-    
+
     print("[CraftingMenu] ✅ Loaded with " .. #self.allRecipes .. " recipes")
-    
+
     return self
 end
 
@@ -64,7 +64,7 @@ end
 
 function CraftingMenu:loadRecipes()
     self.allRecipes = self.itemDataFetcher.getCraftableItems() or {}
-    
+
     -- Sort by station type, then by name
     table.sort(self.allRecipes, function(a, b)
         local stationA = a.station or "workbench"
@@ -125,49 +125,49 @@ function CraftingMenu:createGui()
     -- Main frame - smaller and positioned to avoid top-left corner
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0.7, 0, 0.7, 0)  -- 70% width, 70% height (reduced from 85%, 80%)
+    mainFrame.Size = UDim2.new(0.7, 0, 0.7, 0) -- 70% width, 70% height (reduced from 85%, 80%)
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    mainFrame.Position = UDim2.new(0.5, 0, 0.55, 0)  -- Lower than center to avoid top-left
-    mainFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231)  -- Cream background
+    mainFrame.Position = UDim2.new(0.5, 0, 0.55, 0) -- Lower than center to avoid top-left
+    mainFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231) -- Cream background
     mainFrame.BorderSizePixel = 0
     mainFrame.ZIndex = 2
-    mainFrame.Visible = false  -- Start hidden
+    mainFrame.Visible = false -- Start hidden
     mainFrame.Parent = self.screenGui
     self.mainFrame = mainFrame
     print("[CraftingMenu] ✅ Created main frame")
-    
+
     -- Add rounded corners
     local mainCorner = Instance.new("UICorner")
     mainCorner.CornerRadius = UDim.new(0, 8)
     mainCorner.Parent = mainFrame
-    
+
     -- Prevent clicks from passing through
     mainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             -- Consume the input
         end
     end)
-    
+
     -- Title bar
     print("[CraftingMenu] Creating title bar...")
     self:createTitleBar()
     print("[CraftingMenu] ✅ Title bar created")
-    
+
     -- Tab buttons
     print("[CraftingMenu] Creating tab buttons...")
     self:createTabButtons()
     print("[CraftingMenu] ✅ Tab buttons created")
-    
+
     -- Content area
     print("[CraftingMenu] Creating content area...")
     self:createContentArea()
     print("[CraftingMenu] ✅ Content area created")
-    
+
     -- Instructions at bottom
     print("[CraftingMenu] Creating instructions...")
     self:createInstructions()
     print("[CraftingMenu] ✅ Instructions created")
-    
+
     print("[CraftingMenu] 🎉 GUI creation complete!")
 end
 
@@ -175,16 +175,16 @@ function CraftingMenu:createTitleBar()
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = Color3.fromRGB(120, 100, 80)  -- Matching brown
+    titleBar.BackgroundColor3 = Color3.fromRGB(120, 100, 80) -- Matching brown
     titleBar.BorderSizePixel = 0
     titleBar.ZIndex = 3
     titleBar.Parent = self.mainFrame
-    
+
     -- Add corner to title bar
     local titleCorner = Instance.new("UICorner")
     titleCorner.CornerRadius = UDim.new(0, 8)
     titleCorner.Parent = titleBar
-    
+
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.Text = "🔨 Crafting Menu"
@@ -204,7 +204,7 @@ function CraftingMenu:createTabButtons()
     -- Keep the container for visual consistency but make it thinner
     local tabContainer = Instance.new("Frame")
     tabContainer.Name = "TabContainer"
-    tabContainer.Size = UDim2.new(1, 0, 0, 5)  -- Very thin, just for spacing
+    tabContainer.Size = UDim2.new(1, 0, 0, 5) -- Very thin, just for spacing
     tabContainer.Position = UDim2.new(0, 0, 0, 40)
     tabContainer.BackgroundTransparency = 1
     tabContainer.BorderSizePixel = 0
@@ -214,20 +214,20 @@ end
 
 function CraftingMenu:createContentArea()
     -- Split interface: Recipe list on left (40%), preview on right (60%)
-    
+
     -- Left side: Recipe list scroll
     local recipeListFrame = Instance.new("ScrollingFrame")
     recipeListFrame.Name = "RecipeListFrame"
-    recipeListFrame.Size = UDim2.new(0.4, -15, 1, -55)  -- 40% width
+    recipeListFrame.Size = UDim2.new(0.4, -15, 1, -55) -- 40% width
     recipeListFrame.Position = UDim2.new(0, 10, 0, 45)
-    recipeListFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231)  -- Cream background
+    recipeListFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231) -- Cream background
     recipeListFrame.BorderSizePixel = 0
     recipeListFrame.ScrollBarThickness = 6
     recipeListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     recipeListFrame.ZIndex = 3
     recipeListFrame.Parent = self.mainFrame
     self.recipeListFrame = recipeListFrame
-    
+
     -- List layout for recipe items
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
@@ -236,29 +236,29 @@ function CraftingMenu:createContentArea()
     listLayout.Padding = UDim.new(0, 6)
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Parent = recipeListFrame
-    
+
     listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         recipeListFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
     end)
-    
+
     -- Right side: Recipe preview panel
     local previewPanel = Instance.new("Frame")
     previewPanel.Name = "PreviewPanel"
-    previewPanel.Size = UDim2.new(0.6, -15, 1, -55)  -- 60% width
+    previewPanel.Size = UDim2.new(0.6, -15, 1, -55) -- 60% width
     previewPanel.Position = UDim2.new(0.4, 5, 0, 45)
-    previewPanel.BackgroundColor3 = Color3.fromRGB(231, 221, 185)  -- Beige background
+    previewPanel.BackgroundColor3 = Color3.fromRGB(231, 221, 185) -- Beige background
     previewPanel.BorderSizePixel = 0
     previewPanel.ZIndex = 3
     previewPanel.Parent = self.mainFrame
     self.previewPanel = previewPanel
-    
+
     local previewCorner = Instance.new("UICorner")
     previewCorner.CornerRadius = UDim.new(0, 8)
     previewCorner.Parent = previewPanel
-    
+
     -- Store reference
     self.selectedRecipe = nil
-    
+
     -- Show placeholder initially
     self:showPreviewPlaceholder()
 end
@@ -280,7 +280,7 @@ function CraftingMenu:showPreviewPlaceholder()
             child:Destroy()
         end
     end
-    
+
     local placeholder = Instance.new("TextLabel")
     placeholder.Name = "Placeholder"
     placeholder.Size = UDim2.new(1, -40, 1, -40)
@@ -302,7 +302,7 @@ function CraftingMenu:renderContent()
             child:Destroy()
         end
     end
-    
+
     -- Render all recipes as list items
     self:renderRecipeList()
 end
@@ -319,18 +319,18 @@ function CraftingMenu:createRecipeListItem(recipe, index)
     -- Compact list item (like Animal Crossing recipe list)
     local item = Instance.new("TextButton")
     item.Name = "RecipeItem_" .. index
-    item.Size = UDim2.new(1, -10, 0, 50)  -- Compact list item
-    item.BackgroundColor3 = Color3.fromRGB(255, 255, 255)  -- White
+    item.Size = UDim2.new(1, -10, 0, 50) -- Compact list item
+    item.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- White
     item.BorderSizePixel = 1
     item.BorderColor3 = Color3.fromRGB(200, 180, 160)
     item.AutoButtonColor = false
     item.Text = ""
     item.ZIndex = 4
-    
+
     local itemCorner = Instance.new("UICorner")
     itemCorner.CornerRadius = UDim.new(0, 6)
     itemCorner.Parent = item
-    
+
     -- DIY icon index in top-left
     if recipe.diyIconIndex then
         local indexLabel = Instance.new("TextLabel")
@@ -346,12 +346,12 @@ function CraftingMenu:createRecipeListItem(recipe, index)
         indexLabel.TextXAlignment = Enum.TextXAlignment.Center
         indexLabel.ZIndex = 6
         indexLabel.Parent = item
-        
+
         local indexCorner = Instance.new("UICorner")
         indexCorner.CornerRadius = UDim.new(0, 3)
         indexCorner.Parent = indexLabel
     end
-    
+
     -- Small icon on left
     local iconFrame = Instance.new("Frame")
     iconFrame.Name = "IconFrame"
@@ -360,7 +360,7 @@ function CraftingMenu:createRecipeListItem(recipe, index)
     iconFrame.BackgroundTransparency = 1
     iconFrame.ZIndex = 5
     iconFrame.Parent = item
-    
+
     local icon = Instance.new("ImageLabel")
     icon.Name = "Icon"
     icon.Size = UDim2.new(1, 0, 1, 0)
@@ -369,7 +369,7 @@ function CraftingMenu:createRecipeListItem(recipe, index)
     icon.ScaleType = Enum.ScaleType.Fit
     icon.ZIndex = 5
     icon.Parent = iconFrame
-    
+
     -- Try DIY icon first, fall back to item sprite
     local itemData = self.itemDataFetcher.getItem(recipe.id or recipe.itemId)
     local spriteIndex = itemData and itemData.spriteIndex or (recipe.result and recipe.result.spriteIndex)
@@ -379,13 +379,13 @@ function CraftingMenu:createRecipeListItem(recipe, index)
     elseif spriteIndex then
         success = self.spriteConfig.applySprite(icon, spriteIndex)
     end
-    
+
     if not success then
         icon.Image = ""
         icon.ImageRectOffset = Vector2.new(0, 0)
         icon.ImageRectSize = Vector2.new(0, 0)
     end
-    
+
     -- Recipe name
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
@@ -400,7 +400,7 @@ function CraftingMenu:createRecipeListItem(recipe, index)
     nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
     nameLabel.ZIndex = 5
     nameLabel.Parent = item
-    
+
     -- Station type below name
     local stationLabel = Instance.new("TextLabel")
     stationLabel.Name = "Station"
@@ -414,49 +414,49 @@ function CraftingMenu:createRecipeListItem(recipe, index)
     stationLabel.TextXAlignment = Enum.TextXAlignment.Left
     stationLabel.ZIndex = 5
     stationLabel.Parent = item
-    
+
     -- Hover effect
     item.MouseEnter:Connect(function()
         item.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
     end)
-    
+
     item.MouseLeave:Connect(function()
         if self.selectedRecipe == recipe then
-            item.BackgroundColor3 = Color3.fromRGB(220, 240, 255)  -- Selected color
+            item.BackgroundColor3 = Color3.fromRGB(220, 240, 255) -- Selected color
         else
             item.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         end
     end)
-    
+
     -- Click to show preview
     item.MouseButton1Click:Connect(function()
         self:showRecipePreview(recipe, item)
     end)
-    
+
     return item
 end
 
 function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     self.selectedRecipe = recipe
-    
+
     -- Update all list items to show selection
     for _, child in pairs(self.recipeListFrame:GetChildren()) do
         if child:IsA("TextButton") then
             if child == selectedListItem then
-                child.BackgroundColor3 = Color3.fromRGB(220, 240, 255)  -- Selected
+                child.BackgroundColor3 = Color3.fromRGB(220, 240, 255) -- Selected
             else
-                child.BackgroundColor3 = Color3.fromRGB(255, 255, 255)  -- Normal
+                child.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- Normal
             end
         end
     end
-    
+
     -- Clear preview panel
     for _, child in pairs(self.previewPanel:GetChildren()) do
         if child:IsA("GuiObject") then
             child:Destroy()
         end
     end
-    
+
     -- Scroll frame for preview content
     local previewScroll = Instance.new("ScrollingFrame")
     previewScroll.Name = "PreviewScroll"
@@ -468,9 +468,9 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     previewScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     previewScroll.ZIndex = 4
     previewScroll.Parent = self.previewPanel
-    
+
     local yOffset = 0
-    
+
     -- Recipe name at top
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "RecipeName"
@@ -486,7 +486,7 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     nameLabel.ZIndex = 5
     nameLabel.Parent = previewScroll
     yOffset = yOffset + 45
-    
+
     -- Large DIY icon in center
     local iconFrame = Instance.new("Frame")
     iconFrame.Name = "LargeIcon"
@@ -497,11 +497,11 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     iconFrame.BorderColor3 = Color3.fromRGB(200, 180, 160)
     iconFrame.ZIndex = 5
     iconFrame.Parent = previewScroll
-    
+
     local iconCorner = Instance.new("UICorner")
     iconCorner.CornerRadius = UDim.new(0, 8)
     iconCorner.Parent = iconFrame
-    
+
     local icon = Instance.new("ImageLabel")
     icon.Name = "Icon"
     icon.Size = UDim2.new(0.85, 0, 0.85, 0)
@@ -511,7 +511,7 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     icon.ScaleType = Enum.ScaleType.Fit
     icon.ZIndex = 6
     icon.Parent = iconFrame
-    
+
     -- Apply DIY icon or item sprite
     local itemData = self.itemDataFetcher.getItem(recipe.id or recipe.itemId)
     local spriteIndex = itemData and itemData.spriteIndex or (recipe.result and recipe.result.spriteIndex)
@@ -521,13 +521,13 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     elseif spriteIndex then
         success = self.spriteConfig.applySprite(icon, spriteIndex)
     end
-    
+
     if not success then
         icon.Image = ""
         icon.ImageRectOffset = Vector2.new(0, 0)
         icon.ImageRectSize = Vector2.new(0, 0)
     end
-    
+
     -- DIY icon index label
     if recipe.diyIconIndex then
         local indexLabel = Instance.new("TextLabel")
@@ -543,14 +543,14 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
         indexLabel.TextXAlignment = Enum.TextXAlignment.Center
         indexLabel.ZIndex = 7
         indexLabel.Parent = iconFrame
-        
+
         local indexCorner = Instance.new("UICorner")
         indexCorner.CornerRadius = UDim.new(0, 3)
         indexCorner.Parent = indexLabel
     end
-    
+
     yOffset = yOffset + 130
-    
+
     -- Materials header
     local materialsHeader = Instance.new("TextLabel")
     materialsHeader.Name = "MaterialsHeader"
@@ -565,7 +565,7 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     materialsHeader.ZIndex = 5
     materialsHeader.Parent = previewScroll
     yOffset = yOffset + 30
-    
+
     -- Materials list (properly aligned)
     if recipe.materials and #recipe.materials > 0 then
         for _, mat in ipairs(recipe.materials) do
@@ -576,15 +576,15 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
                 matRow.Name = "MaterialRow"
                 matRow.Size = UDim2.new(1, 0, 0, 50)
                 matRow.Position = UDim2.new(0, 0, 0, yOffset)
-                matRow.BackgroundColor3 = Color3.fromRGB(250, 209, 43)  -- Golden
+                matRow.BackgroundColor3 = Color3.fromRGB(250, 209, 43) -- Golden
                 matRow.BorderSizePixel = 0
                 matRow.ZIndex = 5
                 matRow.Parent = previewScroll
-                
+
                 local matCorner = Instance.new("UICorner")
                 matCorner.CornerRadius = UDim.new(0, 6)
                 matCorner.Parent = matRow
-                
+
                 -- Material icon on left
                 local matIconFrame = Instance.new("Frame")
                 matIconFrame.Name = "IconFrame"
@@ -593,7 +593,7 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
                 matIconFrame.BackgroundTransparency = 1
                 matIconFrame.ZIndex = 6
                 matIconFrame.Parent = matRow
-                
+
                 local matIcon = Instance.new("ImageLabel")
                 matIcon.Name = "Icon"
                 matIcon.Size = UDim2.new(1, 0, 1, 0)
@@ -602,11 +602,11 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
                 matIcon.ScaleType = Enum.ScaleType.Fit
                 matIcon.ZIndex = 6
                 matIcon.Parent = matIconFrame
-                
+
                 if matItem.spriteIndex then
                     self.spriteConfig.applySprite(matIcon, matItem.spriteIndex)
                 end
-                
+
                 -- Material name
                 local matName = Instance.new("TextLabel")
                 matName.Name = "Name"
@@ -621,7 +621,7 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
                 matName.TextTruncate = Enum.TextTruncate.AtEnd
                 matName.ZIndex = 6
                 matName.Parent = matRow
-                
+
                 -- Quantity on right
                 local matQuantity = Instance.new("TextLabel")
                 matQuantity.Name = "Quantity"
@@ -635,7 +635,7 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
                 matQuantity.TextXAlignment = Enum.TextXAlignment.Center
                 matQuantity.ZIndex = 6
                 matQuantity.Parent = matRow
-                
+
                 yOffset = yOffset + 55
             end
         end
@@ -652,19 +652,19 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
         noMaterials.TextXAlignment = Enum.TextXAlignment.Left
         noMaterials.ZIndex = 5
         noMaterials.Parent = previewScroll
-        
+
         yOffset = yOffset + 30
     end
-    
+
     yOffset = yOffset + 10
-    
+
     -- Craft button at bottom
     local craftButton = Instance.new("TextButton")
     craftButton.Name = "CraftButton"
     craftButton.Text = "⚡ Craft Now"
     craftButton.Size = UDim2.new(1, 0, 0, 45)
     craftButton.Position = UDim2.new(0, 0, 0, yOffset)
-    craftButton.BackgroundColor3 = Color3.fromRGB(4, 175, 166)  -- Teal
+    craftButton.BackgroundColor3 = Color3.fromRGB(4, 175, 166) -- Teal
     craftButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     craftButton.TextSize = 14
     craftButton.Font = Enum.Font.GothamBold
@@ -672,29 +672,29 @@ function CraftingMenu:showRecipePreview(recipe, selectedListItem)
     craftButton.AutoButtonColor = false
     craftButton.ZIndex = 5
     craftButton.Parent = previewScroll
-    
+
     local craftCorner = Instance.new("UICorner")
     craftCorner.CornerRadius = UDim.new(0, 8)
     craftCorner.Parent = craftButton
-    
+
     craftButton.MouseEnter:Connect(function()
         craftButton.BackgroundColor3 = Color3.fromRGB(5, 200, 190)
     end)
-    
+
     craftButton.MouseLeave:Connect(function()
         craftButton.BackgroundColor3 = Color3.fromRGB(4, 175, 166)
     end)
-    
+
     craftButton.MouseButton1Click:Connect(function()
         local craftItemId = recipe.itemId or recipe.id
         print("[DebugCraftingMenu] Crafting:", craftItemId)
         self.inventoryRemote:FireServer("craft_item", {
-            itemId = craftItemId
+            itemId = craftItemId,
         })
     end)
-    
+
     yOffset = yOffset + 55
-    
+
     -- Update canvas size
     previewScroll.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 end
@@ -965,17 +965,18 @@ function CraftingMenu:createRecipeCard(recipe, index)
     
     return card
 end
---]]  -- END DEPRECATED createRecipeCard
+--]]
+-- END DEPRECATED createRecipeCard
 
 function CraftingMenu:renderStations()
     local stations = {
-        {id = "workbench", name = "Workbench", desc = "Basic crafting station"},
-        {id = "forge", name = "Forge", desc = "For metalworking and weapons"},
-        {id = "cooking", name = "Cooking Station", desc = "Prepare meals and recipes"},
-        {id = "sewing", name = "Sewing Station", desc = "Create clothing and fabrics"},
-        {id = "alchemy", name = "Alchemy Lab", desc = "Brew potions and elixirs"},
+        { id = "workbench", name = "Workbench", desc = "Basic crafting station" },
+        { id = "forge", name = "Forge", desc = "For metalworking and weapons" },
+        { id = "cooking", name = "Cooking Station", desc = "Prepare meals and recipes" },
+        { id = "sewing", name = "Sewing Station", desc = "Create clothing and fabrics" },
+        { id = "alchemy", name = "Alchemy Lab", desc = "Brew potions and elixirs" },
     }
-    
+
     for i, station in ipairs(stations) do
         local stationFrame = self:createStationCard(station, i)
         stationFrame.Parent = self.contentFrame
@@ -986,17 +987,17 @@ function CraftingMenu:createStationCard(station, index)
     local card = Instance.new("Frame")
     card.Name = "Station_" .. station.id
     card.Size = UDim2.new(1, -10, 0, 70)
-    card.BackgroundColor3 = Color3.fromRGB(255, 250, 240)  -- Cream card
-    card.BorderSizePixel = 1  -- Subtle border
-    card.BorderColor3 = Color3.fromRGB(200, 180, 160)  -- Lighter border
+    card.BackgroundColor3 = Color3.fromRGB(255, 250, 240) -- Cream card
+    card.BorderSizePixel = 1 -- Subtle border
+    card.BorderColor3 = Color3.fromRGB(200, 180, 160) -- Lighter border
     card.LayoutOrder = index
     card.ZIndex = 4
-    
+
     -- Add rounded corners
     local cardCorner = Instance.new("UICorner")
     cardCorner.CornerRadius = UDim.new(0, 4)
     cardCorner.Parent = card
-    
+
     -- Icon
     local iconLabel = Instance.new("TextLabel")
     iconLabel.Name = "Icon"
@@ -1010,7 +1011,7 @@ function CraftingMenu:createStationCard(station, index)
     iconLabel.BorderSizePixel = 0
     iconLabel.ZIndex = 5
     iconLabel.Parent = card
-    
+
     -- Name
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
@@ -1024,7 +1025,7 @@ function CraftingMenu:createStationCard(station, index)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.ZIndex = 5
     nameLabel.Parent = card
-    
+
     -- Description
     local descLabel = Instance.new("TextLabel")
     descLabel.Name = "Description"
@@ -1038,31 +1039,31 @@ function CraftingMenu:createStationCard(station, index)
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
     descLabel.ZIndex = 5
     descLabel.Parent = card
-    
+
     -- Unlock button (for debug) - matching theme
     local unlockBtn = Instance.new("TextButton")
     unlockBtn.Name = "UnlockButton"
     unlockBtn.Text = "🔓 Unlock"
     unlockBtn.Size = UDim2.new(0, 90, 0, 50)
     unlockBtn.Position = UDim2.new(1, -100, 0.5, -25)
-    unlockBtn.BackgroundColor3 = Color3.fromRGB(120, 100, 80)  -- Matching brown
+    unlockBtn.BackgroundColor3 = Color3.fromRGB(120, 100, 80) -- Matching brown
     unlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     unlockBtn.TextSize = 12
     unlockBtn.Font = Enum.Font.GothamBold
     unlockBtn.BorderSizePixel = 0
     unlockBtn.ZIndex = 5
     unlockBtn.Parent = card
-    
+
     -- Add rounded corners
     local unlockCorner = Instance.new("UICorner")
     unlockCorner.CornerRadius = UDim.new(0, 4)
     unlockCorner.Parent = unlockBtn
-    
+
     unlockBtn.MouseButton1Click:Connect(function()
         print("[CraftingMenu] Debug unlock station:", station.id)
         -- Could add server-side station unlocking here
     end)
-    
+
     return card
 end
 
@@ -1130,7 +1131,7 @@ function CraftingMenu:close()
     if self.mainFrame then
         self.mainFrame.Visible = false
     end
-    
+
     if self.screenGui then
         self.screenGui.Enabled = false
     end

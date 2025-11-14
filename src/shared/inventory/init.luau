@@ -8,7 +8,10 @@ InventoryModule.AdapterClass = require(script.InventoryAdapters)
 
 function InventoryModule.newAdapterRegistry()
     local registry = InventoryModule.AdapterClass.new()
-    registry:registerLegacyAdapter(InventoryModule.Constants.LEGACY_DATASET_ID, InventoryModule.AdapterClass.defaultLegacyAdapter)
+    registry:registerLegacyAdapter(
+        InventoryModule.Constants.LEGACY_DATASET_ID,
+        InventoryModule.AdapterClass.defaultLegacyAdapter
+    )
     return registry
 end
 

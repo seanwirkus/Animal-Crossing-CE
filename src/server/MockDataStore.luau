@@ -11,38 +11,38 @@
 ]]
 
 local MockDataStore = {}
-local storage = {}  -- In-memory storage
+local storage = {} -- In-memory storage
 
 local MockDataStoreObject = {}
 MockDataStoreObject.__index = MockDataStoreObject
 
 function MockDataStoreObject:GetAsync(key)
-	print("[MockDataStore] 📖 GetAsync:", key)
-	return storage[self.name .. "_" .. key]
+    print("[MockDataStore] 📖 GetAsync:", key)
+    return storage[self.name .. "_" .. key]
 end
 
 function MockDataStoreObject:SetAsync(key, value)
-	print("[MockDataStore] 💾 SetAsync:", key, "→", typeof(value))
-	storage[self.name .. "_" .. key] = value
+    print("[MockDataStore] 💾 SetAsync:", key, "→", typeof(value))
+    storage[self.name .. "_" .. key] = value
 end
 
 function MockDataStoreObject:UpdateAsync(key, transformFunction)
-	print("[MockDataStore] 🔄 UpdateAsync:", key)
-	local currentValue = storage[self.name .. "_" .. key]
-	local newValue = transformFunction(currentValue)
-	storage[self.name .. "_" .. key] = newValue
-	return newValue
+    print("[MockDataStore] 🔄 UpdateAsync:", key)
+    local currentValue = storage[self.name .. "_" .. key]
+    local newValue = transformFunction(currentValue)
+    storage[self.name .. "_" .. key] = newValue
+    return newValue
 end
 
 function MockDataStoreObject:RemoveAsync(key)
-	print("[MockDataStore] 🗑️ RemoveAsync:", key)
-	storage[self.name .. "_" .. key] = nil
+    print("[MockDataStore] 🗑️ RemoveAsync:", key)
+    storage[self.name .. "_" .. key] = nil
 end
 
 -- Main MockDataStore service
 function MockDataStore:GetDataStore(name)
-	print("[MockDataStore] 📂 Creating mock DataStore:", name)
-	return setmetatable({name = name}, MockDataStoreObject)
+    print("[MockDataStore] 📂 Creating mock DataStore:", name)
+    return setmetatable({ name = name }, MockDataStoreObject)
 end
 
 return MockDataStore

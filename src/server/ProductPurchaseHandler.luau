@@ -43,41 +43,53 @@ local function processReceipt(receiptInfo)
         local playerId = receiptInfo.PlayerId
         local productId = receiptInfo.ProductId
         local purchaseId = receiptInfo.PurchaseId
-        
+
         -- Get product data
         local product = PRODUCTS[productId]
         if not product then
             warn("[ProductPurchaseHandler] ❌ Unknown product ID:", productId)
             return Enum.ProductPurchaseDecision.NotProcessedYet
         end
-        
+
         -- Get player
         local player = Players:GetPlayerByUserId(playerId)
         if not player then
             warn("[ProductPurchaseHandler] ❌ Player not found for ID:", playerId)
             return Enum.ProductPurchaseDecision.NotProcessedYet
         end
-        
+
         -- Check if already processed (prevent duplicate grants)
         -- TODO: Implement receipt tracking in DataStore to prevent duplicates
-        
+
         -- Grant rewards
         local currencyManager = getCurrencyManager()
         if currencyManager then
             if product.reward.bells and product.reward.bells > 0 then
                 currencyManager.addBells(player, product.reward.bells)
-                print(string.format("[ProductPurchaseHandler] ✅ Granted %d Bells to %s", product.reward.bells, player.Name))
+                print(
+                    string.format(
+                        "[ProductPurchaseHandler] ✅ Granted %d Bells to %s",
+                        product.reward.bells,
+                        player.Name
+                    )
+                )
             end
-            
+
             if product.reward.miles and product.reward.miles > 0 then
                 currencyManager.addMiles(player, product.reward.miles)
-                print(string.format("[ProductPurchaseHandler] ✅ Granted %d Nook Miles to %s", product.reward.miles, player.Name))
+                print(
+                    string.format(
+                        "[ProductPurchaseHandler] ✅ Granted %d Nook Miles to %s",
+                        product.reward.miles,
+                        player.Name
+                    )
+                )
             end
         else
             warn("[ProductPurchaseHandler] ❌ CurrencyManager not available")
             return Enum.ProductPurchaseDecision.NotProcessedYet
         end
-        
+
         -- Notify client
         local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
         if remoteEventsFolder then
@@ -86,18 +98,24 @@ local function processReceipt(receiptInfo)
                 purchaseRemote:FireClient(player, true, product.id, string.format("Purchased %s!", product.name))
             end
         end
-        
-        print(string.format("[ProductPurchaseHandler] ✅ Processed purchase: %s (%s) - Product: %s", 
-            player.Name, purchaseId, product.name))
-        
+
+        print(
+            string.format(
+                "[ProductPurchaseHandler] ✅ Processed purchase: %s (%s) - Product: %s",
+                player.Name,
+                purchaseId,
+                product.name
+            )
+        )
+
         return Enum.ProductPurchaseDecision.PurchaseGranted
     end)
-    
+
     if not success then
         warn("[ProductPurchaseHandler] ❌ Error processing receipt:", errorMessage)
         return Enum.ProductPurchaseDecision.NotProcessedYet
     end
-    
+
     return errorMessage -- This is the ProductPurchaseDecision from the pcall
 end
 
@@ -109,7 +127,7 @@ function ProductPurchaseHandler.init()
         remoteEventsFolder.Name = "RemoteEvents"
         remoteEventsFolder.Parent = ReplicatedStorage
     end
-    
+
     local purchaseRemote = remoteEventsFolder:FindFirstChild("PremiumPurchase")
     if not purchaseRemote then
         purchaseRemote = Instance.new("RemoteEvent")
@@ -117,19 +135,19 @@ function ProductPurchaseHandler.init()
         purchaseRemote.Parent = remoteEventsFolder
         print("[ProductPurchaseHandler] ✅ Created PremiumPurchase RemoteEvent")
     end
-    
+
     -- Set up ProcessReceipt handler
     MarketplaceService.ProcessReceipt = processReceipt
-    
+
     -- Count products
     local productCount = 0
     for _ in pairs(PRODUCTS) do
         productCount = productCount + 1
     end
-    
+
     print("[ProductPurchaseHandler] ✅ Initialized - Ready to process purchases")
     print(string.format("[ProductPurchaseHandler] 📦 Registered %d products", productCount))
-    
+
     -- Warn if no products configured
     if productCount == 0 then
         warn("[ProductPurchaseHandler] ⚠️ No products configured! Add product IDs to PRODUCTS table.")
@@ -141,4 +159,3 @@ function ProductPurchaseHandler.init()
 end
 
 return ProductPurchaseHandler
-

@@ -16,60 +16,60 @@ local UniversalGUIPreset = {}
 
 -- Universal presets for common GUI element types
 local UNIVERSAL_PRESETS = {
-	-- ScreenGui containers
-	ScreenGui = {
-		IgnoreGuiInset = true,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	},
+    -- ScreenGui containers
+    ScreenGui = {
+        IgnoreGuiInset = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    },
 
-	-- Main containers
-	Frame = {
-		BackgroundColor3 = "offWhite",
-		cornerRadius = "medium",
-	},
+    -- Main containers
+    Frame = {
+        backgroundColor = "offWhite",
+        cornerRadius = "medium",
+    },
 
-	-- Text elements
-	TextLabel = {
-		TextColor3 = "textPrimary",
-		font = "primary",
-		textSize = "medium",
-		textStroke = true,
-	},
+    -- Text elements
+    TextLabel = {
+        textColor = "textPrimary",
+        font = "primary",
+        textSize = "medium",
+        textStroke = true,
+    },
 
-	TextButton = {
-		TextColor3 = "textLight",
-		font = "bold",
-		textSize = "medium",
-		backgroundColor = "buttonBrown",
-		cornerRadius = "medium",
-	},
+    TextButton = {
+        textColor = "textLight",
+        font = "bold",
+        textSize = "medium",
+        backgroundColor = "buttonBrown",
+        cornerRadius = "medium",
+    },
 
-	TextBox = {
-		TextColor3 = "textPrimary",
-		font = "primary",
-		textSize = "medium",
-		backgroundColor = "eggshell",
-		cornerRadius = "small",
-		strokeColor = "lightBrown",
-		strokeThickness = 1,
-	},
+    TextBox = {
+        textColor = "textPrimary",
+        font = "primary",
+        textSize = "medium",
+        backgroundColor = "eggshell",
+        cornerRadius = "small",
+        strokeColor = "lightBrown",
+        strokeThickness = 1,
+    },
 
-	-- Scrollable areas
-	ScrollingFrame = {
-		BackgroundColor3 = "eggshell",
-		cornerRadius = "medium",
-		strokeColor = "lightBrown",
-		strokeThickness = 1,
-	},
+    -- Scrollable areas
+    ScrollingFrame = {
+        backgroundColor = "eggshell",
+        cornerRadius = "medium",
+        strokeColor = "lightBrown",
+        strokeThickness = 1,
+    },
 
-	-- Images
-	ImageLabel = {
-		BackgroundTransparency = 1,
-	},
+    -- Images
+    ImageLabel = {
+        backgroundTransparency = 1,
+    },
 
-	ImageButton = {
-		BackgroundTransparency = 1,
-	},
+    ImageButton = {
+        backgroundTransparency = 1,
+    },
 }
 
 -- =============================================================================
@@ -77,59 +77,59 @@ local UNIVERSAL_PRESETS = {
 -- =============================================================================
 
 -- Check if an element should be styled (skip certain containers)
-local function shouldStyleElement(element: Instance): boolean
-	-- Skip elements that are part of theme shadows or special effects
-	if element.Name:find("ThemeShadow") or element.Name:find("LS_") then
-		return false
-	end
+local function shouldStyleElement(element)
+    -- Skip elements that are part of theme shadows or special effects
+    if element.Name:find("ThemeShadow") or element.Name:find("LS_") then
+        return false
+    end
 
-	-- Skip elements that already have custom styling
-	if element:GetAttribute("CustomStyled") then
-		return false
-	end
+    -- Skip elements that already have custom styling
+    if element:GetAttribute("CustomStyled") then
+        return false
+    end
 
-	return true
+    return true
 end
 
 -- Apply preset to a single element
-local function applyPresetToElement(element: Instance)
-	if not shouldStyleElement(element) then
-		return
-	end
+local function applyPresetToElement(element)
+    if not shouldStyleElement(element) then
+        return
+    end
 
-	local preset = UNIVERSAL_PRESETS[element.ClassName]
-	if not preset then
-		return
-	end
+    local preset = UNIVERSAL_PRESETS[element.ClassName]
+    if not preset then
+        return
+    end
 
-	print(string.format("[UniversalGUIPreset] 🎨 Applying preset to %s (%s)", element.Name, element.ClassName))
+    print(string.format("[UniversalGUIPreset] 🎨 Applying preset to %s (%s)", element.Name, element.ClassName))
 
-	-- Apply styling based on element type
-	if element:IsA("Frame") then
-		ThemeProvider.styleFrame(element, preset)
-	elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
-		ThemeProvider.styleText(element, preset)
-	elseif element:IsA("ScrollingFrame") then
-		ThemeProvider.styleFrame(element, preset)
-		-- Ensure scroll bars are themed
-		element.ScrollBarImageColor3 = ThemeProvider.getColor("darkBrown")
-	elseif element:IsA("ImageLabel") or element:IsA("ImageButton") then
-		if preset.BackgroundTransparency then
-			element.BackgroundTransparency = preset.BackgroundTransparency
-		end
-	end
+    -- Apply styling based on element type
+    if element:IsA("Frame") then
+        ThemeProvider.styleFrame(element, preset)
+    elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
+        ThemeProvider.styleText(element, preset)
+    elseif element:IsA("ScrollingFrame") then
+        ThemeProvider.styleFrame(element, preset)
+        -- Ensure scroll bars are themed
+        element.ScrollBarImageColor3 = ThemeProvider.getColor("darkBrown")
+    elseif element:IsA("ImageLabel") or element:IsA("ImageButton") then
+        if preset.backgroundTransparency then
+            element.BackgroundTransparency = preset.backgroundTransparency
+        end
+    end
 
-	-- Mark as styled to prevent re-styling
-	element:SetAttribute("UniversalStyled", true)
+    -- Mark as styled to prevent re-styling
+    element:SetAttribute("UniversalStyled", true)
 end
 
 -- Recursively apply presets to all descendants
-local function applyPresetsRecursive(parent: Instance)
-	applyPresetToElement(parent)
+local function applyPresetsRecursive(parent)
+    applyPresetToElement(parent)
 
-	for _, child in ipairs(parent:GetChildren()) do
-		applyPresetsRecursive(child)
-	end
+    for _, child in ipairs(parent:GetChildren()) do
+        applyPresetsRecursive(child)
+    end
 end
 
 -- =============================================================================
@@ -137,76 +137,81 @@ end
 -- =============================================================================
 
 -- Apply universal presets to a GUI object
-function UniversalGUIPreset.applyToGUI(guiObject: Instance)
-	local startTime = os.clock()
+function UniversalGUIPreset.applyToGUI(guiObject)
+    local startTime = os.clock()
 
-	print(string.format("[UniversalGUIPreset] 🎨 Applying universal presets to %s", guiObject.Name))
+    if not guiObject then
+        warn("[UniversalGUIPreset] ⚠️ guiObject is nil")
+        return
+    end
 
-	-- Handle different GUI object types
-	if guiObject:IsA("ScreenGui") then
-		-- Apply ScreenGui presets
-		local sgPreset = UNIVERSAL_PRESETS.ScreenGui
-		if sgPreset.IgnoreGuiInset ~= nil then
-			guiObject.IgnoreGuiInset = sgPreset.IgnoreGuiInset
-		end
-		if sgPreset.ZIndexBehavior then
-			guiObject.ZIndexBehavior = sgPreset.ZIndexBehavior
-		end
+    print(string.format("[UniversalGUIPreset] 🎨 Applying universal presets to %s", guiObject.Name or "Unknown"))
 
-		-- Apply to all descendants
-		for _, child in ipairs(guiObject:GetChildren()) do
-			applyPresetsRecursive(child)
-		end
-	else
-		-- Apply to the object and its descendants
-		applyPresetsRecursive(guiObject)
-	end
+    -- Handle different GUI object types
+    if guiObject:IsA("ScreenGui") then
+        -- Apply ScreenGui presets
+        local sgPreset = UNIVERSAL_PRESETS.ScreenGui
+        if sgPreset.IgnoreGuiInset ~= nil then
+            guiObject.IgnoreGuiInset = sgPreset.IgnoreGuiInset
+        end
+        if sgPreset.ZIndexBehavior then
+            guiObject.ZIndexBehavior = sgPreset.ZIndexBehavior
+        end
 
-	local duration = os.clock() - startTime
-	print(string.format("[UniversalGUIPreset] ✅ Universal presets applied in %.3fs", duration))
+        -- Apply to all descendants
+        for _, child in ipairs(guiObject:GetChildren()) do
+            applyPresetsRecursive(child)
+        end
+    else
+        -- Apply to the object and its descendants
+        applyPresetsRecursive(guiObject)
+    end
+
+    local duration = os.clock() - startTime
+    print(string.format("[UniversalGUIPreset] ✅ Universal presets applied in %.3fs", duration))
 end
 
 -- Apply presets to all registered GUIs (called by GUIManager to avoid circular dependency)
-function UniversalGUIPreset.applyToRegisteredGUIs(registry: table)
-	local startTime = os.clock()
+function UniversalGUIPreset.applyToRegisteredGUIs(registry)
+    local startTime = os.clock()
 
-	print("[UniversalGUIPreset] 🎨 Applying universal presets to all registered GUIs")
+    print("[UniversalGUIPreset] 🎨 Applying universal presets to all registered GUIs")
 
-	local appliedCount = 0
-	for name, guiData in pairs(registry) do
-		if guiData and guiData.object then
-			UniversalGUIPreset.applyToGUI(guiData.object)
-			appliedCount += 1
-		end
-	end
+    local appliedCount = 0
+    for name, guiData in pairs(registry) do
+        if guiData and guiData.object then
+            UniversalGUIPreset.applyToGUI(guiData.object)
+            appliedCount += 1
+        end
+    end
 
-	local duration = os.clock() - startTime
-	print(string.format("[UniversalGUIPreset] ✅ Applied to %d GUIs in %.3fs", appliedCount, duration))
+    local duration = os.clock() - startTime
+    print(string.format("[UniversalGUIPreset] ✅ Applied to %d GUIs in %.3fs", appliedCount, duration))
 end
 
 -- Refresh presets on a GUI (useful for dynamic content)
-function UniversalGUIPreset.refreshGUI(guiObject: Instance)
-	-- Clear existing styling marks
-	local function clearMarks(parent: Instance)
-		parent:SetAttribute("UniversalStyled", nil)
-		for _, child in ipairs(parent:GetChildren()) do
-			clearMarks(child)
-		end
-	end
+function UniversalGUIPreset.refreshGUI(guiObject)
+    -- Clear existing styling marks
+    local function clearMarks(parent)
+        parent:SetAttribute("UniversalStyled", nil)
+        for _, child in ipairs(parent:GetChildren()) do
+            clearMarks(child)
+        end
+    end
 
-	clearMarks(guiObject)
-	UniversalGUIPreset.applyToGUI(guiObject)
+    clearMarks(guiObject)
+    UniversalGUIPreset.applyToGUI(guiObject)
 end
 
 -- Get preset configuration for a class
-function UniversalGUIPreset.getPreset(className: string)
-	return UNIVERSAL_PRESETS[className]
+function UniversalGUIPreset.getPreset(className)
+    return UNIVERSAL_PRESETS[className]
 end
 
 -- Add or modify a preset
-function UniversalGUIPreset.setPreset(className: string, preset: table)
-	UNIVERSAL_PRESETS[className] = preset
-	print(string.format("[UniversalGUIPreset] 📝 Updated preset for %s", className))
+function UniversalGUIPreset.setPreset(className, preset)
+    UNIVERSAL_PRESETS[className] = preset
+    print(string.format("[UniversalGUIPreset] 📝 Updated preset for %s", className))
 end
 
 return UniversalGUIPreset

@@ -48,39 +48,39 @@ local function findSpriteEntry(itemId)
     if not itemId then
         return nil
     end
-    
+
     -- Try exact match first
     local spriteEntry = SpriteManifest[itemId]
     if spriteEntry then
         return spriteEntry
     end
-    
+
     -- Try with _gui suffix
     spriteEntry = SpriteManifest[itemId .. "_gui"]
     if spriteEntry then
         return spriteEntry
     end
-    
+
     -- Try converting hyphens to underscores
     local idWithUnderscores = string.gsub(itemId, "-", "_")
     spriteEntry = SpriteManifest[idWithUnderscores]
     if spriteEntry then
         return spriteEntry
     end
-    
+
     -- Try converting hyphens to underscores with _gui suffix
     spriteEntry = SpriteManifest[idWithUnderscores .. "_gui"]
     if spriteEntry then
         return spriteEntry
     end
-    
+
     -- Try converting underscores to hyphens (for reverse mapping)
     local idWithHyphens = string.gsub(itemId, "_", "-")
     spriteEntry = SpriteManifest[idWithHyphens]
     if spriteEntry then
         return spriteEntry
     end
-    
+
     return nil
 end
 
@@ -103,7 +103,7 @@ end
 for id, spriteEntry in pairs(SpriteManifest) do
     -- Try to find matching item by various ID formats
     local matchedItemId = nil
-    
+
     -- Try exact match
     if itemsById[id] then
         matchedItemId = id
@@ -120,7 +120,7 @@ for id, spriteEntry in pairs(SpriteManifest) do
             end
         end
     end
-    
+
     if matchedItemId then
         -- Update existing item with sprite data
         local record = itemsById[matchedItemId]
@@ -167,13 +167,14 @@ end
 
 for recipeIdx, recipe in ipairs(rawRecipes) do
     if recipe.itemId then
-        local resultItem = itemsById[recipe.itemId] or {
-            id = recipe.itemId,
-            name = recipe.name or recipe.itemId,
-            displayName = recipe.name or recipe.itemId,
-            category = "crafted",
-        }
-        
+        local resultItem = itemsById[recipe.itemId]
+            or {
+                id = recipe.itemId,
+                name = recipe.name or recipe.itemId,
+                displayName = recipe.name or recipe.itemId,
+                category = "crafted",
+            }
+
         -- If result item doesn't have spriteIndex, try to find it
         if not resultItem.spriteIndex then
             local spriteEntry = findSpriteEntry(recipe.itemId)
@@ -186,7 +187,7 @@ for recipeIdx, recipe in ipairs(rawRecipes) do
         local resolvedMaterials = {}
         for _, material in ipairs(recipe.materials or {}) do
             local materialItem = itemsById[material.itemId]
-            
+
             -- If material item doesn't have spriteIndex, try to find it
             if materialItem and not materialItem.spriteIndex then
                 local spriteEntry = findSpriteEntry(material.itemId)
@@ -195,10 +196,12 @@ for recipeIdx, recipe in ipairs(rawRecipes) do
                     materialItem.displayName = spriteEntry.name
                 end
             end
-            
+
             table.insert(resolvedMaterials, {
                 itemId = material.itemId,
-                name = materialItem and (materialItem.displayName or materialItem.name) or material.name or material.itemId,
+                name = materialItem and (materialItem.displayName or materialItem.name)
+                    or material.name
+                    or material.itemId,
                 count = material.count or 1,
                 spriteIndex = materialItem and materialItem.spriteIndex or nil,
             })
@@ -213,7 +216,7 @@ for recipeIdx, recipe in ipairs(rawRecipes) do
             sell = recipe.sell,
             source = cloneArray(recipe.source),
             materials = resolvedMaterials,
-            diyIconIndex = recipeIdx,  -- Assign DIY icon index based on recipe position (1-80)
+            diyIconIndex = recipeIdx, -- Assign DIY icon index based on recipe position (1-80)
             result = {
                 itemId = resultItem.id,
                 name = resultItem.displayName or resultItem.name,

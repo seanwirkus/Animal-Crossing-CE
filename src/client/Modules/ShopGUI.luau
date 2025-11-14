@@ -22,12 +22,12 @@ ShopGUI.__index = ShopGUI
 
 -- ACNH Color Palette
 local COLORS = {
-    BG_PRIMARY = Color3.fromRGB(255, 251, 231),    -- Cream
-    BG_SECONDARY = Color3.fromRGB(255, 255, 255),  -- White
-    BORDER_DARK = Color3.fromRGB(100, 80, 60),     -- Brown
-    TEXT_DARK = Color3.fromRGB(60, 50, 40),        -- Dark brown
-    TEXT_LIGHT = Color3.fromRGB(255, 255, 255),    -- White
-    ACCENT = Color3.fromRGB(4, 175, 166),          -- Teal
+    BG_PRIMARY = Color3.fromRGB(255, 251, 231), -- Cream
+    BG_SECONDARY = Color3.fromRGB(255, 255, 255), -- White
+    BORDER_DARK = Color3.fromRGB(100, 80, 60), -- Brown
+    TEXT_DARK = Color3.fromRGB(60, 50, 40), -- Dark brown
+    TEXT_LIGHT = Color3.fromRGB(255, 255, 255), -- White
+    ACCENT = Color3.fromRGB(4, 175, 166), -- Teal
     PRICE_POSITIVE = Color3.fromRGB(100, 180, 100), -- Green
     PRICE_NEGATIVE = Color3.fromRGB(200, 100, 100), -- Red
 }
@@ -38,23 +38,23 @@ local ITEM_GRID_PADDING = 10
 
 function ShopGUI.new()
     local self = setmetatable({}, ShopGUI)
-    
+
     self.player = Players.LocalPlayer
     self.playerGui = self.player:WaitForChild("PlayerGui")
     self.gui = nil
     self.visible = false
     self.currentTab = "Buy"
     self.bells = 0
-    
+
     -- Load dependencies
     local shared = ReplicatedStorage:WaitForChild("Shared")
     self.spriteConfig = require(shared:WaitForChild("SpriteConfig"))
     self.itemDataFetcher = require(shared:WaitForChild("ItemDataFetcher"))
     self.shopData = require(shared:WaitForChild("ShopData"))
-    
+
     -- Currency remote
     self.currencyRemote = ReplicatedStorage:WaitForChild("CurrencyEvent")
-    
+
     -- Shop remote (for buying/selling)
     local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
     if remoteEventsFolder then
@@ -65,10 +65,10 @@ function ShopGUI.new()
             self.shopRemote.Parent = remoteEventsFolder
         end
     end
-    
+
     self:buildGui()
     self:connectToServer()
-    
+
     print("[ShopGUI] ✅ Initialized")
     return self
 end
@@ -81,27 +81,27 @@ function ShopGUI:buildGui()
     screenGui.Enabled = false
     screenGui.Parent = self.playerGui
     self.gui = screenGui
-    
+
     -- Main container - smaller and positioned to avoid top-left corner
     local container = Instance.new("Frame")
     container.Name = "ShopContainer"
     container.AnchorPoint = Vector2.new(0.5, 0.5)
-    container.Size = UDim2.new(0, 720, 0, 540)  -- Smaller: 720x540 (was 800x600)
-    container.Position = UDim2.new(0.5, 0, 0.55, 0)  -- Lower than center to avoid top-left
+    container.Size = UDim2.new(0, 720, 0, 540) -- Smaller: 720x540 (was 800x600)
+    container.Position = UDim2.new(0.5, 0, 0.55, 0) -- Lower than center to avoid top-left
     container.BackgroundColor3 = COLORS.BG_PRIMARY
     container.BorderSizePixel = 0
     container.Parent = screenGui
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 16)
     corner.Parent = container
-    
+
     local stroke = Instance.new("UIStroke")
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Thickness = 3
     stroke.Color = COLORS.BORDER_DARK
     stroke.Parent = container
-    
+
     -- Header
     local header = Instance.new("Frame")
     header.Name = "Header"
@@ -109,7 +109,7 @@ function ShopGUI:buildGui()
     header.BackgroundColor3 = COLORS.BG_SECONDARY
     header.BorderSizePixel = 0
     header.Parent = container
-    
+
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
     titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
@@ -120,7 +120,7 @@ function ShopGUI:buildGui()
     titleLabel.TextColor3 = COLORS.BORDER_DARK
     titleLabel.Text = "🌟 Nook's Cranny"
     titleLabel.Parent = header
-    
+
     local bellsLabel = Instance.new("TextLabel")
     bellsLabel.Name = "BellsLabel"
     bellsLabel.Size = UDim2.new(0.25, 0, 0.5, 0)
@@ -132,7 +132,7 @@ function ShopGUI:buildGui()
     bellsLabel.Text = "💰 Bells: 0"
     bellsLabel.Parent = header
     self.bellsLabel = bellsLabel
-    
+
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Size = UDim2.new(0, 40, 0, 40)
@@ -143,15 +143,15 @@ function ShopGUI:buildGui()
     closeButton.TextSize = 20
     closeButton.Text = "✕"
     closeButton.Parent = header
-    
+
     local closeCorner = Instance.new("UICorner")
     closeCorner.CornerRadius = UDim.new(0, 8)
     closeCorner.Parent = closeButton
-    
+
     closeButton.MouseButton1Click:Connect(function()
         self:hide()
     end)
-    
+
     -- Tab buttons
     local tabFrame = Instance.new("Frame")
     tabFrame.Name = "TabFrame"
@@ -160,27 +160,27 @@ function ShopGUI:buildGui()
     tabFrame.BackgroundColor3 = COLORS.BG_PRIMARY
     tabFrame.BorderSizePixel = 0
     tabFrame.Parent = container
-    
+
     self.tabs = {}
-    for i, tabName in ipairs({"Buy", "Sell"}) do
+    for i, tabName in ipairs({ "Buy", "Sell" }) do
         local tabButton = Instance.new("TextButton")
         tabButton.Name = tabName .. "Tab"
         tabButton.Size = UDim2.new(0, 150, 1, 0)
-        tabButton.Position = UDim2.new(0, (i-1)*160, 0, 0)
+        tabButton.Position = UDim2.new(0, (i - 1) * 160, 0, 0)
         tabButton.BackgroundColor3 = COLORS.BG_SECONDARY
         tabButton.TextColor3 = COLORS.TEXT_DARK
         tabButton.Font = Enum.Font.GothamBold
         tabButton.TextSize = 18
         tabButton.Text = tabName
         tabButton.Parent = tabFrame
-        
+
         tabButton.MouseButton1Click:Connect(function()
             self:switchTab(tabName)
         end)
-        
+
         self.tabs[tabName] = tabButton
     end
-    
+
     -- Content area (ScrollingFrame)
     local contentFrame = Instance.new("ScrollingFrame")
     contentFrame.Name = "ContentFrame"
@@ -191,19 +191,19 @@ function ShopGUI:buildGui()
     contentFrame.ScrollBarThickness = 10
     contentFrame.CanvasSize = UDim2.new(0, 0, 2, 0)
     contentFrame.Parent = container
-    
+
     local listLayout = Instance.new("UIGridLayout")
     listLayout.CellSize = UDim2.new(0, ITEM_SLOT_SIZE, 0, ITEM_SLOT_SIZE + 40)
     listLayout.CellPadding = UDim2.new(0, ITEM_GRID_PADDING, 0, ITEM_GRID_PADDING)
     listLayout.Parent = contentFrame
-    
+
     self.contentFrame = contentFrame
     self.listLayout = listLayout
 end
 
 function ShopGUI:switchTab(tabName: string)
     self.currentTab = tabName
-    
+
     -- Update tab button colors
     for name, button in pairs(self.tabs) do
         if name == tabName then
@@ -214,14 +214,14 @@ function ShopGUI:switchTab(tabName: string)
             button.TextColor3 = COLORS.TEXT_DARK
         end
     end
-    
+
     -- Clear content
     for _, child in ipairs(self.contentFrame:GetChildren()) do
         if child:IsA("Frame") then
             child:Destroy()
         end
     end
-    
+
     if tabName == "Buy" then
         self:populateBuyTab()
     elseif tabName == "Sell" then
@@ -234,7 +234,7 @@ function ShopGUI:populateBuyTab()
     for itemId in pairs(self.shopData.Items) do
         table.insert(itemIds, itemId)
     end
-    
+
     for _, itemId in ipairs(itemIds) do
         local shopItem = self.shopData.Items[itemId]
         if shopItem then
@@ -261,11 +261,11 @@ function ShopGUI:createShopSlot(itemId: string, shopItem, mode: string)
     slotFrame.BackgroundColor3 = COLORS.BG_SECONDARY
     slotFrame.BorderSizePixel = 0
     slotFrame.Parent = self.contentFrame
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = slotFrame
-    
+
     -- Sprite
     local iconLabel = Instance.new("ImageLabel")
     iconLabel.Name = "Icon"
@@ -273,11 +273,11 @@ function ShopGUI:createShopSlot(itemId: string, shopItem, mode: string)
     iconLabel.Position = UDim2.new(0, 5, 0, 5)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Parent = slotFrame
-    
+
     if shopItem.spriteIndex then
         self.spriteConfig.applySprite(iconLabel, shopItem.spriteIndex)
     end
-    
+
     -- Price label (below slot)
     local priceLabel = Instance.new("TextLabel")
     priceLabel.Name = "PriceLabel"
@@ -289,7 +289,7 @@ function ShopGUI:createShopSlot(itemId: string, shopItem, mode: string)
     priceLabel.TextColor3 = COLORS.PRICE_POSITIVE
     priceLabel.Text = string.format("%d 🔔", shopItem.buyPrice or 0)
     priceLabel.Parent = slotFrame.Parent
-    
+
     -- Buy button
     local buyButton = Instance.new("TextButton")
     buyButton.Name = "BuyButton"
@@ -301,11 +301,11 @@ function ShopGUI:createShopSlot(itemId: string, shopItem, mode: string)
     buyButton.TextSize = 12
     buyButton.Text = "Buy"
     buyButton.Parent = slotFrame.Parent
-    
+
     local buyCorner = Instance.new("UICorner")
     buyCorner.CornerRadius = UDim.new(0, 6)
     buyCorner.Parent = buyButton
-    
+
     buyButton.MouseButton1Click:Connect(function()
         self:buyItem(itemId, shopItem)
     end)
@@ -316,9 +316,9 @@ function ShopGUI:buyItem(itemId: string, shopItem)
         print("[ShopGUI] ❌ Not enough Bells!")
         return
     end
-    
+
     print("[ShopGUI] 💳 Purchasing", itemId, "for", shopItem.buyPrice, "Bells")
-    
+
     if self.shopRemote then
         self.shopRemote:FireServer("BuyItem", {
             itemId = itemId,
@@ -342,7 +342,9 @@ function ShopGUI:connectToServer()
 end
 
 function ShopGUI:show()
-    if self.visible then return end
+    if self.visible then
+        return
+    end
     self.visible = true
     self.gui.Enabled = true
     self:switchTab("Buy")
@@ -350,7 +352,9 @@ function ShopGUI:show()
 end
 
 function ShopGUI:hide()
-    if not self.visible then return end
+    if not self.visible then
+        return
+    end
     self.visible = false
     self.gui.Enabled = false
     print("[ShopGUI] 🏪 Shop closed")

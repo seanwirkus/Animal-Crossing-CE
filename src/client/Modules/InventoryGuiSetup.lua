@@ -12,34 +12,34 @@ local _inventoryGuiInitialized = false
 function InventoryGuiSetup.createInventoryGui()
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
-    
+
     -- Only initialize once
     if _inventoryGuiInitialized then
         return playerGui:FindFirstChild("InventoryGUI")
     end
-    
+
     -- Look for existing InventoryGUI in Roblox (don't create it)
     local screenGui = playerGui:FindFirstChild("InventoryGUI")
     if not screenGui then
         warn("[InventoryGuiSetup] ❌ InventoryGUI not found in PlayerGui - make sure it exists in Roblox!")
         return nil
     end
-    
+
     print("[InventoryGuiSetup] ✅ Found existing InventoryGUI in PlayerGui")
     _inventoryGuiInitialized = true
-    
+
     -- Find InventoryFrame
     local inventoryFrame = screenGui:FindFirstChild("InventoryFrame")
     if not inventoryFrame then
         warn("[InventoryGuiSetup] ❌ InventoryFrame not found in InventoryGUI")
         return screenGui
     end
-    
+
     print("[InventoryGuiSetup] ✅ Found InventoryFrame")
-    
+
     -- Find or create InventoryItems ScrollingFrame
     local inventoryItems = inventoryFrame:FindFirstChild("InventoryItems")
-    
+
     if not inventoryItems then
         warn("[InventoryGuiSetup] ⚠ InventoryItems not found, creating it...")
         inventoryItems = Instance.new("ScrollingFrame")
@@ -53,11 +53,11 @@ function InventoryGuiSetup.createInventoryGui()
         inventoryItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
         inventoryItems.Parent = inventoryFrame
     end
-    
+
     -- Check for existing layout - if user added UIListLayout, use it; otherwise create UIGridLayout
     local existingListLayout = inventoryItems:FindFirstChildOfClass("UIListLayout")
     local existingGridLayout = inventoryItems:FindFirstChildOfClass("UIGridLayout")
-    
+
     if existingListLayout then
         print("[InventoryGuiSetup] ✅ Found existing UIListLayout - using it")
         -- Ensure it's configured correctly
@@ -78,9 +78,9 @@ function InventoryGuiSetup.createInventoryGui()
     else
         print("[InventoryGuiSetup] ✅ Found existing UIGridLayout - using it")
     end
-    
+
     print("[InventoryGuiSetup] ✅ InventoryItems ready")
-    
+
     -- Find or create ItemSlotTemplate
     local slotTemplate = inventoryItems:FindFirstChild("ItemSlotTemplate")
     if not slotTemplate then
@@ -90,9 +90,9 @@ function InventoryGuiSetup.createInventoryGui()
         slotTemplate.Visible = false
         slotTemplate.Parent = inventoryItems
     end
-    
+
     print("[InventoryGuiSetup] ✅ Inventory GUI setup complete!")
-    
+
     return screenGui
 end
 
@@ -100,29 +100,29 @@ function InventoryGuiSetup.createSlotTemplate()
     -- Determine slot size based on screen size (responsive)
     local viewportSize = workspace.CurrentCamera.ViewportSize
     local isDesktop = viewportSize.X > 1000
-    
+
     -- Desktop: 10 items per row (matches inventory level system), Mobile: 5 items per row
     local slotsPerRow = isDesktop and 10 or 5
     local slotSize = math.floor((viewportSize.X * 0.8 - 100) / slotsPerRow)
     slotSize = math.clamp(slotSize, 50, 80)
-    
+
     -- Ensure slots are sized consistently for the 10-per-row layout
     if isDesktop then
-        slotSize = math.floor(viewportSize.X * 0.08)  -- ~8% of screen width per slot
+        slotSize = math.floor(viewportSize.X * 0.08) -- ~8% of screen width per slot
         slotSize = math.clamp(slotSize, 60, 80)
     end
-    
+
     local slot = Instance.new("Frame")
     slot.Name = "ItemSlot"
     slot.Size = UDim2.new(0, slotSize, 0, slotSize)
     slot.BackgroundColor3 = Color3.fromRGB(255, 250, 240)
     slot.BorderSizePixel = 2
     slot.BorderColor3 = Color3.fromRGB(180, 170, 150)
-    
+
     local slotCorner = Instance.new("UICorner")
     slotCorner.CornerRadius = UDim.new(0, 4)
     slotCorner.Parent = slot
-    
+
     -- Item icon (sprite)
     local itemIcon = Instance.new("ImageLabel")
     itemIcon.Name = "ItemIcon"
@@ -132,9 +132,9 @@ function InventoryGuiSetup.createSlotTemplate()
     itemIcon.BackgroundTransparency = 1
     itemIcon.Image = ""
     itemIcon.ScaleType = Enum.ScaleType.Fit
-    itemIcon.ImageRectSize = Vector2.new(36, 36)  -- Default sprite size from config
+    itemIcon.ImageRectSize = Vector2.new(36, 36) -- Default sprite size from config
     itemIcon.Parent = slot
-    
+
     -- Item count label
     local itemCount = Instance.new("TextLabel")
     itemCount.Name = "ItemCount"
@@ -150,7 +150,7 @@ function InventoryGuiSetup.createSlotTemplate()
     itemCount.TextYAlignment = Enum.TextYAlignment.Bottom
     itemCount.Visible = false
     itemCount.Parent = slot
-    
+
     -- Item name label (shown on hover)
     local itemName = Instance.new("TextLabel")
     itemName.Name = "ItemName"
@@ -166,20 +166,20 @@ function InventoryGuiSetup.createSlotTemplate()
     itemName.TextScaled = true
     itemName.Visible = false
     itemName.Parent = slot
-    
+
     return slot
 end
 
 function InventoryGuiSetup.createDebugInventoryGui()
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
-    
+
     -- Remove existing if present
     local existing = playerGui:FindFirstChild("DebugInventoryGUI")
     if existing then
         existing:Destroy()
     end
-    
+
     -- Create main ScreenGui
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "DebugInventoryGUI"
@@ -188,7 +188,7 @@ function InventoryGuiSetup.createDebugInventoryGui()
     screenGui.Enabled = true
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = playerGui
-    
+
     -- Create debug inventory frame
     local debugFrame = Instance.new("Frame")
     debugFrame.Name = "DebugInventoryFrame"
@@ -199,12 +199,12 @@ function InventoryGuiSetup.createDebugInventoryGui()
     debugFrame.BorderSizePixel = 0
     debugFrame.Visible = false
     debugFrame.Parent = screenGui
-    
+
     -- Add UICorner
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = debugFrame
-    
+
     -- Add UIPadding
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim.new(0, 10)
@@ -212,7 +212,7 @@ function InventoryGuiSetup.createDebugInventoryGui()
     padding.PaddingLeft = UDim.new(0, 10)
     padding.PaddingRight = UDim.new(0, 10)
     padding.Parent = debugFrame
-    
+
     -- Create scrolling frame for debug items
     local debugItems = Instance.new("ScrollingFrame")
     debugItems.Name = "DebugInventoryItems"
@@ -225,7 +225,7 @@ function InventoryGuiSetup.createDebugInventoryGui()
     debugItems.CanvasSize = UDim2.new(0, 0, 0, 0)
     debugItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
     debugItems.Parent = debugFrame
-    
+
     -- Add UIGridLayout for responsive grid
     local gridLayout = Instance.new("UIGridLayout")
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -235,13 +235,13 @@ function InventoryGuiSetup.createDebugInventoryGui()
     gridLayout.CellSize = UDim2.new(0, 65, 0, 65)
     gridLayout.CellPadding = UDim2.new(0, 3, 0, 3)
     gridLayout.Parent = debugItems
-    
+
     -- Create debug item slot template
     local debugSlotTemplate = InventoryGuiSetup.createSlotTemplate()
     debugSlotTemplate.Name = "DebugItemSlotTemplate"
     debugSlotTemplate.Visible = false
     debugSlotTemplate.Parent = debugItems
-    
+
     print("[InventoryGuiSetup] ✅ Created DebugInventoryGUI")
     return screenGui
 end
@@ -253,37 +253,35 @@ function InventoryGuiSetup.setupResponsiveLayout()
         return -- Only setup once
     end
     _responsiveSetupDone = true
-    
+
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
-    
+
     -- Debounce to prevent rapid-fire calls
     local lastUpdate = 0
     local debounceTime = 0.5 -- 500ms debounce
-    
+
     workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
         local now = tick()
         if now - lastUpdate < debounceTime then
             return -- Debounce
         end
         lastUpdate = now
-        
+
         -- Recreate GUIs with new responsive sizing
         local inventoryGui = playerGui:FindFirstChild("InventoryGUI")
         local debugGui = playerGui:FindFirstChild("DebugInventoryGUI")
-        
+
         if inventoryGui then
-            local wasVisible = inventoryGui:FindFirstChild("InventoryFrame") 
-                and inventoryGui.InventoryFrame.Visible
+            local wasVisible = inventoryGui:FindFirstChild("InventoryFrame") and inventoryGui.InventoryFrame.Visible
             InventoryGuiSetup.createInventoryGui()
             if wasVisible and inventoryGui:FindFirstChild("InventoryFrame") then
                 inventoryGui.InventoryFrame.Visible = true
             end
         end
-        
+
         if debugGui then
-            local wasVisible = debugGui:FindFirstChild("DebugInventoryFrame") 
-                and debugGui.DebugInventoryFrame.Visible
+            local wasVisible = debugGui:FindFirstChild("DebugInventoryFrame") and debugGui.DebugInventoryFrame.Visible
             InventoryGuiSetup.createDebugInventoryGui()
             if wasVisible and debugGui:FindFirstChild("DebugInventoryFrame") then
                 debugGui.DebugInventoryFrame.Visible = true

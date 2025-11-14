@@ -11,25 +11,25 @@ local WaterEffects = {}
 WaterEffects.__index = WaterEffects
 
 function WaterEffects.new()
-	local self = setmetatable({}, WaterEffects)
-	
-	self._connection = nil
-	self._effects = {}
-	
-	print("[WaterEffects] ✅ Created")
-	return self
+    local self = setmetatable({}, WaterEffects)
+
+    self._connection = nil
+    self._effects = {}
+
+    print("[WaterEffects] ✅ Created")
+    return self
 end
 
 function WaterEffects:Start()
-	if self._connection then
-		return
-	end
-	
-	-- Completely disable water effects - they interfere with Studio rendering
-	print("[WaterEffects] ⚠️ Water effects DISABLED (was causing material rendering issues)")
-	return
-	
-	--[[ DISABLED - Uncomment to re-enable water effects
+    if self._connection then
+        return
+    end
+
+    -- Completely disable water effects - they interfere with Studio rendering
+    print("[WaterEffects] ⚠️ Water effects DISABLED (was causing material rendering issues)")
+    return
+
+    --[[ DISABLED - Uncomment to re-enable water effects
 	print("[WaterEffects] 🌊 Starting water visual effects")
 	
 	-- Find all water parts
@@ -67,57 +67,55 @@ function WaterEffects:Start()
 end
 
 function WaterEffects:_applyWaterEffects(waterPart)
-	-- Make water more transparent and reflective
-	waterPart.Transparency = 0.3 -- Slightly transparent
-	waterPart.Material = Enum.Material.Water -- Ensure it's water material
-	
-	-- Add PointLight for subtle glow
-	local light = waterPart:FindFirstChildOfClass("PointLight")
-	if not light then
-		light = Instance.new("PointLight")
-		light.Color = Color3.fromRGB(100, 180, 255) -- Light blue
-		light.Brightness = 0.3 -- Subtle glow
-		light.Range = 20
-		light.Shadows = false
-		light.Parent = waterPart
-	end
-	
-	-- Add subtle wave animation via color shift
-	local colorTween = TweenService:Create(
-		light,
-		TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{Brightness = 0.5}
-	)
-	colorTween:Play()
-	
-	table.insert(self._effects, {
-		part = waterPart,
-		light = light,
-		tween = colorTween
-	})
+    -- Make water more transparent and reflective
+    waterPart.Transparency = 0.3 -- Slightly transparent
+    waterPart.Material = Enum.Material.Water -- Ensure it's water material
+
+    -- Add PointLight for subtle glow
+    local light = waterPart:FindFirstChildOfClass("PointLight")
+    if not light then
+        light = Instance.new("PointLight")
+        light.Color = Color3.fromRGB(100, 180, 255) -- Light blue
+        light.Brightness = 0.3 -- Subtle glow
+        light.Range = 20
+        light.Shadows = false
+        light.Parent = waterPart
+    end
+
+    -- Add subtle wave animation via color shift
+    local colorTween = TweenService:Create(
+        light,
+        TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        { Brightness = 0.5 }
+    )
+    colorTween:Play()
+
+    table.insert(self._effects, {
+        part = waterPart,
+        light = light,
+        tween = colorTween,
+    })
 end
 
 function WaterEffects:Stop()
-	if self._connection then
-		self._connection:Disconnect()
-		self._connection = nil
-	end
-	
-	-- Clean up tweens
-	for _, effect in pairs(self._effects) do
-		if effect.tween then
-			effect.tween:Cancel()
-		end
-	end
-	self._effects = {}
-	
-	print("[WaterEffects] ✅ Stopped water visual effects")
+    if self._connection then
+        self._connection:Disconnect()
+        self._connection = nil
+    end
+
+    -- Clean up tweens
+    for _, effect in pairs(self._effects) do
+        if effect.tween then
+            effect.tween:Cancel()
+        end
+    end
+    self._effects = {}
+
+    print("[WaterEffects] ✅ Stopped water visual effects")
 end
 
 function WaterEffects:Destroy()
-	self:Stop()
+    self:Stop()
 end
 
 return WaterEffects
-
-

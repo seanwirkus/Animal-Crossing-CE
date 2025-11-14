@@ -24,40 +24,42 @@ local StarterGui = game:GetService("StarterGui")
 
 -- Disable annoying Roblox Studio UI interference
 pcall(function()
-	-- Disable Studio command bar from appearing during testing
-	StarterGui:SetCore("TopbarEnabled", true) -- Keep topbar for Roblox menu
-	
-	-- Set core GUI to minimal to prevent Studio UI interference
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
-	
-	-- Mouse lock to prevent Studio command bar from appearing
-	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-	UserInputService.MouseIconEnabled = true
-	
-	print("[Client] 🎮 Studio UI interference mitigation enabled")
+    -- Disable Studio command bar from appearing during testing
+    StarterGui:SetCore("TopbarEnabled", true) -- Keep topbar for Roblox menu
+
+    -- Set core GUI to minimal to prevent Studio UI interference
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+
+    -- Mouse lock to prevent Studio command bar from appearing
+    UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    UserInputService.MouseIconEnabled = true
+
+    print("[Client] 🎮 Studio UI interference mitigation enabled")
 end)
 
 -- Additional Studio UI prevention
 if _RunService:IsStudio() then
-	-- In Studio, keep focus on the game viewport
-	task.spawn(function()
-		while task.wait(0.5) do
-			-- Periodically ensure mouse stays in game context
-			pcall(function()
-				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-			end)
-		end
-	end)
-	print("[Client] 🎮 Studio mode: Focus lock enabled to prevent command bar interference")
+    -- In Studio, keep focus on the game viewport
+    task.spawn(function()
+        while task.wait(0.5) do
+            -- Periodically ensure mouse stays in game context
+            pcall(function()
+                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end)
+        end
+    end)
+    print("[Client] 🎮 Studio mode: Focus lock enabled to prevent command bar interference")
 end
 
 -- ═══════════════════════════════════════════════════════════════
 -- LOADING SCREEN FIRST - Show immediately before everything else
 -- ═══════════════════════════════════════════════════════════════
-print("[Client] 🎬 SHOWING LOADING SCREEN FIRST...")
-local LoadingScreenModule = require(script.Modules.LoadingScreen)
-LoadingScreenModule.init()
-print("[Client] ✅ Loading screen displayed")
+-- DISABLED FOR DEBUG
+-- print("[Client] 🎬 SHOWING LOADING SCREEN FIRST...")
+local _LoadingScreenModule = require(script.Modules.LoadingScreen)
+-- _LoadingScreenModule.init()
+-- print("[Client] ✅ Loading screen displayed")
+print("[Client] ⏸️ LOADING SCREEN DISABLED FOR DEBUG")
 
 -- ═══════════════════════════════════════════════════════════════
 -- NOW load everything else in the background
@@ -101,8 +103,8 @@ print("[Client] ✅ CraftingGUI module loaded")
 local craftingGUI = CraftingGUIModule.new()
 print("[Client] ✅ CraftingGUI initialized")
 
-local OnboardingControllerModule = require(script.Modules.OnboardingController)
-print("[Client] ✅ OnboardingController module loaded")
+local _OnboardingControllerModule = require(script.Modules.OnboardingController)
+print("[Client] ✅ OnboardingController module loaded (disabled for debug)")
 -- Onboarding controller auto-initializes and listens for server events
 
 local RecipesInventoryGUIModule = require(script.Modules.RecipesInventoryGUI)
@@ -126,12 +128,21 @@ print("[Client] ✅ NookPhoneGUI module loaded")
 local NookShoppingGUIModule = require(script.Modules.NookShoppingGUI)
 print("[Client] ✅ NookShoppingGUI module loaded")
 
+local QuestGUIModule = require(script.Modules.QuestGUI)
+print("[Client] ✅ QuestGUI module loaded")
+
 local HomeScreenModule = require(script.Modules.HomeScreen)
 print("[Client] ✅ HomeScreen module loaded")
+
+local _OnboardingFlowModule = require(script.Modules.OnboardingFlow)
+print("[Client] ✅ OnboardingFlow module loaded (disabled for debug)")
 
 local FishingControllerModule = require(script.Modules.FishingController)
 local SlingshotControllerModule = require(script.Modules.SlingshotController)
 print("[Client] ✅ SlingshotController module loaded")
+
+local ShovelClientModule = require(script.Modules.ShovelClient)
+print("[Client] ✅ ShovelClient module loaded")
 
 -- local ChibiCharacter = require(script.Modules.ChibiCharacter)
 -- print("[Client] ✅ ChibiCharacter module loaded")
@@ -161,14 +172,14 @@ print("[Client] ✅ DIYWorkBenchController module loaded")
 -- Initialize HUD system
 local _HUD = nil
 local HUDSuccess, HUDErr = pcall(function()
-	local HUDModule = require(script.Modules.HUD)
-	_HUD = HUDModule.new()
+    local HUDModule = require(script.Modules.HUD)
+    _HUD = HUDModule.new()
 end)
 if not HUDSuccess then
-	warn("[Client] ❌ Failed to initialize HUD:", tostring(HUDErr))
-	warn(debug.traceback())
+    warn("[Client] ❌ Failed to initialize HUD:", tostring(HUDErr))
+    warn(debug.traceback())
 else
-	print("[Client] ✅ HUD system initialized")
+    print("[Client] ✅ HUD system initialized")
 end
 
 -- ACNH-fx Sky setup DISABLED - user managing effects in Studio
@@ -186,16 +197,16 @@ print("[Client] ℹ️ ACNH-fx effects disabled - managing lighting/effects in S
 print("[Client] 🔍 Attempting to load DialogueGUI...")
 local DialogueGUI
 local dialogueGUISuccess, dialogueGUIErr = pcall(function()
-	print("[Client] 🔍 Calling require for DialogueGUI...")
-	DialogueGUI = require(script.Modules.DialogueGUI)
-	print("[Client] 🔍 Require completed, DialogueGUI type:", type(DialogueGUI))
+    print("[Client] 🔍 Calling require for DialogueGUI...")
+    DialogueGUI = require(script.Modules.DialogueGUI)
+    print("[Client] 🔍 Require completed, DialogueGUI type:", type(DialogueGUI))
 end)
 print("[Client] 🔍 DialogueGUI load result:", dialogueGUISuccess, type(DialogueGUI))
 if dialogueGUISuccess then
-	print("[Client] ✅ DialogueGUI module loaded successfully")
+    print("[Client] ✅ DialogueGUI module loaded successfully")
 else
-	warn("[Client] ❌ Failed to load DialogueGUI:", tostring(dialogueGUIErr))
-	warn(debug.traceback())
+    warn("[Client] ❌ Failed to load DialogueGUI:", tostring(dialogueGUIErr))
+    warn(debug.traceback())
 end
 
 -- Create GUI structures first
@@ -232,14 +243,26 @@ print("[Client] ✅ FishingController initialized")
 local _slingshotController = SlingshotControllerModule.new()
 print("[Client] ✅ SlingshotController initialized")
 
+-- Initialize shovel client
+ShovelClientModule.init()
+print("[Client] ✅ ShovelClient initialized")
+
 -- Create GUIManager for exclusive GUI visibility
 local GUIManager = require(script.Modules.GUIManager)
 local guiManager = GUIManager.new()
 print("[Client] ✅ GUIManager loaded successfully")
 
+-- Initialize Quest GUI
+local questGUI = QuestGUIModule.new()
+print("[Client] ✅ QuestGUI initialized")
+
+-- Register Quest GUI with GUIManager
+guiManager:registerGUI("QuestGUI", questGUI)
+print("[Client] ✅ QuestGUI registered with GUIManager")
+
 local SettingsControllerModule = require(script.Modules.SettingsController)
 local settingsController = SettingsControllerModule.init({
-	guiManager = guiManager,
+    guiManager = guiManager,
 })
 print("[Client] ✅ SettingsController initialized")
 
@@ -249,11 +272,11 @@ GameMenuModule.init(guiManager, settingsController, inventoryClient)
 print("[Client] ✅ GameMenu initialized (` key)")
 
 HomeScreenModule.initialize({
-	guiManager = guiManager,
-	inventoryClient = inventoryClient,
-	settingsController = settingsController,
-	gameMenu = GameMenuModule,
-	keybindManager = keybindManager,
+    guiManager = guiManager,
+    inventoryClient = inventoryClient,
+    settingsController = settingsController,
+    gameMenu = GameMenuModule,
+    keybindManager = keybindManager,
 })
 
 local KeybindGuideModule = require(script.Modules.KeybindGuide)
@@ -261,15 +284,15 @@ KeybindGuideModule.init(guiManager, keybindManager, GameMenuModule, settingsCont
 print("[Client] ✅ Keybind Guide initialized (F1)")
 
 keybindManager:registerBind("GAME_MENU", function(inputState)
-	if inputState == "began" then
-		GameMenuModule.toggle()
-	end
+    if inputState == "began" then
+        GameMenuModule.toggle()
+    end
 end)
 
 keybindManager:registerBind("KEYBIND_GUIDE", function(inputState)
-	if inputState == "began" then
-		KeybindGuideModule.toggle()
-	end
+    if inputState == "began" then
+        KeybindGuideModule.toggle()
+    end
 end)
 
 local localPlayer = _Players.LocalPlayer
@@ -282,30 +305,13 @@ print("[Client] ✅ ACNHCamera module loaded")
 ACNHCameraModule.init()
 print("[Client] 🎥 Animal Crossing camera initialized")
 
--- Loading screen already initialized at the top of the file (line 29)
--- Just wait for it to be closed by the user clicking START button
-print("[Client] ⏳ Waiting for loading screen to close...")
+-- DISABLED FOR DEBUG: Skip loading screen and onboarding
+print("[Client] ⏸️ LOADING SCREEN & ONBOARDING DISABLED FOR DEBUG")
+print("[Client] ✅ Game fully ready - skipping startup flows")
 
--- Spawn a thread to hide loading screen when button is clicked
--- The hide() function is called when the START button is pressed
-task.spawn(function()
-	-- Keep polling until loading is complete (button clicked)
-	while LoadingScreenModule.isLoading do
-		task.wait(0.1)
-	end
-	
-	print("[Client] ✅ Loading screen closed - game fully ready")
-	
-	-- Show homescreen overlay before handing control to the player
-	task.wait(0.4)
-	HomeScreenModule.show({
-		onStart = function()
-			task.wait(0.3)
-			StartupKeybindHintModule.init()
-			print("[Client] 🎮 Keybind hint displayed")
-		end,
-	})
-end)
+task.wait(0.2) -- Brief wait for modules to settle
+StartupKeybindHintModule.init()
+print("[Client] 🎮 Keybind hint displayed")
 
 -- Expose NookPlane for cutscenes (can be called from scripts)
 _G.NookPlane = NookPlaneModule
@@ -324,44 +330,44 @@ print("[Client] ✅ Currency HUD initialized")
 
 local recipesScreenGui = playerGui:FindFirstChild("RecipesInventoryGUI")
 if not recipesScreenGui then
-	recipesScreenGui = Instance.new("ScreenGui")
-	recipesScreenGui.Name = "RecipesInventoryGUI"
-	recipesScreenGui.ResetOnSpawn = false
-	recipesScreenGui.DisplayOrder = 10
-	recipesScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	recipesScreenGui.Parent = playerGui
+    recipesScreenGui = Instance.new("ScreenGui")
+    recipesScreenGui.Name = "RecipesInventoryGUI"
+    recipesScreenGui.ResetOnSpawn = false
+    recipesScreenGui.DisplayOrder = 10
+    recipesScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    recipesScreenGui.Parent = playerGui
 end
 
 -- Initialize Recipes Inventory GUI
 recipesInventoryGUI:Init(recipesScreenGui)
-recipesInventoryGUI:Hide()  -- Start hidden
+recipesInventoryGUI:Hide() -- Start hidden
 guiManager:registerGUI("recipes", recipesInventoryGUI)
 print("[Client] ✅ Recipes Inventory GUI initialized")
 
 -- Create standalone ScreenGui for DebugInventoryGrid (Item Browser)
 local itemBrowserScreenGui = playerGui:FindFirstChild("ItemBrowserGUI")
 if not itemBrowserScreenGui then
-	itemBrowserScreenGui = Instance.new("ScreenGui")
-	itemBrowserScreenGui.Name = "ItemBrowserGUI"
-	itemBrowserScreenGui.ResetOnSpawn = false
-	itemBrowserScreenGui.DisplayOrder = 9
-	itemBrowserScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	itemBrowserScreenGui.Parent = playerGui
+    itemBrowserScreenGui = Instance.new("ScreenGui")
+    itemBrowserScreenGui.Name = "ItemBrowserGUI"
+    itemBrowserScreenGui.ResetOnSpawn = false
+    itemBrowserScreenGui.DisplayOrder = 9
+    itemBrowserScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    itemBrowserScreenGui.Parent = playerGui
 end
 
 -- Initialize DebugInventoryGrid standalone
 debugInventoryGrid:Init(itemBrowserScreenGui)
-debugInventoryGrid:Hide()  -- Start hidden
+debugInventoryGrid:Hide() -- Start hidden
 guiManager:registerGUI("itemBrowser", debugInventoryGrid)
 print("[Client] ✅ DebugInventoryGrid initialized standalone")
 
--- Register ITEM_BROWSER keybind (B key)  
+-- Register ITEM_BROWSER keybind (B key)
 keybindManager:registerBind("ITEM_BROWSER", function(inputState)
-	if inputState == "began" then
-		guiManager:hideGUI("nookPhone")
-		guiManager:hideGUI("nookShopping")
-		guiManager:toggleGUI("itemBrowser")
-	end
+    if inputState == "began" then
+        guiManager:hideGUI("nookPhone")
+        guiManager:hideGUI("nookShopping")
+        guiManager:toggleGUI("itemBrowser")
+    end
 end)
 print("[Client] ✅ Item Browser keybind registered (B key)")
 
@@ -374,15 +380,15 @@ print("[Client] ✅ ToolRingGUI initialized")
 
 -- Register TOOL_WHEEL keybind (T key)
 keybindManager:registerBind("TOOL_WHEEL", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] Tool wheel triggered (T key)")
-		
-		-- Close NookPhone/Shopping when opening tool wheel
-		guiManager:hideGUI("nookPhone")
-		guiManager:hideGUI("nookShopping")
-		
-		guiManager:toggleGUI("toolRing")
-	end
+    if inputState == "began" then
+        print("[Keybind] Tool wheel triggered (T key)")
+
+        -- Close NookPhone/Shopping when opening tool wheel
+        guiManager:hideGUI("nookPhone")
+        guiManager:hideGUI("nookShopping")
+
+        guiManager:toggleGUI("toolRing")
+    end
 end)
 print("[Client] ✅ Tool Ring keybind registered (T key)")
 
@@ -409,20 +415,20 @@ print("[Client] ✅ NookPhoneGUI initialized")
 
 -- Register NOOK_PHONE keybind (P key)
 keybindManager:registerBind("NOOK_PHONE", function(inputState)
-        if inputState == "began" then
-                print("[Keybind] NookPhone triggered (P key)")
-                guiManager:toggleGUI("nookPhone")
-        end
+    if inputState == "began" then
+        print("[Keybind] NookPhone triggered (P key)")
+        guiManager:toggleGUI("nookPhone")
+    end
 end)
 print("[Client] ✅ NookPhone keybind registered (P key)")
 
 -- Register BUILD keybind (H key)
 keybindManager:registerBind("BUILD", function(inputState)
-        if inputState == "began" then
-                guiManager:hideGUI("nookPhone")
-                guiManager:hideGUI("nookShopping")
-                guiManager:toggleGUI("building")
-        end
+    if inputState == "began" then
+        guiManager:hideGUI("nookPhone")
+        guiManager:hideGUI("nookShopping")
+        guiManager:toggleGUI("building")
+    end
 end)
 print("[Client] ✅ Building interface keybind registered (H key)")
 
@@ -436,10 +442,10 @@ print("[Client] ✅ PremiumShopGUI initialized")
 
 -- Register PREMIUM_SHOP keybind (F2 key)
 keybindManager:registerBind("PREMIUM_SHOP", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] Premium Shop triggered (F2 key)")
-		guiManager:toggleGUI("premiumShop")
-	end
+    if inputState == "began" then
+        print("[Keybind] Premium Shop triggered (F2 key)")
+        guiManager:toggleGUI("premiumShop")
+    end
 end)
 print("[Client] ✅ Premium Shop keybind registered (F2 key)")
 
@@ -449,17 +455,17 @@ print("[Client] ✅ Debug systems initialized")
 -- Create standalone ScreenGui for DebugCraftingMenu
 local craftingMenuScreenGui = playerGui:FindFirstChild("CraftingMenuGUI")
 if not craftingMenuScreenGui then
-	craftingMenuScreenGui = Instance.new("ScreenGui")
-	craftingMenuScreenGui.Name = "CraftingMenuGUI"
-	craftingMenuScreenGui.ResetOnSpawn = false
-	craftingMenuScreenGui.DisplayOrder = 11
-	craftingMenuScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	craftingMenuScreenGui.Parent = playerGui
+    craftingMenuScreenGui = Instance.new("ScreenGui")
+    craftingMenuScreenGui.Name = "CraftingMenuGUI"
+    craftingMenuScreenGui.ResetOnSpawn = false
+    craftingMenuScreenGui.DisplayOrder = 11
+    craftingMenuScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    craftingMenuScreenGui.Parent = playerGui
 end
 
 -- Initialize DebugCraftingMenu standalone
 debugCraftingMenu:Init(craftingMenuScreenGui)
-debugCraftingMenu:Hide()  -- Start hidden
+debugCraftingMenu:Hide() -- Start hidden
 guiManager:registerGUI("crafting", debugCraftingMenu)
 print("[Client] ✅ DebugCraftingMenu initialized standalone")
 
@@ -467,11 +473,11 @@ print("[Client] ✅ DebugCraftingMenu initialized standalone")
 keybindManager:registerBind("INVENTORY", function(inputState)
     if inputState == "began" then
         print("[Keybind] E key pressed - toggling inventory...")
-        
+
         -- Close NookPhone/Shopping when opening inventory
         guiManager:hideGUI("nookPhone")
         guiManager:hideGUI("nookShopping")
-        
+
         -- Try to attach GUI if not already attached
         if not inventoryClient.inventoryFrame or not inventoryClient.inventoryGui then
             print("[Keybind] Attempting to attach inventory GUI...")
@@ -494,7 +500,8 @@ keybindManager:registerBind("INVENTORY", function(inputState)
                         inventoryClient.inventoryGui = parentGui
                         inventoryClient.inventoryFrame = frame
                         inventoryClient.inventoryItems = frame:FindFirstChild("InventoryItems")
-                        inventoryClient.slotTemplate = inventoryClient.inventoryItems and inventoryClient.inventoryItems:FindFirstChild("ItemSlotTemplate")
+                        inventoryClient.slotTemplate = inventoryClient.inventoryItems
+                            and inventoryClient.inventoryItems:FindFirstChild("ItemSlotTemplate")
                         if inventoryClient.slotTemplate then
                             inventoryClient.slotTemplate.Visible = false
                             print("[Keybind] ✅ Successfully attached via fallback")
@@ -508,16 +515,16 @@ keybindManager:registerBind("INVENTORY", function(inputState)
         if not guiManager:isVisible("inventory") and inventoryClient.visible then
             guiManager:registerGUI("inventory", inventoryClient)
         end
-        
+
         -- Now toggle visibility through GUIManager
         if inventoryClient.inventoryFrame then
             local targetVisibility = not inventoryClient.visible
-            
+
             -- Register inventory if not already registered
             if not guiManager:getCurrentVisible() or guiManager:getCurrentVisible() ~= "inventory" then
                 guiManager:registerGUI("inventory", inventoryClient)
             end
-            
+
             if targetVisibility then
                 guiManager:showGUI("inventory")
                 inventoryClient:requestInventory()
@@ -533,12 +540,22 @@ end)
 
 -- Register REACTION keybind (R key) for Recipes Inventory
 keybindManager:registerBind("REACTION", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] R key pressed - toggling Recipes Inventory...")
-		guiManager:toggleGUI("recipes")
-		print("[Keybind] ✅ Recipes Inventory toggled")
-	end
+    if inputState == "began" then
+        print("[Keybind] R key pressed - toggling Recipes Inventory...")
+        guiManager:toggleGUI("recipes")
+        print("[Keybind] ✅ Recipes Inventory toggled")
+    end
 end)
+
+-- Register QUESTS keybind (J key) for Quest GUI
+keybindManager:registerBind("QUESTS", function(inputState)
+    if inputState == "began" then
+        print("[Keybind] J key pressed - toggling Quest GUI...")
+        guiManager:toggleGUI("QuestGUI")
+        print("[Keybind] ✅ Quest GUI toggled")
+    end
+end)
+print("[Client] ✅ Quest GUI keybind registered (J key)")
 
 -- Register inventory GUI with GUIManager
 guiManager:registerGUI("inventory", inventoryClient)
@@ -546,20 +563,20 @@ guiManager:registerGUI("inventory", inventoryClient)
 -- Register DebugManager GUI with GUIManager
 local debugGui = _Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("DebugGUIManager")
 if debugGui then
-	-- Create a wrapper object for DebugManager that works with GUIManager
-	local debugManagerWrapper = {
-		Hide = function()
-			debugGui.Enabled = false
-		end,
-		Show = function()
-			debugGui.Enabled = true
-		end,
-		Toggle = function()
-			debugGui.Enabled = not debugGui.Enabled
-		end,
-	}
-	guiManager:registerGUI("debug", debugManagerWrapper)
-	print("[Client] ✅ DebugManager GUI registered")
+    -- Create a wrapper object for DebugManager that works with GUIManager
+    local debugManagerWrapper = {
+        Hide = function()
+            debugGui.Enabled = false
+        end,
+        Show = function()
+            debugGui.Enabled = true
+        end,
+        Toggle = function()
+            debugGui.Enabled = not debugGui.Enabled
+        end,
+    }
+    guiManager:registerGUI("debug", debugManagerWrapper)
+    print("[Client] ✅ DebugManager GUI registered")
 end
 
 -- Register DEBUG_GUI keybind (G key)
@@ -567,163 +584,182 @@ end
 -- To enable debug mode: Open Game Menu (` key) → Debug tab → Toggle "Debug Mode" ON
 -- OR: In Studio, you can enable it via: _G.KeybindManager:setDebugMode(true)
 keybindManager:registerBind("DEBUG_GUI", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] G key pressed - toggling debug GUI...")
-		
-		-- Close NookPhone/Shopping when opening debug GUI
-		guiManager:hideGUI("nookPhone")
-		guiManager:hideGUI("nookShopping")
-		
-		guiManager:toggleGUI("debug")
-		print("[Keybind] ✅ Debug GUI toggled")
+    if inputState == "began" then
+        print("[Keybind] G key pressed - toggling debug GUI...")
+
+        -- Close NookPhone/Shopping when opening debug GUI
+        guiManager:hideGUI("nookPhone")
+        guiManager:hideGUI("nookShopping")
+
+        guiManager:toggleGUI("debug")
+        print("[Keybind] ✅ Debug GUI toggled")
     end
 end)
 
 -- Enable debug mode by default in Studio for easier development
 if game:GetService("RunService"):IsStudio() then
-	keybindManager:setDebugMode(true)
-	print("[Client] ✅ Debug mode enabled by default in Studio")
+    keybindManager:setDebugMode(true)
+    print("[Client] ✅ Debug mode enabled by default in Studio")
 end
 
 -- Register CRAFTING keybind (C key) for DebugCraftingMenu
 keybindManager:registerBind("CRAFTING", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] C key pressed - toggling Crafting Menu...")
-		
-		-- Close NookPhone/Shopping when opening crafting
-		guiManager:hideGUI("nookPhone")
-		guiManager:hideGUI("nookShopping")
-		
-		guiManager:toggleGUI("crafting")
-		print("[Keybind] ✅ Crafting Menu toggled")
-	end
+    if inputState == "began" then
+        print("[Keybind] C key pressed - toggling Crafting Menu...")
+
+        -- Close NookPhone/Shopping when opening crafting
+        guiManager:hideGUI("nookPhone")
+        guiManager:hideGUI("nookShopping")
+
+        guiManager:toggleGUI("crafting")
+        print("[Keybind] ✅ Crafting Menu toggled")
+    end
 end)
 
 -- Register DEBUG DELETE keybind (X key) to test inventory deletion
 keybindManager:registerBind("DEBUG_DELETE", function(inputState)
-	if inputState == "began" then
-		print("[Debug] X key pressed - deleting first item...")
-		local inventoryClient = _G.InventoryClient
-		if inventoryClient and inventoryClient.inventoryRemote then
-			-- Delete the first item we find
-			for slotIndex, state in pairs(inventoryClient.slotState) do
-				if state and state.itemId then
-					print("[Debug] Deleting item:", state.itemId, "from slot", slotIndex)
-					inventoryClient.inventoryRemote:FireServer("DeleteItem", {
-						itemId = state.itemId,
-						count = 1,
-					})
-					break
-				end
-			end
-		else
-			warn("[Debug] No inventory client or remote available")
-		end
-	end
+    if inputState == "began" then
+        print("[Debug] X key pressed - deleting first item...")
+        local inventoryClient = _G.InventoryClient
+        if inventoryClient and inventoryClient.inventoryRemote then
+            -- Delete the first item we find
+            for slotIndex, state in pairs(inventoryClient.slotState) do
+                if state and state.itemId then
+                    print("[Debug] Deleting item:", state.itemId, "from slot", slotIndex)
+                    inventoryClient.inventoryRemote:FireServer("DeleteItem", {
+                        itemId = state.itemId,
+                        count = 1,
+                    })
+                    break
+                end
+            end
+        else
+            warn("[Debug] No inventory client or remote available")
+        end
+    end
 end)
-
 
 -- Register START_ONBOARDING debug keybind (N key) - only if DialogueGUI loaded
 print("[Client] 🔍 Checking DialogueGUI registration - success:", dialogueGUISuccess, "type:", type(DialogueGUI))
 if dialogueGUISuccess and DialogueGUI then
-	print("[Client] 🔍 Registering START_ONBOARDING keybind...")
-	keybindManager:registerBind("START_ONBOARDING", function(inputState)
-		if inputState == "began" then
-			print("[Keybind] N key pressed - starting onboarding debug sequence...")
-			
-			-- Show toast notification
-			if DialogueGUI and DialogueGUI.showToast then
-				DialogueGUI.showToast("🏝️ Starting Onboarding Sequence...", 2)
-			end
-			
-			local dialogue = DialogueGUI.new()
-			local ok = dialogue:Init()
-			if not ok then
-				warn("[OnboardingDebug] ❌ DialogueGUI not found in PlayerGui. Please place your styled DialogueGUI in PlayerGui.")
-				return
-			end
-			
-			-- Simplified onboarding sequence: Tom Nook, Isabelle, Orville
-			local playerName = _Players.LocalPlayer.Name
-			local seq = {
-				{ villagerName = "Tom Nook", text = "Ah, " .. playerName .. "! Welcome, welcome! Yes, yes!" },
-				{ villagerName = "Tom Nook", text = "Thanks for choosing the Deserted Island Getaway Package! We'll get you all set up." },
-				{ villagerName = "Tom Nook", text = "First, we'll choose an island layout. Take your time—there's no wrong choice, yes, yes!" },
-				{ villagerName = "Tom Nook", text = "Next, we'll give your island a perfect name. Something truly charming!" },
-				{ villagerName = "Orville", text = "Dodo Airlines! Orville here. We'll handle your flight arrangements. When you're ready, we fly!" },
-				{ villagerName = "Tom Nook", text = "Very good! We'll get everything ready. Please enjoy the short flight to your new home!" },
-				{ villagerName = "Isabelle", text = "Hello! I'm Isabelle. I'll be here to help with announcements and island life once you arrive." },
-			}
-			
-			-- Callback when sequence completes (after last dialogue)
-			local function onComplete()
-				print("[OnboardingDebug] ✅ Dialogue sequence complete. Opening island selection...")
-				if DialogueGUI and DialogueGUI.showToast then
-					DialogueGUI.showToast("🎯 Opening Island Selection...", 2)
-				end
-				
-				-- Try to open island selection GUI (if available)
-				-- TODO: Replace with actual OnboardingGUI or UnifiedOnboardingFlow integration
-				local success, err = pcall(function()
-					-- Check if OnboardingGUI exists
-					local onboardingPath = script:FindFirstChild("OnboardingGUI") 
-						or _ReplicatedStorage:FindFirstChild("OnboardingGUI")
-					
-					if onboardingPath then
-						local _OnboardingGUI = require(onboardingPath)
-						-- Open island selection (you'll need to provide templates)
-						warn("[OnboardingDebug] ⚠️ OnboardingGUI found but integration not yet complete")
-					else
-						print("[OnboardingDebug] ℹ️ Island selection will be integrated here")
-					end
-				end)
-				
-				if not success then
-					warn("[OnboardingDebug] ⚠️ Could not open island selection:", tostring(err))
-				end
-			end
-			
-			dialogue:ShowSequence(seq, { 
-				autoAdvance = false,
-				onComplete = onComplete
-			})
-			print("[OnboardingDebug] ✅ Dialogue sequence shown. Click Continue to proceed through steps.")
-		end
-	end)
-	print("[Client] ✅ START_ONBOARDING keybind registered (N key)")
+    print("[Client] 🔍 Registering START_ONBOARDING keybind...")
+    keybindManager:registerBind("START_ONBOARDING", function(inputState)
+        if inputState == "began" then
+            print("[Keybind] N key pressed - starting onboarding debug sequence...")
+
+            -- Show toast notification
+            if DialogueGUI and DialogueGUI.showToast then
+                DialogueGUI.showToast("🏝️ Starting Onboarding Sequence...", 2)
+            end
+
+            local dialogue = DialogueGUI.new()
+            local ok = dialogue:Init()
+            if not ok then
+                warn(
+                    "[OnboardingDebug] ❌ DialogueGUI not found in PlayerGui. Please place your styled DialogueGUI in PlayerGui."
+                )
+                return
+            end
+
+            -- Simplified onboarding sequence: Tom Nook, Isabelle, Orville
+            local playerName = _Players.LocalPlayer.Name
+            local seq = {
+                { villagerName = "Tom Nook", text = "Ah, " .. playerName .. "! Welcome, welcome! Yes, yes!" },
+                {
+                    villagerName = "Tom Nook",
+                    text = "Thanks for choosing the Deserted Island Getaway Package! We'll get you all set up.",
+                },
+                {
+                    villagerName = "Tom Nook",
+                    text = "First, we'll choose an island layout. Take your time—there's no wrong choice, yes, yes!",
+                },
+                {
+                    villagerName = "Tom Nook",
+                    text = "Next, we'll give your island a perfect name. Something truly charming!",
+                },
+                {
+                    villagerName = "Orville",
+                    text = "Dodo Airlines! Orville here. We'll handle your flight arrangements. When you're ready, we fly!",
+                },
+                {
+                    villagerName = "Tom Nook",
+                    text = "Very good! We'll get everything ready. Please enjoy the short flight to your new home!",
+                },
+                {
+                    villagerName = "Isabelle",
+                    text = "Hello! I'm Isabelle. I'll be here to help with announcements and island life once you arrive.",
+                },
+            }
+
+            -- Callback when sequence completes (after last dialogue)
+            local function onComplete()
+                print("[OnboardingDebug] ✅ Dialogue sequence complete. Opening island selection...")
+                if DialogueGUI and DialogueGUI.showToast then
+                    DialogueGUI.showToast("🎯 Opening Island Selection...", 2)
+                end
+
+                -- Try to open island selection GUI (if available)
+                -- TODO: Replace with actual OnboardingGUI or UnifiedOnboardingFlow integration
+                local success, err = pcall(function()
+                    -- Check if OnboardingGUI exists
+                    local onboardingPath = script:FindFirstChild("OnboardingGUI")
+                        or _ReplicatedStorage:FindFirstChild("OnboardingGUI")
+
+                    if onboardingPath then
+                        local _OnboardingGUI = require(onboardingPath)
+                        -- Open island selection (you'll need to provide templates)
+                        warn("[OnboardingDebug] ⚠️ OnboardingGUI found but integration not yet complete")
+                    else
+                        print("[OnboardingDebug] ℹ️ Island selection will be integrated here")
+                    end
+                end)
+
+                if not success then
+                    warn("[OnboardingDebug] ⚠️ Could not open island selection:", tostring(err))
+                end
+            end
+
+            dialogue:ShowSequence(seq, {
+                autoAdvance = false,
+                onComplete = onComplete,
+            })
+            print("[OnboardingDebug] ✅ Dialogue sequence shown. Click Continue to proceed through steps.")
+        end
+    end)
+    print("[Client] ✅ START_ONBOARDING keybind registered (N key)")
 else
-	warn("[Client] ⚠️ START_ONBOARDING keybind not registered - DialogueGUI failed to load")
+    warn("[Client] ⚠️ START_ONBOARDING keybind not registered - DialogueGUI failed to load")
 end
 
 -- Register ESC key to open/close settings menu
 keybindManager:registerBind("SETTINGS", function(inputState)
-	if inputState == "began" then
-		SettingsControllerModule.toggle()
-	end
+    if inputState == "began" then
+        SettingsControllerModule.toggle()
+    end
 end)
 
 -- Register missing keybind handlers (MAP, EMOTE, DROP_ITEM)
 local MinimapModule = require(script.Modules.Minimap)
 keybindManager:registerBind("MAP", function(inputState)
-	if inputState == "began" then
-		MinimapModule:toggle()
-	end
+    if inputState == "began" then
+        MinimapModule:toggle()
+    end
 end)
 print("[Client] ✅ Minimap keybind registered (M key)")
 
 keybindManager:registerBind("EMOTE", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] V key pressed - Emote feature coming soon!")
-		-- TODO: Implement emote system
-	end
+    if inputState == "began" then
+        print("[Keybind] V key pressed - Emote feature coming soon!")
+        -- TODO: Implement emote system
+    end
 end)
 
 keybindManager:registerBind("DROP_ITEM", function(inputState)
-	if inputState == "began" then
-		print("[Keybind] Q key pressed - Drop item feature coming soon!")
-		-- TODO: Implement drop item functionality
-		-- This should drop the currently selected/equipped item
-	end
+    if inputState == "began" then
+        print("[Keybind] Q key pressed - Drop item feature coming soon!")
+        -- TODO: Implement drop item functionality
+        -- This should drop the currently selected/equipped item
+    end
 end)
 
 -- Print debug reference BEFORE connecting
@@ -748,9 +784,9 @@ end
 _G.KeybindManager = keybindManager
 _G.InventoryClient = inventoryClient
 _G.DebugManager = DebugManager
-_G.DebugInventoryGrid = debugInventoryGrid  -- Store for refresh hook
-_G.RecipesInventoryGUI = recipesInventoryGUI  -- Store for debugging
-_G.GUIManager = guiManager  -- Store for debugging
+_G.DebugInventoryGrid = debugInventoryGrid -- Store for refresh hook
+_G.RecipesInventoryGUI = recipesInventoryGUI -- Store for debugging
+_G.GUIManager = guiManager -- Store for debugging
 
 -- Water Visual Effects DISABLED - was causing material rendering issues in Studio
 -- local waterEffects = WaterEffectsModule.new()

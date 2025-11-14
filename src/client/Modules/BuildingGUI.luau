@@ -477,7 +477,14 @@ function BuildingGUI:_renderProjectList()
         button.Font = Enum.Font.Gotham
         button.TextSize = 16
         button.RichText = true
-        button.Text = string.format("<b>%s</b>\n<font size=14 color=\"#%02X%02X%02X\">%s</font>", project.name, r, g, b, statusLabelText(status, delivered, required))
+        button.Text = string.format(
+            '<b>%s</b>\n<font size=14 color="#%02X%02X%02X">%s</font>',
+            project.name,
+            r,
+            g,
+            b,
+            statusLabelText(status, delivered, required)
+        )
         button.LayoutOrder = index
         button.Parent = self.projectList
         button:SetAttribute("ProjectId", project.id)
@@ -525,9 +532,13 @@ end
 
 function BuildingGUI:_getProgressForProject(project)
     if project.scope == "island" then
-        return cloneDictionary(self.progress.island[project.id] or { delivered = 0, status = "available", contributions = {} })
+        return cloneDictionary(
+            self.progress.island[project.id] or { delivered = 0, status = "available", contributions = {} }
+        )
     else
-        return cloneDictionary(self.progress.home[project.id] or { delivered = 0, status = "available", contributions = {} })
+        return cloneDictionary(
+            self.progress.home[project.id] or { delivered = 0, status = "available", contributions = {} }
+        )
     end
 end
 
@@ -594,7 +605,8 @@ function BuildingGUI:_updateDetailPanel()
     end
 
     local status = progressEntry.status or "available"
-    self.progressText.Text = string.format("Status: %s\nContributors: %d", statusLabelText(status, delivered, required), contributorsCount)
+    self.progressText.Text =
+        string.format("Status: %s\nContributors: %d", statusLabelText(status, delivered, required), contributorsCount)
 
     local enabled = status == "available" or status == "in-progress" or status == "repeatable"
     self.buildButton.Active = enabled

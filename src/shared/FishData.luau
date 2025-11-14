@@ -494,7 +494,8 @@ function FishData.getRandomFish(location, currentTime)
 
     for fishId, fish in pairs(FishData.Fish) do
         if fish and fish.rarity and FishData.Rarity[fish.rarity] then
-            if matchesLocation(fish, normalizedLocation)
+            if
+                matchesLocation(fish, normalizedLocation)
                 and matchesTimeOfDay(fish, period)
                 and matchesHourWindow(fish, hour)
             then
@@ -548,4 +549,3 @@ function FishData.getFishInfo(fishId)
 end
 
 return FishData
-

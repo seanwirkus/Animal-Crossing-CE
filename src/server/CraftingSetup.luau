@@ -11,164 +11,161 @@ local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
 
 local SpreadsheetIntegration
 if script.Parent:FindFirstChild("SpreadsheetIntegration") then
-        SpreadsheetIntegration = require(script.Parent.SpreadsheetIntegration)
+    SpreadsheetIntegration = require(script.Parent.SpreadsheetIntegration)
 end
 
 print("[CraftingSetup] 🚀 Setting up crafting system...")
 
 -- Configuration
 local CONFIG = {
-	-- Set to true to use Google Sheets, false to use fallback data
-	USE_EXTERNAL_DATA = false,
-	
-	-- Google Sheets configuration (set these if using external data)
-	GOOGLE_SHEETS_API_KEY = "YOUR_API_KEY_HERE",
-	GOOGLE_SHEETS_ID = "YOUR_SPREADSHEET_ID_HERE",
-	
-	-- Enable debug logging
-	DEBUG_MODE = true
+    -- Set to true to use Google Sheets, false to use fallback data
+    USE_EXTERNAL_DATA = false,
+
+    -- Google Sheets configuration (set these if using external data)
+    GOOGLE_SHEETS_API_KEY = "YOUR_API_KEY_HERE",
+    GOOGLE_SHEETS_ID = "YOUR_SPREADSHEET_ID_HERE",
+
+    -- Enable debug logging
+    DEBUG_MODE = true,
 }
 
 -- Initialize the crafting system
 local function initializeCraftingSystem()
-	print("[CraftingSetup] 📊 Initializing crafting system...")
-	
-	-- Initialize crafting system
-	CraftingSystem.initialize()
-	
-	-- Test external data connection if enabled
-        if CONFIG.USE_EXTERNAL_DATA and SpreadsheetIntegration then
-                print("[CraftingSetup] 🔗 Testing external data connection...")
+    print("[CraftingSetup] 📊 Initializing crafting system...")
 
-                -- Update spreadsheet configuration
-                SpreadsheetIntegration.updateConfig(CONFIG.GOOGLE_SHEETS_API_KEY, CONFIG.GOOGLE_SHEETS_ID)
-		
-		-- Test connection
-		local connectionSuccess = SpreadsheetIntegration.testConnection()
-		if connectionSuccess then
-			print("[CraftingSetup] ✅ External data connection successful!")
-			
-			-- Fetch and cache data
-			local externalData = SpreadsheetIntegration.getAllData()
-			if externalData then
-				print("[CraftingSetup] 📦 Cached external data successfully")
-				-- Store data in ReplicatedStorage for client access
-				local dataFolder = ReplicatedStorage:FindFirstChild("ItemData") or Instance.new("Folder")
-				dataFolder.Name = "ItemData"
-				dataFolder.Parent = ReplicatedStorage
-				
-				-- Store items data
-				if externalData.items then
-					local itemsStringValue = Instance.new("StringValue")
-					itemsStringValue.Name = "Items"
-					itemsStringValue.Value = game:GetService("HttpService"):JSONEncode(externalData.items)
-					itemsStringValue.Parent = dataFolder
-        elseif CONFIG.USE_EXTERNAL_DATA then
-                warn("[CraftingSetup] Spreadsheet integration module not found - disabling external data")
-                CONFIG.USE_EXTERNAL_DATA = false
-        end
-				
-				-- Store recipes data
-				if externalData.recipes then
-					local recipesStringValue = Instance.new("StringValue")
-					recipesStringValue.Name = "Recipes"
-					recipesStringValue.Value = game:GetService("HttpService"):JSONEncode(externalData.recipes)
-					recipesStringValue.Parent = dataFolder
-				end
-			end
-		else
-			print("[CraftingSetup] ⚠️ External data connection failed, using fallback data")
-			CONFIG.USE_EXTERNAL_DATA = false
-		end
-	end
-	
-	-- Use fallback data if external data is disabled or failed
-        if not CONFIG.USE_EXTERNAL_DATA then
-                print("[CraftingSetup] 📋 Publishing local item dataset...")
+    -- Initialize crafting system
+    CraftingSystem.initialize()
 
-                local httpService = game:GetService("HttpService")
-                local rawData = ItemDataFetcher.getRawData()
+    -- Test external data connection if enabled
+    if CONFIG.USE_EXTERNAL_DATA and SpreadsheetIntegration then
+        print("[CraftingSetup] 🔗 Testing external data connection...")
 
+        -- Update spreadsheet configuration
+        SpreadsheetIntegration.updateConfig(CONFIG.GOOGLE_SHEETS_API_KEY, CONFIG.GOOGLE_SHEETS_ID)
+
+        -- Test connection
+        local connectionSuccess = SpreadsheetIntegration.testConnection()
+        if connectionSuccess then
+            print("[CraftingSetup] ✅ External data connection successful!")
+
+            -- Fetch and cache data
+            local externalData = SpreadsheetIntegration.getAllData()
+            if externalData then
+                print("[CraftingSetup] 📦 Cached external data successfully")
+                -- Store data in ReplicatedStorage for client access
                 local dataFolder = ReplicatedStorage:FindFirstChild("ItemData") or Instance.new("Folder")
                 dataFolder.Name = "ItemData"
                 dataFolder.Parent = ReplicatedStorage
 
-                local itemsStringValue = Instance.new("StringValue")
-                itemsStringValue.Name = "Items"
-                itemsStringValue.Value = httpService:JSONEncode(rawData.items)
-                itemsStringValue.Parent = dataFolder
+                -- Store items data
+                if externalData.items then
+                    local itemsStringValue = Instance.new("StringValue")
+                    itemsStringValue.Name = "Items"
+                    itemsStringValue.Value = game:GetService("HttpService"):JSONEncode(externalData.items)
+                    itemsStringValue.Parent = dataFolder
+                elseif CONFIG.USE_EXTERNAL_DATA then
+                    warn("[CraftingSetup] Spreadsheet integration module not found - disabling external data")
+                    CONFIG.USE_EXTERNAL_DATA = false
+                end
 
-                local recipesStringValue = Instance.new("StringValue")
-                recipesStringValue.Name = "Recipes"
-                recipesStringValue.Value = httpService:JSONEncode(rawData.recipes)
-                recipesStringValue.Parent = dataFolder
+                -- Store recipes data
+                if externalData.recipes then
+                    local recipesStringValue = Instance.new("StringValue")
+                    recipesStringValue.Name = "Recipes"
+                    recipesStringValue.Value = game:GetService("HttpService"):JSONEncode(externalData.recipes)
+                    recipesStringValue.Parent = dataFolder
+                end
+            end
+        else
+            print("[CraftingSetup] ⚠️ External data connection failed, using fallback data")
+            CONFIG.USE_EXTERNAL_DATA = false
         end
-	
-	print("[CraftingSetup] ✅ Crafting system initialized successfully!")
+    end
+
+    -- Use fallback data if external data is disabled or failed
+    if not CONFIG.USE_EXTERNAL_DATA then
+        print("[CraftingSetup] 📋 Publishing local item dataset...")
+
+        local httpService = game:GetService("HttpService")
+        local rawData = ItemDataFetcher.getRawData()
+
+        local dataFolder = ReplicatedStorage:FindFirstChild("ItemData") or Instance.new("Folder")
+        dataFolder.Name = "ItemData"
+        dataFolder.Parent = ReplicatedStorage
+
+        local itemsStringValue = Instance.new("StringValue")
+        itemsStringValue.Name = "Items"
+        itemsStringValue.Value = httpService:JSONEncode(rawData.items)
+        itemsStringValue.Parent = dataFolder
+
+        local recipesStringValue = Instance.new("StringValue")
+        recipesStringValue.Name = "Recipes"
+        recipesStringValue.Value = httpService:JSONEncode(rawData.recipes)
+        recipesStringValue.Parent = dataFolder
+    end
+
+    print("[CraftingSetup] ✅ Crafting system initialized successfully!")
 end
 
 -- Set up RemoteEvents for crafting
 local function setupCraftingRemoteEvents()
-	print("[CraftingSetup] 🔗 Setting up crafting RemoteEvents...")
-	
-	-- Create RemoteEvents
-	local craftingRemote = ReplicatedStorage:FindFirstChild("CraftingEvent") or Instance.new("RemoteEvent")
-	craftingRemote.Name = "CraftingEvent"
-	craftingRemote.Parent = ReplicatedStorage
-	
-	-- Handle crafting requests
-	craftingRemote.OnServerEvent:Connect(function(player, action, data)
-		if CONFIG.DEBUG_MODE then
-			print("[CraftingSetup] Received", action, "from", player.Name)
-		end
-		
-		if action == "StartCrafting" then
-			local itemId = data.itemId
-			local quantity = data.quantity or 1
-			
-			-- Use CraftingSystem with instant processing
-			-- CraftingSystem is configured with callbacks from init.server.luau
-			-- which handle material checking (hasCraftingMaterials) and item granting (grantCraftedItems)
-			local success = CraftingSystem.startCrafting(player, itemId, quantity)
-			
-			if success then
-				-- Make crafting instant by setting craft time to 0 in the queue
-				-- We need to access the player's crafting data and modify craft times
-				-- Since playerCraftingStations is local to CraftingSystem, we'll process with instant timing
-				-- Set craft time to 0 by modifying the queue items after they're added
-				-- Process immediately - the queue will complete instantly if craft time is 0
-				-- Process multiple times to ensure completion
-				for i = 1, 5 do
-					CraftingSystem.processCraftingQueue(player)
-				end
-			end
-			
-			craftingRemote:FireClient(player, "CraftingStarted", {
-				success = success,
-				itemId = itemId,
-				quantity = quantity,
-				reason = success and nil or "Failed to craft - check materials and station"
-			})
-			
-		elseif action == "GetCraftingProgress" then
-			local progress = CraftingSystem.getCraftingProgress(player)
-			craftingRemote:FireClient(player, "CraftingProgress", progress)
-			
-		elseif action == "GetAvailableRecipes" then
-			local recipes = CraftingSystem.getAvailableRecipes(player)
-			craftingRemote:FireClient(player, "AvailableRecipes", recipes)
-			
-		elseif action == "UnlockStation" then
-			local stationType = data.stationType
-			local success = CraftingSystem.unlockStation(player, stationType)
-			craftingRemote:FireClient(player, "StationUnlocked", {
-				success = success,
-				stationType = stationType
-			})
-		end
-	end)
-	
-	print("[CraftingSetup] ✅ Crafting RemoteEvents set up")
+    print("[CraftingSetup] 🔗 Setting up crafting RemoteEvents...")
+
+    -- Create RemoteEvents
+    local craftingRemote = ReplicatedStorage:FindFirstChild("CraftingEvent") or Instance.new("RemoteEvent")
+    craftingRemote.Name = "CraftingEvent"
+    craftingRemote.Parent = ReplicatedStorage
+
+    -- Handle crafting requests
+    craftingRemote.OnServerEvent:Connect(function(player, action, data)
+        if CONFIG.DEBUG_MODE then
+            print("[CraftingSetup] Received", action, "from", player.Name)
+        end
+
+        if action == "StartCrafting" then
+            local itemId = data.itemId
+            local quantity = data.quantity or 1
+
+            -- Use CraftingSystem with instant processing
+            -- CraftingSystem is configured with callbacks from init.server.luau
+            -- which handle material checking (hasCraftingMaterials) and item granting (grantCraftedItems)
+            local success = CraftingSystem.startCrafting(player, itemId, quantity)
+
+            if success then
+                -- Make crafting instant by setting craft time to 0 in the queue
+                -- We need to access the player's crafting data and modify craft times
+                -- Since playerCraftingStations is local to CraftingSystem, we'll process with instant timing
+                -- Set craft time to 0 by modifying the queue items after they're added
+                -- Process immediately - the queue will complete instantly if craft time is 0
+                -- Process multiple times to ensure completion
+                for i = 1, 5 do
+                    CraftingSystem.processCraftingQueue(player)
+                end
+            end
+
+            craftingRemote:FireClient(player, "CraftingStarted", {
+                success = success,
+                itemId = itemId,
+                quantity = quantity,
+                reason = success and nil or "Failed to craft - check materials and station",
+            })
+        elseif action == "GetCraftingProgress" then
+            local progress = CraftingSystem.getCraftingProgress(player)
+            craftingRemote:FireClient(player, "CraftingProgress", progress)
+        elseif action == "GetAvailableRecipes" then
+            local recipes = CraftingSystem.getAvailableRecipes(player)
+            craftingRemote:FireClient(player, "AvailableRecipes", recipes)
+        elseif action == "UnlockStation" then
+            local stationType = data.stationType
+            local success = CraftingSystem.unlockStation(player, stationType)
+            craftingRemote:FireClient(player, "StationUnlocked", {
+                success = success,
+                stationType = stationType,
+            })
+        end
+    end)
+
+    print("[CraftingSetup] ✅ Crafting RemoteEvents set up")
 end
 
 -- Initialize everything
@@ -177,11 +174,11 @@ setupCraftingRemoteEvents()
 
 -- Set up player events
 Players.PlayerAdded:Connect(function(player)
-	print("[CraftingSetup] Player", player.Name, "joined - crafting system ready")
+    print("[CraftingSetup] Player", player.Name, "joined - crafting system ready")
 end)
 
 Players.PlayerRemoving:Connect(function(player)
-	print("[CraftingSetup] Player", player.Name, "left")
+    print("[CraftingSetup] Player", player.Name, "left")
 end)
 
 print("[CraftingSetup] 🎉 Crafting system setup complete!")

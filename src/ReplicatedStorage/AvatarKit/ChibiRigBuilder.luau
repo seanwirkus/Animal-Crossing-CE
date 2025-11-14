@@ -6,14 +6,22 @@
     the rig model under ReplicatedStorage/AvatarKit (or reuses the existing
     template).
 
-    The resulting rig features rounded limbs, spherical hands, a large head and
-    other cute accents so that player characters no longer appear as blocky
-    rectangles.
+    The resulting rig keeps rounded limbs, rounded rectangular hands, and a
+    large head while leaning into a slender, blocky silhouette inspired by the
+    "block guy" aesthetic, balancing cute accents with a refined angular shape.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ChibiRigBuilder = {}
+
+local PHYSICS_PROPERTIES = PhysicalProperties.new(0.9, 0.35, 0.5, 0, 0)
+
+local function applyPhysicalProperties(part: BasePart?)
+    if part then
+        part.CustomPhysicalProperties = PHYSICS_PROPERTIES
+    end
+end
 
 local SKIN_COLOR = Color3.fromRGB(255, 228, 200)
 local SHIRT_COLOR = Color3.fromRGB(255, 242, 214)
@@ -42,6 +50,7 @@ local function createBasePart(name: string, size: Vector3, position: Vector3, co
     part.CastShadow = false
     part.Color = color or SKIN_COLOR
     part.Material = Enum.Material.SmoothPlastic
+    applyPhysicalProperties(part)
     if shape then
         part.Shape = shape
     end
@@ -62,15 +71,10 @@ local function createSpherePart(name: string, diameter: number, position: Vector
     return part
 end
 
-local function createCylinderLimb(name: string, size: Vector3, position: Vector3, color: Color3)
-    local part = createBasePart(name, size, position, color, Enum.PartType.Cylinder)
-    addSpecialMesh(part, Enum.MeshType.Cylinder, Vector3.new(1, 1.05, 1))
-    return part
-end
-
 local function addBlush(head: BasePart)
-    for index, offset in ipairs({Vector3.new(-0.45, -0.15, -0.68), Vector3.new(0.45, -0.15, -0.68)}) do
-        local blush = createSpherePart("Blush" .. index, 0.3, head.Position + offset, BLUSH_COLOR, Vector3.new(1, 0.6, 1))
+    for index, offset in ipairs({ Vector3.new(-0.45, -0.15, -0.68), Vector3.new(0.45, -0.15, -0.68) }) do
+        local blush =
+            createSpherePart("Blush" .. index, 0.3, head.Position + offset, BLUSH_COLOR, Vector3.new(1, 0.6, 1))
         blush.Transparency = 0.15
         blush.Parent = head
         local weld = Instance.new("WeldConstraint")
@@ -84,7 +88,8 @@ function ChibiRigBuilder.createRig()
     local rig = Instance.new("Model")
     rig.Name = "ChibiRig"
 
-    local humanoidRootPart = createBasePart("HumanoidRootPart", Vector3.new(1.6, 1.2, 1.2), Vector3.new(0, 2.7, 0), SKIN_COLOR)
+    local humanoidRootPart =
+        createBasePart("HumanoidRootPart", Vector3.new(1.6, 1.2, 1.2), Vector3.new(0, 2.7, 0), SKIN_COLOR)
     humanoidRootPart.Transparency = 1
     humanoidRootPart.Massless = false
     humanoidRootPart.Parent = rig
@@ -98,7 +103,8 @@ function ChibiRigBuilder.createRig()
     local animator = Instance.new("Animator")
     animator.Parent = humanoid
 
-    local head = createSpherePart("Head", 1.8, Vector3.new(0, 4.6, 0), SKIN_COLOR, Vector3.new(1.35, 1.45, 1.35))
+    local head = createBasePart("Head", Vector3.new(1.4, 1.8, 1.2), Vector3.new(0, 4.6, 0), SKIN_COLOR)
+    addSpecialMesh(head, Enum.MeshType.Head, Vector3.new(1.1, 1.2, 1.05))
     head.Parent = rig
 
     local face = Instance.new("Decal")
@@ -107,45 +113,66 @@ function ChibiRigBuilder.createRig()
     face.Texture = "rbxasset://textures/face.png"
     face.Parent = head
 
-    local torso = createBasePart("UpperTorso", Vector3.new(1.5, 1.4, 1.2), Vector3.new(0, 3.3, 0), SHIRT_COLOR)
-    addSpecialMesh(torso, Enum.MeshType.Sphere, Vector3.new(1.3, 0.9, 1.1))
+    -- Make torso more rounded and chibi-like
+    local torso = createBasePart("UpperTorso", Vector3.new(1.2, 1.3, 0.9), Vector3.new(0, 3.3, 0), SHIRT_COLOR)
+    addSpecialMesh(torso, Enum.MeshType.Head, Vector3.new(1.15, 0.9, 0.95))
     torso.Parent = rig
 
-    local lowerTorso = createBasePart("LowerTorso", Vector3.new(1.4, 1.0, 1.1), Vector3.new(0, 2.3, 0), PANTS_COLOR)
-    addSpecialMesh(lowerTorso, Enum.MeshType.Sphere, Vector3.new(1.2, 0.85, 1.0))
+    local lowerTorso = createBasePart("LowerTorso", Vector3.new(1.1, 1.0, 0.85), Vector3.new(0, 2.3, 0), PANTS_COLOR)
+    addSpecialMesh(lowerTorso, Enum.MeshType.Head, Vector3.new(1.1, 0.85, 0.9))
     lowerTorso.Parent = rig
 
-    local leftArm = createCylinderLimb("LeftUpperArm", Vector3.new(0.6, 1.1, 0.6), Vector3.new(-1.0, 3.5, 0), SKIN_COLOR)
+    -- Make arms rounded rectangular like Wii characters (LONGER)
+    local leftArm = createBasePart("LeftUpperArm", Vector3.new(0.45, 1.55, 0.45), Vector3.new(-0.9, 3.4, 0), SKIN_COLOR)
+    addSpecialMesh(leftArm, Enum.MeshType.Head, Vector3.new(1.05, 0.9, 1.05))
     leftArm.Parent = rig
-    local rightArm = createCylinderLimb("RightUpperArm", Vector3.new(0.6, 1.1, 0.6), Vector3.new(1.0, 3.5, 0), SKIN_COLOR)
+    local rightArm =
+        createBasePart("RightUpperArm", Vector3.new(0.45, 1.55, 0.45), Vector3.new(0.9, 3.4, 0), SKIN_COLOR)
+    addSpecialMesh(rightArm, Enum.MeshType.Head, Vector3.new(1.05, 0.9, 1.05))
     rightArm.Parent = rig
 
-    local leftForearm = createCylinderLimb("LeftLowerArm", Vector3.new(0.55, 0.95, 0.55), Vector3.new(-1.0, 2.6, 0), SKIN_COLOR)
+    local leftForearm =
+        createBasePart("LeftLowerArm", Vector3.new(0.44, 1.3, 0.44), Vector3.new(-0.9, 2.25, 0), SKIN_COLOR)
+    addSpecialMesh(leftForearm, Enum.MeshType.Head, Vector3.new(1.05, 0.9, 1.05))
     leftForearm.Parent = rig
-    local rightForearm = createCylinderLimb("RightLowerArm", Vector3.new(0.55, 0.95, 0.55), Vector3.new(1.0, 2.6, 0), SKIN_COLOR)
+    local rightForearm =
+        createBasePart("RightLowerArm", Vector3.new(0.44, 1.3, 0.44), Vector3.new(0.9, 2.25, 0), SKIN_COLOR)
+    addSpecialMesh(rightForearm, Enum.MeshType.Head, Vector3.new(1.05, 0.9, 1.05))
     rightForearm.Parent = rig
 
-    local leftHand = createSpherePart("LeftHand", 0.7, Vector3.new(-1.0, 2.0, 0), SKIN_COLOR, Vector3.new(1.2, 1.2, 1.2))
+    -- Make hands bigger and rounded rectangular (Wii-style)
+    local leftHand = createBasePart("LeftHand", Vector3.new(0.45, 0.45, 0.45), Vector3.new(-0.9, 1.9, 0), SKIN_COLOR)
+    addSpecialMesh(leftHand, Enum.MeshType.Head, Vector3.new(1.0, 0.85, 1.0))
     leftHand.Parent = rig
-    local rightHand = createSpherePart("RightHand", 0.7, Vector3.new(1.0, 2.0, 0), SKIN_COLOR, Vector3.new(1.2, 1.2, 1.2))
+    local rightHand = createBasePart("RightHand", Vector3.new(0.45, 0.45, 0.45), Vector3.new(0.9, 1.9, 0), SKIN_COLOR)
+    addSpecialMesh(rightHand, Enum.MeshType.Head, Vector3.new(1.0, 0.85, 1.0))
     rightHand.Parent = rig
 
-    local leftLeg = createCylinderLimb("LeftUpperLeg", Vector3.new(0.65, 1.0, 0.65), Vector3.new(-0.45, 1.4, 0), PANTS_COLOR)
+    -- Make legs rounded with sphere meshes (LONGER)
+    local leftLeg =
+        createBasePart("LeftUpperLeg", Vector3.new(0.45, 1.45, 0.45), Vector3.new(-0.35, 1.6, 0), PANTS_COLOR)
+    addSpecialMesh(leftLeg, Enum.MeshType.Head, Vector3.new(0.95, 1.15, 0.95))
     leftLeg.Parent = rig
-    local rightLeg = createCylinderLimb("RightUpperLeg", Vector3.new(0.65, 1.0, 0.65), Vector3.new(0.45, 1.4, 0), PANTS_COLOR)
+    local rightLeg =
+        createBasePart("RightUpperLeg", Vector3.new(0.45, 1.45, 0.45), Vector3.new(0.35, 1.6, 0), PANTS_COLOR)
+    addSpecialMesh(rightLeg, Enum.MeshType.Head, Vector3.new(0.95, 1.15, 0.95))
     rightLeg.Parent = rig
 
-    local leftShin = createCylinderLimb("LeftLowerLeg", Vector3.new(0.6, 0.9, 0.6), Vector3.new(-0.45, 0.6, 0), PANTS_COLOR)
+    local leftShin =
+        createBasePart("LeftLowerLeg", Vector3.new(0.43, 1.2, 0.43), Vector3.new(-0.35, 0.75, 0), PANTS_COLOR)
+    addSpecialMesh(leftShin, Enum.MeshType.Head, Vector3.new(0.95, 1.05, 0.95))
     leftShin.Parent = rig
-    local rightShin = createCylinderLimb("RightLowerLeg", Vector3.new(0.6, 0.9, 0.6), Vector3.new(0.45, 0.6, 0), PANTS_COLOR)
+    local rightShin =
+        createBasePart("RightLowerLeg", Vector3.new(0.43, 1.2, 0.43), Vector3.new(0.35, 0.75, 0), PANTS_COLOR)
+    addSpecialMesh(rightShin, Enum.MeshType.Head, Vector3.new(0.95, 1.05, 0.95))
     rightShin.Parent = rig
 
-    local leftFoot = createBasePart("LeftFoot", Vector3.new(0.7, 0.35, 0.9), Vector3.new(-0.45, 0.1, 0.15), SHOE_COLOR)
-    addSpecialMesh(leftFoot, Enum.MeshType.Head, Vector3.new(1.0, 0.6, 1.4))
+    local leftFoot = createBasePart("LeftFoot", Vector3.new(0.5, 0.3, 0.8), Vector3.new(-0.35, 0.1, 0.15), SHOE_COLOR)
+    addSpecialMesh(leftFoot, Enum.MeshType.Head, Vector3.new(0.9, 0.5, 1.2))
     leftFoot.Parent = rig
 
-    local rightFoot = createBasePart("RightFoot", Vector3.new(0.7, 0.35, 0.9), Vector3.new(0.45, 0.1, 0.15), SHOE_COLOR)
-    addSpecialMesh(rightFoot, Enum.MeshType.Head, Vector3.new(1.0, 0.6, 1.4))
+    local rightFoot = createBasePart("RightFoot", Vector3.new(0.5, 0.3, 0.8), Vector3.new(0.35, 0.1, 0.15), SHOE_COLOR)
+    addSpecialMesh(rightFoot, Enum.MeshType.Head, Vector3.new(0.9, 0.5, 1.2))
     rightFoot.Parent = rig
 
     addBlush(head)
@@ -159,30 +186,41 @@ function ChibiRigBuilder.createRig()
     bodyColors.RightLegColor3 = PANTS_COLOR
     bodyColors.Parent = rig
 
-    local weldPairs = {
-        { humanoidRootPart, head },
-        { humanoidRootPart, torso },
-        { humanoidRootPart, lowerTorso },
-        { humanoidRootPart, leftArm },
-        { humanoidRootPart, rightArm },
-        { leftArm, leftForearm },
-        { rightArm, rightForearm },
-        { leftForearm, leftHand },
-        { rightForearm, rightHand },
-        { humanoidRootPart, leftLeg },
-        { humanoidRootPart, rightLeg },
-        { leftLeg, leftShin },
-        { rightLeg, rightShin },
-        { leftShin, leftFoot },
-        { rightShin, rightFoot },
-    }
-
-    for _, pair in ipairs(weldPairs) do
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = pair[1]
-        weld.Part1 = pair[2]
-        weld.Parent = pair[1]
+    -- Use Motor6D joints instead of WeldConstraints for proper R15 rigging
+    -- This allows tools to work correctly and prevents character from laying down
+    local function createMotor6D(name: string, part0: BasePart, part1: BasePart, c0: CFrame, c1: CFrame)
+        local motor = Instance.new("Motor6D")
+        motor.Name = name
+        motor.Part0 = part0
+        motor.Part1 = part1
+        motor.C0 = c0
+        motor.C1 = c1
+        motor.Parent = part0
+        return motor
     end
+
+    -- Root joints
+    createMotor6D("RootJoint", humanoidRootPart, torso, CFrame.new(0, 0, 0), CFrame.new(0, 0, 0))
+    createMotor6D("Waist", torso, lowerTorso, CFrame.new(0, -0.7, 0), CFrame.new(0, 0.5, 0))
+
+    -- Head/Neck
+    createMotor6D("Neck", torso, head, CFrame.new(0, 0.7, 0), CFrame.new(0, -0.9, 0))
+
+    -- Arms
+    createMotor6D("LeftShoulder", torso, leftArm, CFrame.new(-0.8, 0.5, 0), CFrame.new(0, 0.575, 0))
+    createMotor6D("RightShoulder", torso, rightArm, CFrame.new(0.8, 0.5, 0), CFrame.new(0, 0.575, 0))
+    createMotor6D("LeftElbow", leftArm, leftForearm, CFrame.new(0, -0.575, 0), CFrame.new(0, 0.5, 0))
+    createMotor6D("RightElbow", rightArm, rightForearm, CFrame.new(0, -0.575, 0), CFrame.new(0, 0.5, 0))
+    createMotor6D("LeftWrist", leftForearm, leftHand, CFrame.new(0, -0.5, 0), CFrame.new(0, 0, 0))
+    createMotor6D("RightWrist", rightForearm, rightHand, CFrame.new(0, -0.5, 0), CFrame.new(0, 0, 0))
+
+    -- Legs
+    createMotor6D("LeftHip", lowerTorso, leftLeg, CFrame.new(-0.45, -0.55, 0), CFrame.new(0, 0.525, 0))
+    createMotor6D("RightHip", lowerTorso, rightLeg, CFrame.new(0.45, -0.55, 0), CFrame.new(0, 0.525, 0))
+    createMotor6D("LeftKnee", leftLeg, leftShin, CFrame.new(0, -0.525, 0), CFrame.new(0, 0.475, 0))
+    createMotor6D("RightKnee", rightLeg, rightShin, CFrame.new(0, -0.525, 0), CFrame.new(0, 0.475, 0))
+    createMotor6D("LeftAnkle", leftShin, leftFoot, CFrame.new(0, -0.475, 0), CFrame.new(0, 0.175, -0.15))
+    createMotor6D("RightAnkle", rightShin, rightFoot, CFrame.new(0, -0.475, 0), CFrame.new(0, 0.175, -0.15))
 
     return rig
 end

@@ -1,0 +1,131 @@
+[
+    {
+        "name": "ShovelDig",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/ShovelSystem.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/ShovelClient.luau"
+        ]
+    },
+    {
+        "name": "InventoryEvent",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/init.server.luau",
+            "src/server/TreeShakingSystem.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/RecipesInventoryGUI.luau",
+            "src/client/Modules/CraftingGUI.luau",
+            "src/client/Modules/DIYWorkbenchGUI.luau"
+        ]
+    },
+    {
+        "name": "CurrencyEvent",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/CurrencyManager.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/CurrencyDisplay.luau",
+            "src/client/Modules/ShopGUI.luau",
+            "src/client/Modules/NookShoppingGUI.luau",
+            "src/client/Modules/HomeBuildingGUI.luau"
+        ]
+    },
+    {
+        "name": "CraftingEvent",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/CraftingSetup.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/CraftingGUI.luau",
+            "src/client/Modules/DIYWorkbenchGUI.luau",
+            "src/client/Modules/RecipesInventoryGUI.luau"
+        ]
+    },
+    {
+        "name": "FishingEvent",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/init.server.luau",
+            "src/server/FishingSystem.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/FishingController.luau"
+        ]
+    },
+    {
+        "name": "QuestEvent",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/QuestService.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/QuestGUI.luau"
+        ]
+    },
+    {
+        "name": "GenerateIsland",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/IslandGenerationInterface.server.luau"
+        ],
+        "clientFiles": [
+            "src/client/IslandGenerationGUI.client.luau"
+        ]
+    },
+    {
+        "name": "SaveIsland",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/IslandGenerationInterface.server.luau"
+        ],
+        "clientFiles": [
+            "src/client/IslandGenerationGUI.client.luau"
+        ]
+    },
+    {
+        "name": "ClearIsland",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/IslandGenerationInterface.server.luau"
+        ],
+        "clientFiles": [
+            "src/client/IslandGenerationGUI.client.luau"
+        ]
+    },
+    {
+        "name": "UpdateProgress",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/IslandGenerationInterface.server.luau"
+        ],
+        "clientFiles": [
+            "src/client/IslandGenerationGUI.client.luau"
+        ]
+    },
+    {
+        "name": "PremiumPurchase",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/ProductPurchaseHandler.luau"
+        ],
+        "clientFiles": [
+            "src/client/Modules/PremiumShopGUI.luau"
+        ]
+    },
+    {
+        "name": "BalloonHit",
+        "type": "RemoteEvent",
+        "serverFiles": [
+            "src/server/init.server.luau"
+        ],
+        "clientFiles": [
+            "src/shared/ToolObjects.luau"
+        ]
+    }
+]

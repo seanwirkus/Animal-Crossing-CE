@@ -7,33 +7,34 @@ local TOOL_MODELS = {
     ["fishing_rod"] = "FishingRod",
     ["flimsy_fishing_rod"] = "FlimsyFishingRod",
     ["golden_fishing_rod"] = "GoldenFishingRod",
-    
+
     -- Also support hyphenated versions
     ["fishing-rod"] = "FishingRod",
     ["flimsy-fishing-rod"] = "FlimsyFishingRod",
     ["golden-fishing-rod"] = "GoldenFishingRod",
-    
+
     -- Nets
     ["net"] = "Net",
     ["flimsy_net"] = "FlimsyNet",
     ["golden_net"] = "GoldenNet",
-    
+
     -- Shovels
     ["shovel"] = "Shovel",
     ["flimsy_shovel"] = "FlimshyShovel",
     ["golden_shovel"] = "GoldenShovel",
-    
+
     -- Axes
     ["axe"] = "Axe",
     ["flimsy_axe"] = "FlimsyAxe",
     ["stone_axe"] = "StoneAxe",
     ["golden_axe"] = "GoldenAxe",
-    
+    ["axe_flimsy"] = "FlimsyAxe",
+
     -- Others
     ["slingshot"] = "Slingshot",
     ["golden_slingshot"] = "GoldenSlingshot",
     ["vaulting_pole"] = "VaultingPole",
-    ["ladder"] = "Ladder"
+    ["ladder"] = "Ladder",
 }
 
 local SLINGSHOT_SCALE = 0.2
@@ -192,26 +193,35 @@ end
 
 ToolObjects.animateSlingshotRelease = animateSlingshotRelease
 
+local function disableShovelCollision(shovelModel: Model)
+    for _, descendant in ipairs(shovelModel:GetDescendants()) do
+        if descendant:IsA("BasePart") then
+            descendant.CanCollide = false
+            descendant.Massless = true
+        end
+    end
+end
+
 function ToolObjects.getToolModel(spriteId: string): Model?
     print("[ToolObjects] Looking for tool model:", spriteId)
     local modelName = TOOL_MODELS[spriteId]
-    if not modelName then 
+    if not modelName then
         warn("[ToolObjects] ⚠️ No model mapping for sprite:", spriteId)
-        return nil 
+        return nil
     end
-    
+
     local toolModels = ReplicatedStorage:FindFirstChild("ToolModels")
     if not toolModels then
         warn("[ToolObjects] ⚠️ ToolModels folder not found in ReplicatedStorage")
         return nil
     end
-    
+
     local model = toolModels:FindFirstChild(modelName)
     if not model then
         warn("[ToolObjects] ⚠️ Tool model not found:", modelName)
         return nil
     end
-    
+
     print("[ToolObjects] ✅ Found tool model:", modelName)
     return model:Clone()
 end
@@ -227,10 +237,10 @@ function ToolObjects.getGroundDisplayModel(spriteId: string): Model?
     if not model then
         return nil
     end
-    
+
     -- Scale down the model for ground display (50% size looks good)
     local scaleFactor = 0.5
-    
+
     -- Find all parts and scale them
     for _, descendant in ipairs(model:GetDescendants()) do
         if descendant:IsA("BasePart") then
@@ -246,42 +256,127 @@ function ToolObjects.getGroundDisplayModel(spriteId: string): Model?
             end
         end
     end
-    
+
     return model
 end
 
 function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
     print("[ToolObjects] Attempting to equip tool:", spriteId)
-    
+
     local toolModel = ToolObjects.getToolModel(spriteId)
-    if not toolModel then return nil end
-    
-    -- Convert to tool if needed
+    if not toolModel then
+        return nil
+    end
+
+    -- Special handling for shovels - create visual attachment instead of functional tool
+    if spriteId:find("shovel") then
+        print("[ToolObjects] Creating visual shovel attachment...")
+
+        -- Remove any existing tools from character
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Tool") then
+                item:Destroy()
+            end
+        end
+
+        -- Clear any leftover visual attachment
+        local existingAttachment = character:FindFirstChild("EquippedTool")
+        if existingAttachment then
+            existingAttachment:Destroy()
+        end
+
+        -- Create a visual attachment for the shovel
+        local attachment = Instance.new("Model")
+        attachment.Name = "EquippedTool"
+
+        -- Clone the shovel model and position it
+        local shovelClone = toolModel:Clone()
+        shovelClone.Name = "Shovel"
+        disableShovelCollision(shovelClone)
+        shovelClone.Parent = attachment
+
+        -- Position the shovel relative to the character (right hand position)
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if humanoidRootPart then
+            -- Position shovel in right hand area
+            shovelClone:PivotTo(
+                humanoidRootPart.CFrame * CFrame.new(0.5, -0.5, 0.5) * CFrame.Angles(math.rad(-90), 0, math.rad(45))
+            )
+
+            -- Create a weld to keep it attached
+            local weld = Instance.new("WeldConstraint")
+            weld.Part0 = humanoidRootPart
+            weld.Part1 = shovelClone.PrimaryPart or shovelClone:FindFirstChildWhichIsA("BasePart")
+            weld.Parent = shovelClone
+        end
+
+        attachment.Parent = character
+
+        -- Create a dummy tool object for compatibility and smooth movement
+        local dummyTool = Instance.new("Tool")
+        dummyTool.Name = spriteId
+        dummyTool.CanBeDropped = false
+        dummyTool.RequiresHandle = true -- Require handle for tool system compatibility
+        dummyTool.ManualActivationOnly = true
+
+        -- Create an invisible handle that's not part of collision
+        local handle = Instance.new("Part")
+        handle.Name = "Handle"
+        handle.Size = Vector3.new(0.01, 0.01, 0.01) -- Minimize size to avoid collision
+        handle.Transparency = 1
+        handle.CanCollide = false
+        handle.CFrame = humanoidRootPart.CFrame + humanoidRootPart.CFrame.LookVector * 0.1 -- Position in front
+        handle.Massless = true
+        handle.Parent = dummyTool
+
+        dummyTool.Grip = CFrame.new(0, -0.3, 0.3) * CFrame.Angles(math.rad(-45), 0, 0) -- Position forward in hand
+        dummyTool.Parent = character
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.Sit = false
+            humanoid.PlatformStand = false
+            print("[ToolObjects] ✅ Dummy shovel state applied for smooth movement")
+        end
+
+        dummyTool.AncestryChanged:Connect(function(_, newParent)
+            if newParent ~= character then
+                if attachment and attachment.Parent then
+                    attachment:Destroy()
+                end
+            end
+        end)
+
+        print("[ToolObjects] ✅ Visual shovel attachment created")
+        return dummyTool
+    end
+
+    -- Convert to tool if needed (for other tools)
     if not toolModel:IsA("Tool") then
         print("[ToolObjects] Converting model to tool...")
         local tool = Instance.new("Tool")
         tool.Name = spriteId
         tool.CanBeDropped = false
         tool.RequiresHandle = true
-        
+
         -- Handle slingshots specially to prevent sitting bug
         if spriteId:find("slingshot") then
             print("[ToolObjects] Setting up slingshot...")
             tool.ManualActivationOnly = true -- Prevent auto-activation on click
             tool.RequiresHandle = false -- Ranged weapon doesn't need handle grip
-            
+
             configureSlingshotParts(tool, toolModel)
             toolModel = tool
 
             -- Set attributes
             tool:SetAttribute("ToolType", "slingshot")
-            
+
             print("[ToolObjects] ✅ Slingshot configured!")
-        
+
         -- Handle fishing rod specially (check for underscore pattern)
         elseif spriteId:find("fishing_rod") then
             print("[ToolObjects] Setting up fishing rod...")
-            
+
             -- Scale all parts in the model to 50% size
             for _, part in ipairs(toolModel:GetDescendants()) do
                 if part:IsA("BasePart") then
@@ -292,14 +387,14 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
                     part.Position = part.Position * 0.5
                 end
             end
-            
+
             -- Create or find the pole (handle)
             local pole = toolModel:FindFirstChild("Pole")
             if not pole then
                 -- Create pole from asset
                 pole = Instance.new("Part")
                 pole.Name = "Handle"
-                pole.Size = Vector3.new(0.1, 2, 0.1)  -- Half size
+                pole.Size = Vector3.new(0.1, 2, 0.1) -- Half size
                 pole.BrickColor = BrickColor.new("Brown")
                 pole.Material = Enum.Material.Wood
                 pole.CanCollide = false
@@ -308,7 +403,7 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
                 local mesh = Instance.new("SpecialMesh")
                 mesh.MeshId = "rbxassetid://133928709891856"
                 mesh.TextureId = "rbxassetid://133928709891856"
-                mesh.Scale = Vector3.new(0.05, 0.05, 0.05)  -- Half size
+                mesh.Scale = Vector3.new(0.05, 0.05, 0.05) -- Half size
                 mesh.Parent = pole
                 pole.Parent = tool
             else
@@ -317,34 +412,34 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
                 pole.Massless = true
                 pole.Parent = tool
             end
-            
+
             -- Set tool grip to position it correctly in hand
-            tool.Grip = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.rad(0), 0, 0)  -- Adjusted for smaller size
-            
+            tool.Grip = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.rad(0), 0, 0) -- Adjusted for smaller size
+
             -- Create tip attachment at top of pole (where line connects)
             local tipAttach = pole:FindFirstChild("TipAttachment") or Instance.new("Attachment")
             tipAttach.Name = "TipAttachment"
-            tipAttach.Position = Vector3.new(0, 1, 0)  -- Top of pole (adjusted for half size)
+            tipAttach.Position = Vector3.new(0, 1, 0) -- Top of pole (adjusted for half size)
             tipAttach.Parent = pole
-            
+
             -- Setup float/bobber
             local float = toolModel:FindFirstChild("Float")
             if not float then
                 -- Create float from asset
                 float = Instance.new("Part")
                 float.Name = "Float"
-                float.Size = Vector3.new(0.25, 0.25, 0.25)  -- Half size
+                float.Size = Vector3.new(0.25, 0.25, 0.25) -- Half size
                 float.Shape = Enum.PartType.Ball
                 float.BrickColor = BrickColor.new("Bright red")
                 float.Material = Enum.Material.SmoothPlastic
-                float.CanCollide = true  -- Enable collision for water detection
-                float.Massless = false  -- Give it mass so it can be thrown
-                float.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 1, 1)  -- Light, floaty
+                float.CanCollide = true -- Enable collision for water detection
+                float.Massless = false -- Give it mass so it can be thrown
+                float.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 1, 1) -- Light, floaty
                 -- If you want to use the mesh asset:
                 local floatMesh = Instance.new("SpecialMesh")
                 floatMesh.MeshId = "rbxassetid://89373493728161"
                 floatMesh.TextureId = "rbxassetid://89373493728161"
-                floatMesh.Scale = Vector3.new(0.25, 0.25, 0.25)  -- Half size
+                floatMesh.Scale = Vector3.new(0.25, 0.25, 0.25) -- Half size
                 floatMesh.Parent = float
                 float.Parent = tool
             else
@@ -353,29 +448,29 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
                 float.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 1, 1)
                 float.Parent = tool
             end
-            
+
             -- Create float attachment
             local floatAttach = float:FindFirstChild("FloatAttachment") or Instance.new("Attachment")
             floatAttach.Name = "FloatAttachment"
             floatAttach.Position = Vector3.new(0, 0, 0)
             floatAttach.Parent = float
-            
+
             -- Create visible fishing line using RopeConstraint
             local fishingLine = Instance.new("RopeConstraint")
             fishingLine.Name = "FishingLine"
-            fishingLine.Attachment0 = tipAttach  -- Connect from tip of pole
-            fishingLine.Attachment1 = floatAttach  -- Connect to float
-            fishingLine.Length = 60  -- MUCH longer line for long distance casting!
-            fishingLine.Visible = true  -- Make the line visible
-            fishingLine.Color = BrickColor.new("White")  -- White fishing line
-            fishingLine.Thickness = 0.05  -- Thin line
-            fishingLine.Restitution = 0  -- No bounce
+            fishingLine.Attachment0 = tipAttach -- Connect from tip of pole
+            fishingLine.Attachment1 = floatAttach -- Connect to float
+            fishingLine.Length = 60 -- MUCH longer line for long distance casting!
+            fishingLine.Visible = true -- Make the line visible
+            fishingLine.Color = BrickColor.new("White") -- White fishing line
+            fishingLine.Thickness = 0.05 -- Thin line
+            fishingLine.Restitution = 0 -- No bounce
             fishingLine.Parent = tool
-            
+
             -- Store references for casting
             tool:SetAttribute("HasFloat", true)
             tool:SetAttribute("IsCasted", false)
-            
+
             print("[ToolObjects] ✅ Fishing rod with line created!")
         else
             -- For non-fishing rod tools, ensure we have a Handle part
@@ -383,30 +478,67 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
             if handle then
                 handle.Name = "Handle"
                 handle.Parent = tool
+
+                -- Set proper grip for spherical hands (compensate for larger hand radius ~0.6 studs)
+                -- Position tool to avoid collision with spherical hands and prevent character from laying down
+                if spriteId:find("shovel") or spriteId:find("axe") then
+                    -- Shovels and axes share the same grip to avoid physics glitches
+                    tool.Grip = CFrame.new(0, -0.8, 0.2) * CFrame.Angles(math.rad(-90), 0, 0)
+                    tool.ManualActivationOnly = true -- Prevent auto-activation that causes laying down
+                elseif spriteId:find("net") then
+                    tool.Grip = CFrame.new(0, -0.7, 0) * CFrame.Angles(0, 0, 0)
+                    tool.ManualActivationOnly = true
+                else
+                    -- Default grip for unknown tools - position away from spherical hand center
+                    tool.Grip = CFrame.new(0, -0.8, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                    tool.ManualActivationOnly = true
+                end
             end
         end
-        
+
         toolModel = tool
     end
-    
+
     -- Remove any existing tools from character
     for _, item in ipairs(character:GetChildren()) do
         if item:IsA("Tool") then
             item:Destroy()
         end
     end
-    
+
     -- Properly equip tool using Humanoid
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if humanoid then
         print("[ToolObjects] 🎒 Equipping tool via Humanoid...")
-        toolModel.Parent = humanoid.Parent  -- Parent to character first
-        humanoid:EquipTool(toolModel)  -- Then equip it
+
+        -- Prevent sitting when tool is equipped
+        humanoid.Sit = false
+        humanoid.PlatformStand = false
+
+        toolModel.Parent = humanoid.Parent -- Parent to character first
+        humanoid:EquipTool(toolModel) -- Then equip it
+
+        -- Monitor and prevent sitting while tool is equipped
+        local sitConnection = nil
+        sitConnection = humanoid:GetPropertyChangedSignal("Sit"):Connect(function()
+            if humanoid.Sit and toolModel.Parent == character then
+                humanoid.Sit = false
+                print("[ToolObjects] ⚠️ Prevented character from sitting while tool is equipped")
+            end
+        end)
+
+        -- Clean up connection when tool is unequipped
+        toolModel.AncestryChanged:Connect(function()
+            if toolModel.Parent ~= character and sitConnection then
+                sitConnection:Disconnect()
+                sitConnection = nil
+            end
+        end)
     else
         warn("[ToolObjects] ⚠️ No Humanoid found, cannot equip tool!")
         return nil
     end
-    
+
     print("[ToolObjects] ✅ Tool equipped successfully:", spriteId)
     return toolModel
 end
@@ -416,10 +548,10 @@ local function isInWater(position: Vector3): boolean
     local Workspace = game:GetService("Workspace")
     local region = Region3.new(position - Vector3.new(2, 2, 2), position + Vector3.new(2, 2, 2))
     local terrain = Workspace.Terrain
-    
+
     local materials, _sizes = terrain:ReadVoxels(region, 4)
     local size = materials.Size
-    
+
     for x = 1, size.X do
         for y = 1, size.Y do
             for z = 1, size.Z do
@@ -429,7 +561,7 @@ local function isInWater(position: Vector3): boolean
             end
         end
     end
-    
+
     return false
 end
 
@@ -439,14 +571,14 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
         warn("[ToolObjects] ⚠️ Tool is not a fishing rod!")
         return false, nil
     end
-    
+
     if tool:GetAttribute("IsCasted") then
         print("[ToolObjects] Reeling in...")
-        
+
         -- Get references needed for reeling
         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
         local handle = tool:FindFirstChild("Handle")
-        
+
         -- Get the float and reel it back
         local floatValue = tool:FindFirstChild("FloatValue")
         if floatValue and floatValue.Value and humanoidRootPart and handle then
@@ -458,13 +590,13 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
                         child:Destroy()
                     end
                 end
-                
+
                 -- Tween back to player
                 local endPos = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * 3
                 local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-                local tween = game:GetService("TweenService"):Create(float, tweenInfo, {Position = endPos})
+                local tween = game:GetService("TweenService"):Create(float, tweenInfo, { Position = endPos })
                 tween:Play()
-                
+
                 task.delay(0.3, function()
                     if float and float.Parent then
                         float.CanCollide = false
@@ -475,58 +607,60 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
             end
             floatValue.Value = nil
         end
-        
+
         tool:SetAttribute("IsCasted", false)
         return true, nil
     end
-    
+
     local float = tool:FindFirstChild("Float")
     local handle = tool:FindFirstChild("Handle")
     if not float or not handle then
         warn("[ToolObjects] ⚠️ Missing float or handle!")
         return false, nil
     end
-    
+
     print("[ToolObjects] 🎣 Casting fishing rod...")
-    
+
     -- Get casting direction (where player is looking)
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return false, nil end
-    
-    local castPower = power or 70  -- Reduced power for shorter range
+    if not humanoidRootPart then
+        return false, nil
+    end
+
+    local castPower = power or 70 -- Reduced power for shorter range
     local castDirection = humanoidRootPart.CFrame.LookVector
-    
+
     -- Calculate landing position with moderate range
-    local landingPosition = handle.Position + castDirection * 35 + Vector3.new(0, -5, 0)  -- 35 studs forward
-    
+    local landingPosition = handle.Position + castDirection * 35 + Vector3.new(0, -5, 0) -- 35 studs forward
+
     -- CHECK FOR WATER FIRST
     if not isInWater(landingPosition) then
         warn("[ToolObjects] ⚠️ No water detected at landing position!")
         return false, "No water detected! Cast towards water."
     end
-    
+
     -- Detach float for casting
     float.Anchored = false
     float.CanCollide = true
-    float.Position = handle.Position + castDirection * 5  -- Start closer
-    
+    float.Position = handle.Position + castDirection * 5 -- Start closer
+
     -- Prevent player collision
     local noCollision = Instance.new("NoCollisionConstraint")
     noCollision.Part0 = float
     noCollision.Part1 = humanoidRootPart
     noCollision.Parent = float
-    
+
     -- Apply throwing force with moderate power
     local bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.MaxForce = Vector3.new(8000, 8000, 8000)
     bodyVelocity.Velocity = castDirection * castPower + Vector3.new(0, 25, 0)
     bodyVelocity.Parent = float
-    
+
     -- Add drag for realistic physics
     local bodyPosition = Instance.new("BodyPosition")
     bodyPosition.MaxForce = Vector3.new(0, 0, 0)
     bodyPosition.Parent = float
-    
+
     task.delay(0.5, function()
         if bodyVelocity and bodyVelocity.Parent then
             bodyVelocity:Destroy()
@@ -537,10 +671,10 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
             bodyPosition.Position = float.Position
         end
     end)
-    
+
     tool:SetAttribute("IsCasted", true)
     tool:SetAttribute("BobberPosition", landingPosition)
-    
+
     -- Store float reference for reeling
     local floatValue = tool:FindFirstChild("FloatValue")
     if not floatValue then
@@ -549,20 +683,20 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
         floatValue.Parent = tool
     end
     floatValue.Value = float
-    
+
     -- Water touch detection
     local touchConnection
     touchConnection = float.Touched:Connect(function(hit)
         if hit:IsA("Terrain") or (hit:IsA("BasePart") and hit.Material == Enum.Material.Water) then
             print("[ToolObjects] 💧 Float hit water!")
             float.AssemblyLinearVelocity = Vector3.new(0, -2, 0)
-            
+
             if touchConnection then
                 touchConnection:Disconnect()
             end
         end
     end)
-    
+
     print("[ToolObjects] ✅ Cast complete!")
     return true, landingPosition
 end
@@ -574,21 +708,21 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
         warn("[ToolObjects] ⚠️ Tool is not a slingshot!")
         return false, nil
     end
-    
+
     local handle = tool:FindFirstChild("Handle", true)
     local slinger = tool:FindFirstChild("Slinger", true)
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    
+
     if not handle or not humanoidRootPart or not humanoid then
         return false, "Missing handle or character"
     end
-    
+
     -- Use Slinger if available, otherwise use Handle
     local shootPoint = slinger or handle
-    
+
     print("[ToolObjects] 🎯 Shooting slingshot from", shootPoint.Name)
-    
+
     -- Create projectile (small ball)
     local projectile = Instance.new("Part")
     projectile.Name = "SlingshotProjectile"
@@ -601,7 +735,7 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
     projectile.Position = shootPoint.Position + humanoidRootPart.CFrame.LookVector * 3
     projectile.TopSurface = Enum.SurfaceType.Smooth
     projectile.BottomSurface = Enum.SurfaceType.Smooth
-    
+
     -- Add a trail
     local trail = Instance.new("Trail")
     trail.Attachment0 = Instance.new("Attachment", projectile)
@@ -612,26 +746,30 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
     trail.Color = ColorSequence.new(Color3.new(1, 1, 1))
     trail.Transparency = NumberSequence.new({
         NumberSequenceKeypoint.new(0, 0.5),
-        NumberSequenceKeypoint.new(1, 1)
+        NumberSequenceKeypoint.new(1, 1),
     })
     trail.WidthScale = NumberSequence.new({
         NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(1, 0)
+        NumberSequenceKeypoint.new(1, 0),
     })
     trail.Parent = projectile
-    
+
     -- Set collision group to prevent hitting player
     pcall(function()
-        if not pcall(function() PhysicsService:GetCollisionGroupId("Projectiles") end) then
+        if not pcall(function()
+            PhysicsService:GetCollisionGroupId("Projectiles")
+        end) then
             PhysicsService:CreateCollisionGroup("Projectiles")
         end
-        if not pcall(function() PhysicsService:GetCollisionGroupId("Players") end) then
+        if not pcall(function()
+            PhysicsService:GetCollisionGroupId("Players")
+        end) then
             PhysicsService:CreateCollisionGroup("Players")
         end
         PhysicsService:CollisionGroupSetCollidable("Projectiles", "Players", false)
         projectile.CollisionGroup = "Projectiles"
     end)
-    
+
     -- Make sure player can't collide with it
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -641,28 +779,28 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
             noCollision.Parent = projectile
         end
     end
-    
+
     projectile.Parent = workspace
-    
+
     -- Calculate direction to target
     local shootDirection = (targetPosition - projectile.Position).Unit
-    
+
     -- Add velocity
     local bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
     bodyVelocity.Velocity = shootDirection * 150 -- Faster projectile speed
     bodyVelocity.Parent = projectile
-    
+
     -- Add slight gravity effect after 0.3 seconds
     task.delay(0.3, function()
         if bodyVelocity and bodyVelocity.Parent then
             bodyVelocity.Velocity = bodyVelocity.Velocity + Vector3.new(0, -20, 0)
         end
     end)
-    
+
     -- Track if projectile hit something
     local hasHit = false
-    
+
     -- Destroy projectile after 5 seconds
     local destroyDebounce = false
     task.delay(5, function()
@@ -671,16 +809,22 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
             projectile:Destroy()
         end
     end)
-    
+
     -- Destroy on impact with non-character parts
     projectile.Touched:Connect(function(hit)
-        if hasHit or destroyDebounce then return end
-        if hit:IsDescendantOf(character) then return end
-        if hit.Name == "SlingshotProjectile" then return end
-        
+        if hasHit or destroyDebounce then
+            return
+        end
+        if hit:IsDescendantOf(character) then
+            return
+        end
+        if hit.Name == "SlingshotProjectile" then
+            return
+        end
+
         hasHit = true
         print("[ToolObjects] 🎯 Projectile hit:", hit.Name, hit:GetFullName())
-        
+
         -- Check if this is a balloon - search up the hierarchy
         local balloon = nil
         local current = hit
@@ -691,7 +835,7 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
             end
             current = current.Parent
         end
-        
+
         if balloon then
             print("[ToolObjects] 🎈 Found balloon:", balloon.Name)
             -- Tell the server about the balloon hit
@@ -708,14 +852,14 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
                 warn("[ToolObjects] ⚠️ RemoteEvents folder not found!")
             end
         end
-        
+
         task.wait(0.05) -- Small delay to ensure hit is registered
         if projectile and projectile.Parent and not destroyDebounce then
             destroyDebounce = true
             projectile:Destroy()
         end
     end)
-    
+
     animateSlingshotRelease(tool)
 
     print("[ToolObjects] ✅ Projectile fired!")

@@ -63,15 +63,15 @@ local PREMIUM_PRODUCTS = {
 
 function PremiumShopGUI.new()
     local self = setmetatable({}, PremiumShopGUI)
-    
+
     self.player = Players.LocalPlayer
     self.playerGui = self.player:WaitForChild("PlayerGui")
     self.visible = false
     self.gui = nil
-    
+
     self:createGUI()
     self:connectToServer()
-    
+
     print("[PremiumShopGUI] ✅ Initialized")
     return self
 end
@@ -85,7 +85,7 @@ function PremiumShopGUI:createGUI()
     self.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     self.gui.Enabled = false
     self.gui.Parent = self.playerGui
-    
+
     -- Main container
     local container = Instance.new("Frame")
     container.Name = "Container"
@@ -95,11 +95,11 @@ function PremiumShopGUI:createGUI()
     container.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     container.BorderSizePixel = 0
     container.Parent = self.gui
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = container
-    
+
     -- Title bar
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
@@ -108,11 +108,11 @@ function PremiumShopGUI:createGUI()
     titleBar.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
     titleBar.BorderSizePixel = 0
     titleBar.Parent = container
-    
+
     local titleCorner = Instance.new("UICorner")
     titleCorner.CornerRadius = UDim.new(0, 12)
     titleCorner.Parent = titleBar
-    
+
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.Size = UDim2.new(1, -120, 1, 0)
@@ -124,7 +124,7 @@ function PremiumShopGUI:createGUI()
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
-    
+
     -- Close button
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
@@ -137,15 +137,15 @@ function PremiumShopGUI:createGUI()
     closeButton.Font = Enum.Font.GothamBold
     closeButton.BorderSizePixel = 0
     closeButton.Parent = titleBar
-    
+
     local closeCorner = Instance.new("UICorner")
     closeCorner.CornerRadius = UDim.new(0, 8)
     closeCorner.Parent = closeButton
-    
+
     closeButton.MouseButton1Click:Connect(function()
         self:hide()
     end)
-    
+
     -- Scrollable content area
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "ScrollFrame"
@@ -155,23 +155,23 @@ function PremiumShopGUI:createGUI()
     scrollFrame.BorderSizePixel = 0
     scrollFrame.ScrollBarThickness = 8
     scrollFrame.Parent = container
-    
+
     local listLayout = Instance.new("UIListLayout")
     listLayout.Padding = UDim.new(0, 20)
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Parent = scrollFrame
-    
+
     -- Create product cards
     for i, product in ipairs(PREMIUM_PRODUCTS) do
         local card = self:createProductCard(product, i)
         card.Parent = scrollFrame
     end
-    
+
     -- Update canvas size
     listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
     end)
-    
+
     self.container = container
     self.scrollFrame = scrollFrame
 end
@@ -183,11 +183,11 @@ function PremiumShopGUI:createProductCard(product, index)
     card.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
     card.BorderSizePixel = 0
     card.LayoutOrder = index
-    
+
     local cardCorner = Instance.new("UICorner")
     cardCorner.CornerRadius = UDim.new(0, 10)
     cardCorner.Parent = card
-    
+
     -- Icon
     local iconLabel = Instance.new("TextLabel")
     iconLabel.Name = "Icon"
@@ -201,11 +201,11 @@ function PremiumShopGUI:createProductCard(product, index)
     iconLabel.Font = Enum.Font.GothamBold
     iconLabel.BorderSizePixel = 0
     iconLabel.Parent = card
-    
+
     local iconCorner = Instance.new("UICorner")
     iconCorner.CornerRadius = UDim.new(0, 8)
     iconCorner.Parent = iconLabel
-    
+
     -- Product info
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
@@ -218,7 +218,7 @@ function PremiumShopGUI:createProductCard(product, index)
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Parent = card
-    
+
     local descLabel = Instance.new("TextLabel")
     descLabel.Name = "Description"
     descLabel.Size = UDim2.new(1, -280, 0, 25)
@@ -230,7 +230,7 @@ function PremiumShopGUI:createProductCard(product, index)
     descLabel.Font = Enum.Font.Gotham
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
     descLabel.Parent = card
-    
+
     -- Price and buy button
     local priceLabel = Instance.new("TextLabel")
     priceLabel.Name = "Price"
@@ -243,7 +243,7 @@ function PremiumShopGUI:createProductCard(product, index)
     priceLabel.Font = Enum.Font.GothamBold
     priceLabel.TextXAlignment = Enum.TextXAlignment.Right
     priceLabel.Parent = card
-    
+
     local buyButton = Instance.new("TextButton")
     buyButton.Name = "BuyButton"
     buyButton.Size = UDim2.new(0, 120, 0, 40)
@@ -256,31 +256,31 @@ function PremiumShopGUI:createProductCard(product, index)
     buyButton.Font = Enum.Font.GothamBold
     buyButton.BorderSizePixel = 0
     buyButton.Parent = card
-    
+
     local buyCorner = Instance.new("UICorner")
     buyCorner.CornerRadius = UDim.new(0, 8)
     buyCorner.Parent = buyButton
-    
+
     -- Purchase handler
     buyButton.MouseButton1Click:Connect(function()
         self:purchaseProduct(product)
     end)
-    
+
     -- Hover effects
     buyButton.MouseEnter:Connect(function()
         local tween = TweenService:Create(buyButton, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(0, 230, 120)
+            BackgroundColor3 = Color3.fromRGB(0, 230, 120),
         })
         tween:Play()
     end)
-    
+
     buyButton.MouseLeave:Connect(function()
         local tween = TweenService:Create(buyButton, TweenInfo.new(0.2), {
-            BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            BackgroundColor3 = Color3.fromRGB(0, 200, 100),
         })
         tween:Play()
     end)
-    
+
     return card
 end
 
@@ -290,9 +290,9 @@ function PremiumShopGUI:purchaseProduct(product)
         warn("   Please set product.productId to your Roblox Developer Product ID")
         return
     end
-    
+
     print("[PremiumShopGUI] 💳 Purchasing:", product.name, "for", product.robuxPrice, "Robux")
-    
+
     -- Prompt purchase
     MarketplaceService:PromptProductPurchase(self.player, product.productId)
 end
@@ -315,34 +315,38 @@ function PremiumShopGUI:connectToServer()
 end
 
 function PremiumShopGUI:show()
-    if self.visible then return end
+    if self.visible then
+        return
+    end
     self.visible = true
     self.gui.Enabled = true
-    
+
     -- Animate in
     self.container.Size = UDim2.new(0, 0, 0, 0)
     local tween = TweenService:Create(self.container, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-        Size = UDim2.new(0, 800, 0, 600)
+        Size = UDim2.new(0, 800, 0, 600),
     })
     tween:Play()
-    
+
     print("[PremiumShopGUI] 💎 Premium shop opened")
 end
 
 function PremiumShopGUI:hide()
-    if not self.visible then return end
+    if not self.visible then
+        return
+    end
     self.visible = false
-    
+
     -- Animate out
     local tween = TweenService:Create(self.container, TweenInfo.new(0.2), {
-        Size = UDim2.new(0, 0, 0, 0)
+        Size = UDim2.new(0, 0, 0, 0),
     })
     tween:Play()
-    
+
     tween.Completed:Connect(function()
         self.gui.Enabled = false
     end)
-    
+
     print("[PremiumShopGUI] 💎 Premium shop closed")
 end
 
@@ -364,5 +368,3 @@ PremiumShopGUI.Hide = PremiumShopGUI.hide
 PremiumShopGUI.Toggle = PremiumShopGUI.toggle
 
 return PremiumShopGUI
-
-

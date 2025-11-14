@@ -20,6 +20,17 @@ rojo serve
 
 For more help, check out [the Rojo documentation](https://rojo.space/docs).
 
+### Static Checks & Continuous Integration
+
+Install the shared toolchain once per machine, then run the bundled script before every commit:
+
+```bash
+aftman install
+bash tools/run_static_checks.sh
+```
+
+`tools/run_static_checks.sh` runs Stylua formatting (in check mode), Selene linting, Luau-LSP static analysis, RemoteEvent manifest validation, and a full `rojo build`. The same sequence executes automatically in GitHub Actions (`.github/workflows/luau-ci.yml`) on every push and pull request.
+
 ## 📋 Key Features
 
 ### ✅ Inventory System

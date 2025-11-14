@@ -32,8 +32,21 @@ local COLORS = {
 }
 
 local TOOL_KEYWORDS = {
-    "fishing", "rod", "axe", "net", "shovel", "watering", "can", "slingshot",
-    "ladder", "flimsy", "stone", "iron", "golden", "tool", "tools",
+    "fishing",
+    "rod",
+    "axe",
+    "net",
+    "shovel",
+    "watering",
+    "can",
+    "slingshot",
+    "ladder",
+    "flimsy",
+    "stone",
+    "iron",
+    "golden",
+    "tool",
+    "tools",
 }
 
 local ACCEPTED_CATEGORIES = {
@@ -161,7 +174,7 @@ function ToolRingGUI:applySlotStyling(slotFrame: Frame?, state: string?)
     if not corner then
         corner = Instance.new("UICorner")
         corner.Name = "ToolRingCorner"
-        corner.CornerRadius = UDim.new(0, 1)
+        corner.CornerRadius = UDim.new(1, 0)
         corner.Parent = slotFrame
     end
 
@@ -363,7 +376,7 @@ function ToolRingGUI:buildGui()
     halo.Parent = ringContainer
 
     local haloCorner = Instance.new("UICorner")
-    haloCorner.CornerRadius = UDim.new(0, 1)
+    haloCorner.CornerRadius = UDim.new(1, 0)
     haloCorner.Parent = halo
 
     local haloStroke = Instance.new("UIStroke")
@@ -385,7 +398,7 @@ function ToolRingGUI:buildGui()
     centerPad.Parent = ringContainer
 
     local padCorner = Instance.new("UICorner")
-    padCorner.CornerRadius = UDim.new(0, 1)
+    padCorner.CornerRadius = UDim.new(1, 0)
     padCorner.Parent = centerPad
 
     local padStroke = Instance.new("UIStroke")
@@ -504,7 +517,7 @@ function ToolRingGUI:createSlots()
         countBadge.Parent = container
 
         local badgeCorner = countBadge:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
-        badgeCorner.CornerRadius = UDim.new(0, 1)
+        badgeCorner.CornerRadius = UDim.new(1, 0)
         badgeCorner.Parent = countBadge
 
         local countLabel = countBadge:FindFirstChild("CountLabel")
@@ -587,17 +600,20 @@ function ToolRingGUI:setInventoryClient(inventoryClient)
 
     local remote = inventoryClient.inventoryRemote
     if remote then
-        table.insert(self.inventoryConnections, remote.OnClientEvent:Connect(function(action, data)
-            if action == "SyncInventory" then
-                self:updateToolsFromInventory()
-            elseif action == "EquipItem" and data then
-                self.equippedItemSlot = data.slotIndex
-                self:updateSlotUI()
-            elseif action == "UnequipItem" then
-                self.equippedItemSlot = nil
-                self:updateSlotUI()
-            end
-        end))
+        table.insert(
+            self.inventoryConnections,
+            remote.OnClientEvent:Connect(function(action, data)
+                if action == "SyncInventory" then
+                    self:updateToolsFromInventory()
+                elseif action == "EquipItem" and data then
+                    self.equippedItemSlot = data.slotIndex
+                    self:updateSlotUI()
+                elseif action == "UnequipItem" then
+                    self.equippedItemSlot = nil
+                    self:updateSlotUI()
+                end
+            end)
+        )
     end
 
     self:updateToolsFromInventory()
@@ -773,7 +789,7 @@ function ToolRingGUI:equipTool(index)
                 item:Destroy()
             end
         end
-        
+
         -- Equip the 3D tool model
         self.toolObjects.equipTool(character, tool.itemId)
     end

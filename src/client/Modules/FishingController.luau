@@ -140,25 +140,27 @@ end
 function FishingController:onBite(data)
     print("[FishingController] 🐟 BITE!", data.fishName)
     self.hasBite = true
-    
+
     -- Show prompt
     if self.promptLabel then
         self.promptLabel.Visible = true
         self.promptLabel.Text = "Press E!"
     end
-    
+
     -- Listen for E key
     if self.promptConnection then
         self.promptConnection:Disconnect()
     end
-    
+
     self.promptConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
+        if gameProcessed then
+            return
+        end
         if input.KeyCode == Enum.KeyCode.E and self.hasBite then
             self:attemptCatch()
         end
     end)
-    
+
     -- Auto-hide after 3 seconds
     task.delay(3, function()
         if self.promptLabel then
@@ -175,14 +177,14 @@ end
 function FishingController:attemptCatch()
     print("[FishingController] Attempting catch...")
     self.fishingRemote:FireServer("AttemptCatch")
-    
+
     if self.promptLabel then
         self.promptLabel.Visible = false
     end
     if self.promptConnection then
         self.promptConnection:Disconnect()
     end
-    
+
     self.hasBite = false
     self.isFishing = false
 end
@@ -252,7 +254,7 @@ function FishingController:connectMouse()
     self.mouseConnection = self.mouse.Button1Down:Connect(function()
         self:onCastRequested()
     end)
-    
+
     -- Also listen for tool activation (clicking with tool equipped)
     local character = self.player.Character
     if character then
@@ -263,7 +265,7 @@ function FishingController:connectMouse()
                 end)
             end
         end)
-        
+
         -- Connect to existing tools
         for _, child in ipairs(character:GetChildren()) do
             if child:IsA("Tool") and isFishingTool(child) then
@@ -313,7 +315,7 @@ function FishingController:onCastRequested()
     if UserInputService:GetFocusedTextBox() then
         return
     end
-    
+
     -- Use ToolObjects to cast the fishing rod
     local character = self.player.Character
     if character and self.equippedTool then
@@ -322,10 +324,10 @@ function FishingController:onCastRequested()
             print("[FishingController] 🎣 Cast successful!")
             self.isFishing = true
             self.castPosition = result
-            
+
             -- Notify server to start fishing session
-            self.fishingRemote:FireServer("StartCast", {position = result})
-            
+            self.fishingRemote:FireServer("StartCast", { position = result })
+
             return
         elseif not success and result then
             -- Show error message
@@ -355,7 +357,10 @@ function FishingController:isWater(target: Instance?, position: Vector3)
     local name = string.lower(instance.Name)
 
     local isWaterMaterial = material == Enum.Material.Water
-    local isWaterName = string.find(name, "water") or string.find(name, "river") or string.find(name, "pond") or string.find(name, "ocean")
+    local isWaterName = string.find(name, "water")
+        or string.find(name, "river")
+        or string.find(name, "pond")
+        or string.find(name, "ocean")
 
     if not isWaterMaterial and not isWaterName then
         return nil
@@ -694,4 +699,3 @@ function FishingController:handleCatchResult(result)
 end
 
 return FishingController
-

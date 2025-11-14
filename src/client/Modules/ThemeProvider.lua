@@ -18,35 +18,35 @@ local _themeListeners = {}
 
 -- Get current theme
 function ThemeProvider.getTheme()
-	return _currentTheme
+    return _currentTheme
 end
 
 -- Set custom theme (for future extensibility)
 function ThemeProvider.setTheme(newTheme)
-	_currentTheme = newTheme
-	-- Notify listeners of theme change
-	for _, listener in ipairs(_themeListeners) do
-		if typeof(listener) == "function" then
-			task.spawn(function()
-				local success, err = pcall(listener, newTheme)
-				if not success then
-					warn("[ThemeProvider] Theme change listener failed:", err)
-				end
-			end)
-		end
-	end
+    _currentTheme = newTheme
+    -- Notify listeners of theme change
+    for _, listener in ipairs(_themeListeners) do
+        if typeof(listener) == "function" then
+            task.spawn(function()
+                local success, err = pcall(listener, newTheme)
+                if not success then
+                    warn("[ThemeProvider] Theme change listener failed:", err)
+                end
+            end)
+        end
+    end
 end
 
 -- Add theme change listener
-function ThemeProvider.onThemeChanged(listener: (any) -> ())
-	table.insert(_themeListeners, listener)
-	return function()
-		-- Return cleanup function
-		local index = table.find(_themeListeners, listener)
-		if index then
-			table.remove(_themeListeners, index)
-		end
-	end
+function ThemeProvider.onThemeChanged(listener)
+    table.insert(_themeListeners, listener)
+    return function()
+        -- Return cleanup function
+        local index = table.find(_themeListeners, listener)
+        if index then
+            table.remove(_themeListeners, index)
+        end
+    end
 end
 
 -- =============================================================================
@@ -54,30 +54,30 @@ end
 -- =============================================================================
 
 -- Get color by name
-function ThemeProvider.getColor(colorName: string): Color3
-	local color = _currentTheme.colors[colorName] or _currentTheme.colors.offWhite
-	print(string.format("[ThemeProvider] 🎨 getColor('%s') -> %s", colorName, tostring(color)))
-	return color
+function ThemeProvider.getColor(colorName)
+    local color = _currentTheme.colors[colorName] or _currentTheme.colors.offWhite
+    print(string.format("[ThemeProvider] 🎨 getColor('%s') -> %s", colorName, tostring(color)))
+    return color
 end
 
 -- Get radius by name
-function ThemeProvider.getRadius(radiusName: string): UDim
-	return _currentTheme.radius[radiusName] or _currentTheme.radius.medium
+function ThemeProvider.getRadius(radiusName)
+    return _currentTheme.radius[radiusName] or _currentTheme.radius.medium
 end
 
 -- Get spacing by name
-function ThemeProvider.getSpacing(spacingName: string): number
-	return _currentTheme.spacing[spacingName] or _currentTheme.spacing.md
+function ThemeProvider.getSpacing(spacingName)
+    return _currentTheme.spacing[spacingName] or _currentTheme.spacing.md
 end
 
 -- Get text size by name
-function ThemeProvider.getTextSize(sizeName: string): number
-	return _currentTheme.textSizes[sizeName] or _currentTheme.textSizes.medium
+function ThemeProvider.getTextSize(sizeName)
+    return _currentTheme.textSizes[sizeName] or _currentTheme.textSizes.medium
 end
 
 -- Get font by name
-function ThemeProvider.getFont(fontName: string): Enum.Font
-	return _currentTheme.fonts[fontName] or _currentTheme.fonts.primary
+function ThemeProvider.getFont(fontName)
+    return _currentTheme.fonts[fontName] or _currentTheme.fonts.primary
 end
 
 -- =============================================================================
@@ -85,46 +85,60 @@ end
 -- =============================================================================
 
 -- Create themed dialog panel
-function ThemeProvider.createDialogPanel(parent: Instance, config: {[string]: any}?): Frame
-	config = config or {}
-	local panel = _currentTheme.createDialogPanel(parent)
+function ThemeProvider.createDialogPanel(parent, config)
+    config = config or {}
+    local panel = _currentTheme.createDialogPanel(parent)
 
-	-- Apply custom config
-	if config.size then panel.Size = config.size end
-	if config.position then panel.Position = config.position end
-	if config.anchorPoint then panel.AnchorPoint = config.anchorPoint end
+    -- Apply custom config
+    if config.size then
+        panel.Size = config.size
+    end
+    if config.position then
+        panel.Position = config.position
+    end
+    if config.anchorPoint then
+        panel.AnchorPoint = config.anchorPoint
+    end
 
-	return panel
+    return panel
 end
 
 -- Create themed primary button
-function ThemeProvider.createPrimaryButton(parent: Instance, text: string, config: {[string]: any}?): TextButton
-	config = config or {}
-	local button = _currentTheme.createPrimaryButton(parent, text)
+function ThemeProvider.createPrimaryButton(parent, text, config)
+    config = config or {}
+    local button = _currentTheme.createPrimaryButton(parent, text)
 
-	-- Apply custom config
-	if config.size then button.Size = config.size end
-	if config.position then button.Position = config.position end
-	if config.onClick and typeof(config.onClick) == "function" then
-		button.MouseButton1Click:Connect(config.onClick)
-	end
+    -- Apply custom config
+    if config.size then
+        button.Size = config.size
+    end
+    if config.position then
+        button.Position = config.position
+    end
+    if config.onClick and typeof(config.onClick) == "function" then
+        button.MouseButton1Click:Connect(config.onClick)
+    end
 
-	return button
+    return button
 end
 
 -- Create themed close button
-function ThemeProvider.createCloseButton(parent: Instance, config: {[string]: any}?): TextButton
-	config = config or {}
-	local button = _currentTheme.createCloseButton(parent)
+function ThemeProvider.createCloseButton(parent, config)
+    config = config or {}
+    local button = _currentTheme.createCloseButton(parent)
 
-	-- Apply custom config
-	if config.position then button.Position = config.position end
-	if config.anchorPoint then button.AnchorPoint = config.anchorPoint end
-	if config.onClick and typeof(config.onClick) == "function" then
-		button.MouseButton1Click:Connect(config.onClick)
-	end
+    -- Apply custom config
+    if config.position then
+        button.Position = config.position
+    end
+    if config.anchorPoint then
+        button.AnchorPoint = config.anchorPoint
+    end
+    if config.onClick and typeof(config.onClick) == "function" then
+        button.MouseButton1Click:Connect(config.onClick)
+    end
 
-	return button
+    return button
 end
 
 -- =============================================================================
@@ -132,69 +146,92 @@ end
 -- =============================================================================
 
 -- Apply theme to a frame (colors, corners, shadows)
-function ThemeProvider.styleFrame(frame: Frame, styleConfig: {})
-	styleConfig = styleConfig or {}
-	print(string.format("[ThemeProvider] 🎨 styleFrame called on %s with config keys: %s", frame.Name, table.concat(table.keys(styleConfig or {}), ", ")))
+function ThemeProvider.styleFrame(frame, styleConfig)
+    styleConfig = styleConfig or {}
 
-	-- Background color
-	if styleConfig.backgroundColor then
-		frame.BackgroundColor3 = typeof(styleConfig.backgroundColor) == "string"
-			and ThemeProvider.getColor(styleConfig.backgroundColor)
-			or styleConfig.backgroundColor
-	end
+    -- Get config keys for logging
+    local configKeys = {}
+    for key, _ in pairs(styleConfig) do
+        table.insert(configKeys, tostring(key))
+    end
+    print(
+        string.format(
+            "[ThemeProvider] 🎨 styleFrame called on %s with config keys: %s",
+            frame.Name,
+            table.concat(configKeys, ", ")
+        )
+    )
 
-	-- Corner radius
-	if styleConfig.cornerRadius then
-		local radiusType = typeof(styleConfig.cornerRadius) == "string" and styleConfig.cornerRadius or "medium"
-		_currentTheme.applyCornerRadius(frame, radiusType)
-	end
+    -- Background color
+    if styleConfig.backgroundColor then
+        frame.BackgroundColor3 = typeof(styleConfig.backgroundColor) == "string"
+                and ThemeProvider.getColor(styleConfig.backgroundColor)
+            or styleConfig.backgroundColor
+    end
 
-	-- Stroke/border
-	if styleConfig.strokeColor then
-		local color = typeof(styleConfig.strokeColor) == "string"
-			and ThemeProvider.getColor(styleConfig.strokeColor)
-			or styleConfig.strokeColor
-		local thickness = styleConfig.strokeThickness or 2
-		_currentTheme.applyStroke(frame, color, thickness)
-	end
+    -- Corner radius
+    if styleConfig.cornerRadius then
+        local radiusType = typeof(styleConfig.cornerRadius) == "string" and styleConfig.cornerRadius or "medium"
+        _currentTheme.applyCornerRadius(frame, radiusType)
+    end
 
-	-- Shadow
-	if styleConfig.shadow then
-		local shadowType = typeof(styleConfig.shadow) == "string" and styleConfig.shadow or "medium"
-		_currentTheme.applyShadow(frame, shadowType)
-	end
+    -- Stroke/border
+    if styleConfig.strokeColor then
+        local color = typeof(styleConfig.strokeColor) == "string" and ThemeProvider.getColor(styleConfig.strokeColor)
+            or styleConfig.strokeColor
+        local thickness = styleConfig.strokeThickness or 2
+        _currentTheme.applyStroke(frame, color, thickness)
+    end
+
+    -- Shadow
+    if styleConfig.shadow then
+        local shadowType = typeof(styleConfig.shadow) == "string" and styleConfig.shadow or "medium"
+        _currentTheme.applyShadow(frame, shadowType)
+    end
 end
 
 -- Apply theme to text labels
-function ThemeProvider.styleText(textObject: TextLabel | TextButton | TextBox, styleConfig: {})
-	styleConfig = styleConfig or {}
+function ThemeProvider.styleText(textObject, styleConfig)
+    styleConfig = styleConfig or {}
 
-	-- Text color
-	if styleConfig.textColor then
-		textObject.TextColor3 = typeof(styleConfig.textColor) == "string"
-			and ThemeProvider.getColor(styleConfig.textColor)
-			or styleConfig.textColor
-	end
+    -- Get config keys for logging
+    local configKeys = {}
+    for key, _ in pairs(styleConfig) do
+        table.insert(configKeys, tostring(key))
+    end
+    print(
+        string.format(
+            "[ThemeProvider] 🎨 styleText called on %s with config keys: %s",
+            textObject.Name,
+            table.concat(configKeys, ", ")
+        )
+    )
 
-	-- Font
-	if styleConfig.font then
-		textObject.Font = typeof(styleConfig.font) == "string"
-			and ThemeProvider.getFont(styleConfig.font)
-			or styleConfig.font
-	end
+    -- Text color
+    if styleConfig.textColor then
+        textObject.TextColor3 = typeof(styleConfig.textColor) == "string"
+                and ThemeProvider.getColor(styleConfig.textColor)
+            or styleConfig.textColor
+    end
 
-	-- Text size
-	if styleConfig.textSize then
-		textObject.TextSize = typeof(styleConfig.textSize) == "string"
-			and ThemeProvider.getTextSize(styleConfig.textSize)
-			or styleConfig.textSize
-	end
+    -- Font
+    if styleConfig.font then
+        textObject.Font = typeof(styleConfig.font) == "string" and ThemeProvider.getFont(styleConfig.font)
+            or styleConfig.font
+    end
 
-	-- Text stroke (subtle shadow for readability)
-	if styleConfig.textStroke ~= false then
-		textObject.TextStrokeTransparency = 0.8
-		textObject.TextStrokeColor3 = ThemeProvider.getColor("textLight")
-	end
+    -- Text size
+    if styleConfig.textSize then
+        textObject.TextSize = typeof(styleConfig.textSize) == "string"
+                and ThemeProvider.getTextSize(styleConfig.textSize)
+            or styleConfig.textSize
+    end
+
+    -- Text stroke (subtle shadow for readability)
+    if styleConfig.textStroke ~= false then
+        textObject.TextStrokeTransparency = 0.8
+        textObject.TextStrokeColor3 = ThemeProvider.getColor("textLight")
+    end
 end
 
 -- =============================================================================

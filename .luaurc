@@ -14,6 +14,16 @@
         "typeof",
         "plugin",
         "task",
-        "TweenInfo"
+        "TweenInfo",
+        "math",
+        "string",
+        "table",
+        "os",
+        "tick",
+        "time",
+        "debug",
+        "coroutine",
+        "buffer",
+        "utf8"
         ]
 }
