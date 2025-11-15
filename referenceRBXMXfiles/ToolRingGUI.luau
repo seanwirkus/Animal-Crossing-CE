@@ -33,8 +33,21 @@ local COLORS = {
 }
 
 local TOOL_KEYWORDS = {
-    "fishing", "rod", "axe", "net", "shovel", "watering", "can", "slingshot",
-    "ladder", "flimsy", "stone", "iron", "golden", "tool", "tools",
+    "fishing",
+    "rod",
+    "axe",
+    "net",
+    "shovel",
+    "watering",
+    "can",
+    "slingshot",
+    "ladder",
+    "flimsy",
+    "stone",
+    "iron",
+    "golden",
+    "tool",
+    "tools",
 }
 
 local ACCEPTED_CATEGORIES = {
@@ -620,17 +633,20 @@ function ToolRingGUI:setInventoryClient(inventoryClient)
 
     local remote = inventoryClient.inventoryRemote
     if remote then
-        table.insert(self.inventoryConnections, remote.OnClientEvent:Connect(function(action, data)
-            if action == "SyncInventory" then
-                self:updateToolsFromInventory()
-            elseif action == "EquipItem" and data then
-                self.equippedItemSlot = data.slotIndex
-                self:updateSlotUI()
-            elseif action == "UnequipItem" then
-                self.equippedItemSlot = nil
-                self:updateSlotUI()
-            end
-        end))
+        table.insert(
+            self.inventoryConnections,
+            remote.OnClientEvent:Connect(function(action, data)
+                if action == "SyncInventory" then
+                    self:updateToolsFromInventory()
+                elseif action == "EquipItem" and data then
+                    self.equippedItemSlot = data.slotIndex
+                    self:updateSlotUI()
+                elseif action == "UnequipItem" then
+                    self.equippedItemSlot = nil
+                    self:updateSlotUI()
+                end
+            end)
+        )
     end
 
     self:updateToolsFromInventory()
@@ -806,7 +822,7 @@ function ToolRingGUI:equipTool(index)
                 item:Destroy()
             end
         end
-        
+
         -- Equip the 3D tool model
         self.toolObjects.equipTool(character, tool.itemId)
     end
@@ -926,4 +942,3 @@ ToolRingGUI.Hide = ToolRingGUI.hide
 ToolRingGUI.Toggle = ToolRingGUI.toggle
 
 return ToolRingGUI
-

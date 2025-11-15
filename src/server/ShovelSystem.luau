@@ -7,7 +7,6 @@
 	- Filling holes back in
 ]]
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local ShovelSystem = {}
@@ -91,30 +90,45 @@ local function createHole(position)
 end
 
 --[[
-	Handles a player digging
+	Attempts to dig with the player's currently equipped shovel.
+	Returns success:boolean, resultType:string?, resultData:table?, errorMessage:string?
 ]]
-local function handleDig(player)
+local function performDig(player)
     local userId = player.UserId
 
     -- Check cooldown
     if playerCooldowns[userId] and tick() - playerCooldowns[userId] < DIG_COOLDOWN then
-        return
+        local remaining = DIG_COOLDOWN - (tick() - playerCooldowns[userId])
+        return false, nil, nil, string.format("Need to wait %.1fs before digging again.", remaining)
     end
 
     -- Check if player has shovel equipped
     local character = player.Character
     if not character then
-        return
+        return false, nil, nil, "Character not loaded."
     end
 
+    local hasShovelEquipped = false
+
     local tool = character:FindFirstChildOfClass("Tool")
-    if not tool or not tool.Name:lower():find("shovel") then
-        return -- Not holding a shovel
+    if tool and tool.Name:lower():find("shovel") then
+        hasShovelEquipped = true
+    end
+
+    if not hasShovelEquipped then
+        local equippedToolType = player:GetAttribute("EquippedToolType")
+        if equippedToolType and tostring(equippedToolType):lower() == "shovel" then
+            hasShovelEquipped = true
+        end
+    end
+
+    if not hasShovelEquipped then
+        return false, nil, nil, "Equip a shovel to dig."
     end
 
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then
-        return
+        return false, nil, nil, "HumanoidRootPart missing."
     end
 
     -- Get dig position in front of player
@@ -130,29 +144,31 @@ local function handleDig(player)
 
     local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
     if not rayResult then
-        return
+        return false, nil, nil, "Couldn't find ground to dig."
     end
 
     local holePosition = rayResult.Position + (rayResult.Normal * 0.2)
 
     -- Check if player already has a hole here
     if DigSpotManager.hasDugHole(player, holePosition) then
-        return -- Can't dig where there's already a hole
+        return false, nil, nil, "There's already a hole here."
     end
 
     -- Handle the dig through DigSpotManager
     local success, resultType, resultData = DigSpotManager.handleDig(player, holePosition)
 
+    local digSucceeded = false
+
     if success then
+        digSucceeded = true
+
         -- Create the visual hole
         createHole(holePosition)
 
         -- Handle rewards based on result type
         if resultType == "fossil" and resultData then
-            -- TODO: Add fossil to inventory
             print(string.format("[ShovelSystem] 🦴 Player %s dug up fossil: %s", player.Name, resultData.itemId))
         elseif resultType == "bell" and resultData then
-            -- Add bells to currency
             local bellSuccess = CurrencyManager.addBells(player, resultData.amount)
             if bellSuccess then
                 print(string.format("[ShovelSystem] 💰 Player %s dug up %d bells", player.Name, resultData.amount))
@@ -168,18 +184,17 @@ local function handleDig(player)
         elseif resultType == "empty" then
             print(string.format("[ShovelSystem] 🕳️ Player %s dug an empty hole", player.Name))
         end
-
-        -- Fire event to client for visual feedback
-        local digEvent = ReplicatedStorage:FindFirstChild("ShovelDig")
-        if digEvent then
-            digEvent:FireClient(player, resultType, resultData)
-        end
     else
         print(string.format("[ShovelSystem] ❌ Dig failed for player %s", player.Name))
     end
 
-    -- Set cooldown
     playerCooldowns[userId] = tick()
+
+    if digSucceeded then
+        return true, resultType, resultData
+    end
+
+    return false, nil, nil, "Nothing was found."
 end
 
 --[[
@@ -187,25 +202,12 @@ end
 ]]
 function ShovelSystem.init()
     print("[ShovelSystem] 🔨 Initializing shovel system...")
-
-    -- Create RemoteEvent for shovel actions FIRST (before DigSpotManager needs it)
-    local shovelEvent = ReplicatedStorage:FindFirstChild("ShovelDig")
-    if not shovelEvent then
-        shovelEvent = Instance.new("RemoteEvent")
-        shovelEvent.Name = "ShovelDig"
-        shovelEvent.Parent = ReplicatedStorage
-        print("[ShovelSystem] ✅ Created ShovelDig RemoteEvent")
-    end
-
-    -- Initialize DigSpotManager (it will use the RemoteEvent we just created)
     DigSpotManager.init()
-
-    -- Listen for dig requests
-    shovelEvent.OnServerEvent:Connect(function(player)
-        handleDig(player)
-    end)
-
     print("[ShovelSystem] ✅ Shovel system initialized")
+end
+
+function ShovelSystem.attemptDig(player)
+    return performDig(player)
 end
 
 return ShovelSystem

@@ -6,33 +6,33 @@
 export type Currency = "bells" | "miles" | "nook_miles"
 
 export type PlayerBalance = {
-	bells: number,
-	miles: number,
-	nook_miles: number,
+    bells: number,
+    miles: number,
+    nook_miles: number,
 }
 
 export type IslandData = {
-	name: string,
-	theme: string,
-	resident_services: boolean,
-	museum: boolean,
-	shop: boolean,
+    name: string,
+    theme: string,
+    resident_services: boolean,
+    museum: boolean,
+    shop: boolean,
 }
 
 export type PlayerInventory = {
-	[number]: {
-		item_id: string,
-		quantity: number,
-	}
+    [number]: {
+        item_id: string,
+        quantity: number,
+    },
 }
 
 export type PlayerData = {
-	balance: PlayerBalance,
-	island: IslandData,
-	inventory: PlayerInventory,
-	level: number,
-	experience: number,
-	last_login: number,
+    balance: PlayerBalance,
+    island: IslandData,
+    inventory: PlayerInventory,
+    level: number,
+    experience: number,
+    last_login: number,
 }
 
 return {}

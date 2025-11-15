@@ -56,5 +56,3 @@ function NookipediaDiscovery:GetAllCharacters()
 end
 
 return NookipediaDiscovery
-
-

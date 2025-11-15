@@ -6,110 +6,110 @@
 ]]
 
 export type Player = {
-	UserId: number,
-	Name: string,
-	Character: Model?,
+    UserId: number,
+    Name: string,
+    Character: Model?,
 }
 
 export type ItemStack = {
-	itemId: string,
-	quantity: number,
-	maxStack: number,
+    itemId: string,
+    quantity: number,
+    maxStack: number,
 }
 
 export type Inventory = {
-	slots: { [string]: ItemStack },
-	maxSlots: number,
-	totalItems: number,
+    slots: { [string]: ItemStack },
+    maxSlots: number,
+    totalItems: number,
 }
 
 export type EconomySnapshot = {
-	bells: number,
-	miles: number,
-	debt: number,
-	savings: number,
+    bells: number,
+    miles: number,
+    debt: number,
+    savings: number,
 }
 
 export type VillagerData = {
-	id: string,
-	displayName: string,
-	personality: string,
-	species: string,
-	birthday: string,
-	catchphrase: string,
-	nookipediaImageUrl: string?,
-	nookipediaIconUrl: string?,
+    id: string,
+    displayName: string,
+    personality: string,
+    species: string,
+    birthday: string,
+    catchphrase: string,
+    nookipediaImageUrl: string?,
+    nookipediaIconUrl: string?,
 }
 
 export type IslandTemplate = {
-	id: string,
-	displayName: string,
-	description: string,
-	vibe: string,
-	weatherPreference: string,
-	timeOfDayBonus: string,
-	features: { string },
-	startingResources: { [string]: number },
-	startingBells: number,
-	startingMiles: number,
+    id: string,
+    displayName: string,
+    description: string,
+    vibe: string,
+    weatherPreference: string,
+    timeOfDayBonus: string,
+    features: { string },
+    startingResources: { [string]: number },
+    startingBells: number,
+    startingMiles: number,
 }
 
 export type QuestData = {
-	id: string,
-	title: string,
-	description: string,
-	rewards: {
-		bells: number,
-		miles: number,
-		items: { [string]: number }?,
-	},
-	progress: number,
-	maxProgress: number,
-	completed: boolean,
+    id: string,
+    title: string,
+    description: string,
+    rewards: {
+        bells: number,
+        miles: number,
+        items: { [string]: number }?,
+    },
+    progress: number,
+    maxProgress: number,
+    completed: boolean,
 }
 
 export type FurnitureItem = {
-	id: string,
-	category: string,
-	size: Vector3,
-	cost: number,
-	description: string,
+    id: string,
+    category: string,
+    size: Vector3,
+    cost: number,
+    description: string,
 }
 
 export type HomeStatus = {
-	level: string,
-	rooms: number,
-	expansion: number,
-	totalCost: number,
-	furniture: { [string]: FurnitureItem },
+    level: string,
+    rooms: number,
+    expansion: number,
+    totalCost: number,
+    furniture: { [string]: FurnitureItem },
 }
 
 export type ApiResponse<T> = {
-	success: boolean,
-	data: T?,
-	error: {
-		type: string,
-		message: string,
-	}?,
-	timestamp: number,
+    success: boolean,
+    data: T?,
+    error: {
+        type: string,
+        message: string,
+    }?,
+    timestamp: number,
 }
 
 export type ClockState = {
-	hour: number,
-	minute: number,
-	day: number,
-	month: number,
-	year: number,
-	season: string,
-	timeOfDay: string,
+    hour: number,
+    minute: number,
+    day: number,
+    month: number,
+    year: number,
+    season: string,
+    timeOfDay: string,
 }
 
 export type LogEntry = {
-	level: string,
-	module: string,
-	message: string,
-	data: any?,
-	timestamp: number,
+    level: string,
+    module: string,
+    message: string,
+    data: any?,
+    timestamp: number,
 }
 
 return {}

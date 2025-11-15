@@ -1,4 +1,3 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 -- Fish data with rarity tiers
@@ -19,6 +18,18 @@ local FISH_DATA = {
 
 local FishingSystem = {}
 FishingSystem.activeCasts = {}
+
+local feedbackCallback = nil
+
+local function emitFeedback(player, action, data)
+    if feedbackCallback then
+        feedbackCallback(player, action, data)
+    end
+end
+
+function FishingSystem.setFeedbackCallback(callback)
+    feedbackCallback = callback
+end
 
 function FishingSystem.getRandomFish()
     local roll = math.random(1, 100)
@@ -106,13 +117,10 @@ function FishingSystem.triggerBite(userId)
 
     print("[FishingSystem] BITE!")
 
-    local fishingEvent = ReplicatedStorage:FindFirstChild("FishingEvent")
-    if fishingEvent then
-        fishingEvent:FireClient(castData.player, "Bite", {
-            fishId = castData.fishData.id,
-            fishName = castData.fishData.name,
-        })
-    end
+    emitFeedback(castData.player, "bite", {
+        fishId = castData.fishData.id,
+        fishName = castData.fishData.name,
+    })
 
     task.delay(3, function()
         if FishingSystem.activeCasts[userId] and FishingSystem.activeCasts[userId].hasBit then
@@ -137,16 +145,13 @@ function FishingSystem.attemptCatch(player)
     local fishData = castData.fishData
     print("[FishingSystem] CAUGHT:", fishData.name)
 
-    local fishingEvent = ReplicatedStorage:FindFirstChild("FishingEvent")
-    if fishingEvent then
-        fishingEvent:FireClient(player, "CatchResult", {
-            success = true,
-            fishId = fishData.id,
-            fishName = fishData.name,
-            value = fishData.value,
-            rarity = fishData.rarity,
-        })
-    end
+    emitFeedback(player, "catch_result", {
+        success = true,
+        fishId = fishData.id,
+        fishName = fishData.name,
+        value = fishData.value,
+        rarity = fishData.rarity,
+    })
 
     FishingSystem.activeCasts[player.UserId] = nil
     return true

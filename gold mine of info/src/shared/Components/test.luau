@@ -12,9 +12,9 @@ function Test.new(parent)
     local self = setmetatable({}, Test)
     self._parent = parent
     self._gui = nil
-    
+
     self:_createGUI()
-    
+
     return self
 end
 
@@ -24,7 +24,7 @@ function Test:_createGUI()
     screenGui.Name = "TestGUI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = self._parent
-    
+
     -- Create main frame
     local frame = Instance.new("Frame")
     frame.Name = "MainFrame"
@@ -34,12 +34,12 @@ function Test:_createGUI()
     frame.BackgroundTransparency = 0.3
     frame.BorderSizePixel = 0
     frame.Parent = screenGui
-    
+
     -- Add corner rounding
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = frame
-    
+
     -- Title
     local title = Instance.new("TextLabel")
     title.Name = "Title"
@@ -51,19 +51,20 @@ function Test:_createGUI()
     title.TextScaled = true
     title.Font = Enum.Font.GothamBold
     title.Parent = frame
-    
+
     -- Description
     local description = Instance.new("TextLabel")
     description.Name = "Description"
     description.Size = UDim2.new(1, -20, 0, 100)
     description.Position = UDim2.new(0, 10, 0, 50)
     description.BackgroundTransparency = 1
-    description.Text = "This is a test component generated from your .rbxm file. It can be reused across your Animal Crossing game!"
+    description.Text =
+        "This is a test component generated from your .rbxm file. It can be reused across your Animal Crossing game!"
     description.TextColor3 = Color3.fromRGB(255, 255, 255)
     description.TextWrapped = true
     description.Font = Enum.Font.Gotham
     description.Parent = frame
-    
+
     -- Close button
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
@@ -74,17 +75,17 @@ function Test:_createGUI()
     closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     closeButton.Font = Enum.Font.Gotham
     closeButton.Parent = frame
-    
+
     -- Add corner rounding to button
     local buttonCorner = Instance.new("UICorner")
     buttonCorner.CornerRadius = UDim.new(0, 8)
     buttonCorner.Parent = closeButton
-    
+
     -- Button click handler
     closeButton.MouseButton1Click:Connect(function()
         self:Hide()
     end)
-    
+
     self._gui = screenGui
     print("[Test] GUI created")
 end

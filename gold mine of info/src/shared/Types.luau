@@ -37,13 +37,13 @@
 -- QuestObjective: { objectiveType, targetId?, amount?, hint? }
 
 export type QuestDefinition = {
-	id: string,
-	title: string,
-	description: string,
-	category: "Daily" | "Weekly" | "Milestone",
-	personalityBias: string?,
-	objectives: { { objectiveType: string, targetId: string?, amount: number?, hint: string? } },
-	rewards: { bells: number?, miles: number?, items: { string }? }
+    id: string,
+    title: string,
+    description: string,
+    category: "Daily" | "Weekly" | "Milestone",
+    personalityBias: string?,
+    objectives: { { objectiveType: string, targetId: string?, amount: number?, hint: string? } },
+    rewards: { bells: number?, miles: number?, items: { string }? },
 }
 
 -- WeatherPreset: "Sunny"|"Overcast"|"Rainy"|"Stormy"|"Snowy"

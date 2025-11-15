@@ -12,7 +12,9 @@ function NookipediaAPI.new(apiKey)
 end
 
 local function encodeName(name)
-    if type(name) ~= "string" then return "" end
+    if type(name) ~= "string" then
+        return ""
+    end
     return HttpService:UrlEncode(name)
 end
 
@@ -35,7 +37,9 @@ local function fetchWithHeaders(url, headers)
     end
     local body = response.Body
     local decoded = nil
-    local okDecode, data = pcall(function() return HttpService:JSONDecode(body) end)
+    local okDecode, data = pcall(function()
+        return HttpService:JSONDecode(body)
+    end)
     if okDecode then
         decoded = data
     else
@@ -62,12 +66,16 @@ function NookipediaAPI:_getCharacterDataByName(name)
 end
 
 function NookipediaAPI:GetCharacter(characterName)
-    if not characterName then return nil end
+    if not characterName then
+        return nil
+    end
     return self:_getCharacterDataByName(characterName)
 end
 
 function NookipediaAPI:FetchCharactersByNames(names)
-    if type(names) ~= "table" then return {} end
+    if type(names) ~= "table" then
+        return {}
+    end
     local results = {}
     for _, name in ipairs(names) do
         local data = self:GetCharacter(name)
@@ -78,7 +86,8 @@ end
 
 function NookipediaAPI:FetchTopMainCharacters(count)
     -- Requires a predefined list of top main characters. Users may customize this list.
-    local defaultTop = { "Tom Nook", "Isabelle", "Orville", "K.K. Slider", "Blathers", "Celeste", "Timmy", "Tommy", "Leif", "Resetti" }
+    local defaultTop =
+        { "Tom Nook", "Isabelle", "Orville", "K.K. Slider", "Blathers", "Celeste", "Timmy", "Tommy", "Leif", "Resetti" }
     local names = {}
     local n = count or #defaultTop
     for i = 1, math.min(n, #defaultTop) do
@@ -88,5 +97,3 @@ function NookipediaAPI:FetchTopMainCharacters(count)
 end
 
 return NookipediaAPI
-
-

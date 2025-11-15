@@ -28,20 +28,20 @@ print("🎥 Applying Animal Crossing camera style...")
 -- ============================================================================
 
 -- AC:NH has a distinctive wide, slightly top-down view
-camera.FieldOfView = 85  -- Wide angle for spacious feel (was 70)
+camera.FieldOfView = 85 -- Wide angle for spacious feel (was 70)
 
 -- Camera distance (pulled back for better overview)
-player.CameraMaxZoomDistance = 30  -- Can zoom out more
-player.CameraMinZoomDistance = 15  -- Minimum distance (prevents first-person)
+player.CameraMaxZoomDistance = 30 -- Can zoom out more
+player.CameraMinZoomDistance = 15 -- Minimum distance (prevents first-person)
 
 -- Top-down angle for AC:NH isometric-ish feel
-humanoid.CameraOffset = Vector3.new(0, 4, 0)  -- Higher camera for top-down view
+humanoid.CameraOffset = Vector3.new(0, 4, 0) -- Higher camera for top-down view
 
 -- Force third person view (AC is always third person)
 player.CameraMode = Enum.CameraMode.Classic
 
 -- Additional settings
-camera.CameraType = Enum.CameraType.Custom  -- Follows player smoothly
+camera.CameraType = Enum.CameraType.Custom -- Follows player smoothly
 
 print("✅ Camera applied:")
 print("  • FOV: 85° (wide angle)")
@@ -55,34 +55,41 @@ print("  • Mode: Third-person locked")
 
 -- Reapply settings when character respawns
 player.CharacterAdded:Connect(function(newCharacter)
-	task.wait(0.5)  -- Wait for character to load
-	
-	local newHumanoid = newCharacter:WaitForChild("Humanoid")
-	
-	-- Reapply camera offset
-	newHumanoid.CameraOffset = Vector3.new(0, 4, 0)
-	
-	-- Reapply zoom settings
-	player.CameraMaxZoomDistance = 30
-	player.CameraMinZoomDistance = 15
-	
-	camera.FieldOfView = 85
-	
-	print("🎥 Camera reapplied after respawn")
+    task.wait(0.5) -- Wait for character to load
+
+    local newHumanoid = newCharacter:WaitForChild("Humanoid")
+
+    -- Reapply camera offset
+    newHumanoid.CameraOffset = Vector3.new(0, 4, 0)
+
+    -- Reapply zoom settings
+    player.CameraMaxZoomDistance = 30
+    player.CameraMinZoomDistance = 15
+
+    camera.FieldOfView = 85
+
+    print("🎥 Camera reapplied after respawn")
 end)
 
 -- ============================================================================
 -- SUMMARY
 -- ============================================================================
 
-print("═══════════════════════════════════════════════════════════════")
+print(
+    "═══════════════════════════════════════════════════════════════"
+)
 print("📷 ANIMAL CROSSING CAMERA APPLIED!")
-print("═══════════════════════════════════════════════════════════════")
+print(
+    "═══════════════════════════════════════════════════════════════"
+)
 print("🎥 FOV: 85° (wide, spacious)")
 print("📏 Distance: 15-30 studs (perfect overview)")
 print("🔺 Angle: Top-down (+4 studs)")
 print("🔒 Mode: Third-person only")
-print("═══════════════════════════════════════════════════════════════")
+print(
+    "═══════════════════════════════════════════════════════════════"
+)
 print("🎮 Camera ready! Explore your island!")
-print("═══════════════════════════════════════════════════════════════")
-
+print(
+    "═══════════════════════════════════════════════════════════════"
+)

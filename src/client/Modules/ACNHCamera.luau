@@ -11,6 +11,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local SettingsController = require(script.Parent.SettingsController)
 
@@ -46,6 +47,30 @@ local function ensureBlurEffect()
     return _blurEffect
 end
 
+local function attachCameraToHumanoid(humanoid)
+    if not humanoid then
+        return
+    end
+
+    camera = Workspace.CurrentCamera or Workspace:FindFirstChildOfClass("Camera")
+    if not camera then
+        return
+    end
+
+    local needsSnap = camera.CameraSubject ~= humanoid or camera.CameraType ~= Enum.CameraType.Custom
+    camera.CameraType = Enum.CameraType.Custom
+    camera.CameraSubject = humanoid
+
+    if needsSnap then
+        local rootPart = humanoid.Parent and humanoid.Parent:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local lookVector = rootPart.CFrame.LookVector
+            local offset = Vector3.new(0, 6, -12)
+            camera.CFrame = CFrame.new(rootPart.Position + offset, rootPart.Position + lookVector)
+        end
+    end
+end
+
 function ACNHCamera.init()
     if _isActive then
         ACNHCamera.disable()
@@ -60,10 +85,9 @@ function ACNHCamera.init()
     local humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChild("Humanoid")
 
     if camera then
-        camera.CameraType = Enum.CameraType.Custom
-        camera.CameraSubject = humanoid
         camera.FieldOfView = DEFAULT_FOV
     end
+    attachCameraToHumanoid(humanoid)
 
     player.CameraMode = Enum.CameraMode.Classic
     UserInputService.MouseBehavior = Enum.MouseBehavior.Default
@@ -115,10 +139,7 @@ function ACNHCamera.init()
         end
 
         local newHumanoid = newCharacter:WaitForChild("Humanoid")
-        camera = workspace.CurrentCamera
-        if camera then
-            camera.CameraSubject = newHumanoid
-        end
+        attachCameraToHumanoid(newHumanoid)
         _smoothedCFrame = nil
     end)
 
@@ -140,12 +161,13 @@ function ACNHCamera.disable()
 
     camera = workspace.CurrentCamera
     if camera then
-        camera.CameraType = Enum.CameraType.Custom
         if player.Character then
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
             if humanoid then
-                camera.CameraSubject = humanoid
+                attachCameraToHumanoid(humanoid)
             end
+        else
+            camera.CameraType = Enum.CameraType.Custom
         end
     end
 

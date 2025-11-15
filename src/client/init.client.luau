@@ -72,11 +72,6 @@ print("[Client] Script children:", script:GetChildren())
 local InventoryClient = require(script.InventoryClient)
 print("[Client] ✅ InventoryClient loaded")
 
-local ChibiCharacter = require(script.Modules.ChibiCharacter)
-print("[Client] Loading chibi character system...")
-ChibiCharacter.init() -- Initialize the chibi character system
-print("[Client] ✅ Chibi character system loaded")
-
 local ACNHAnimations = require(script.Modules.ACNHAnimations)
 print("[Client] Loading ACNH animations...")
 ACNHAnimations.init() -- Initialize running animations

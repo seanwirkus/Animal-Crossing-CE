@@ -10,6 +10,54 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ToolObjects = require(Shared:WaitForChild("ToolObjects"))
 
+local function resolveRemoteEvents(context: string)
+    local container = ReplicatedStorage:WaitForChild("RemoteEvents")
+    local remoteEvents = nil
+
+    if container:IsA("ModuleScript") then
+        local ok, moduleOrError = pcall(require, container)
+        if ok and typeof(moduleOrError) == "table" then
+            remoteEvents = moduleOrError
+        else
+            warn(
+                string.format("[%s] ⚠️ Failed to require RemoteEvents module: %s", context, tostring(moduleOrError))
+            )
+        end
+    end
+
+    if remoteEvents and remoteEvents.ToolEvents then
+        return remoteEvents
+    end
+
+    -- Fallback: treat RemoteEvents as a folder populated in Studio.
+    local toolFolder = container:FindFirstChild("ToolEvents")
+    if not toolFolder then
+        warn(string.format("[%s] ⚠️ ToolEvents folder missing under ReplicatedStorage.RemoteEvents", context))
+        return nil
+    end
+
+    return {
+        ToolEvents = {
+            Folder = toolFolder,
+            Use = toolFolder:FindFirstChild("ToolUse"),
+            Feedback = toolFolder:FindFirstChild("ToolFeedback"),
+        },
+    }
+end
+
+local RemoteEvents = resolveRemoteEvents("FishingController")
+
+local TOOL_TYPE = "fishing"
+local TOOL_ACTION = {
+    CAST = "cast",
+    ATTEMPT_CATCH = "attempt_catch",
+    BITE = "bite",
+    CATCH_RESULT = "catch_result",
+    CAST_FAILED = "cast_failed",
+}
+
+local ToolEvents = RemoteEvents and RemoteEvents.ToolEvents
+
 local FishingController = {}
 FishingController.__index = FishingController
 
@@ -56,7 +104,8 @@ function FishingController.new()
     self.player = Players.LocalPlayer
     self.mouse = self.player:GetMouse()
 
-    self.fishingRemote = ReplicatedStorage:WaitForChild("FishingEvent")
+    self.toolUseRemote = ToolEvents and ToolEvents.Use
+    self.toolFeedbackRemote = ToolEvents and ToolEvents.Feedback
 
     self.isFishing = false
     self.hasBite = false
@@ -125,20 +174,31 @@ function FishingController:connectRemote()
         self.remoteConnection:Disconnect()
     end
 
-    self.remoteConnection = self.fishingRemote.OnClientEvent:Connect(function(action, payload)
-        if action == "Bite" then
-            self:onBite(payload)
-        elseif action == "CatchResult" then
-            self:handleCatchResult(payload)
-        elseif action == "CastFailed" then
-            self:showMessage(payload.message or "Cast failed!", 2)
+    if not self.toolFeedbackRemote then
+        warn("[FishingController] ⚠️ ToolFeedback remote missing; fishing feedback disabled.")
+        return
+    end
+
+    self.remoteConnection = self.toolFeedbackRemote.OnClientEvent:Connect(function(payload)
+        if type(payload) ~= "table" or payload.toolType ~= TOOL_TYPE then
+            return
+        end
+
+        local action = payload.action
+        if action == TOOL_ACTION.BITE then
+            self:onBite(payload.data or {})
+        elseif action == TOOL_ACTION.CATCH_RESULT then
+            self:handleCatchResult(payload.data or payload)
+        elseif action == TOOL_ACTION.CAST_FAILED then
+            self:showMessage((payload.message or "Cast failed!"), 2)
             self.isFishing = false
         end
     end)
 end
 
 function FishingController:onBite(data)
-    print("[FishingController] 🐟 BITE!", data.fishName)
+    data = data or {}
+    print("[FishingController] 🐟 BITE!", data.fishName or "something")
     self.hasBite = true
 
     -- Show prompt
@@ -176,7 +236,14 @@ end
 
 function FishingController:attemptCatch()
     print("[FishingController] Attempting catch...")
-    self.fishingRemote:FireServer("AttemptCatch")
+    if self.toolUseRemote then
+        self.toolUseRemote:FireServer({
+            toolType = TOOL_TYPE,
+            action = TOOL_ACTION.ATTEMPT_CATCH,
+        })
+    else
+        warn("[FishingController] ⚠️ ToolUse remote missing; cannot send catch request.")
+    end
 
     if self.promptLabel then
         self.promptLabel.Visible = false
@@ -325,8 +392,15 @@ function FishingController:onCastRequested()
             self.isFishing = true
             self.castPosition = result
 
-            -- Notify server to start fishing session
-            self.fishingRemote:FireServer("StartCast", { position = result })
+            if self.toolUseRemote then
+                self.toolUseRemote:FireServer({
+                    toolType = TOOL_TYPE,
+                    action = TOOL_ACTION.CAST,
+                    position = result,
+                })
+            else
+                warn("[FishingController] ⚠️ ToolUse remote missing; cannot notify server about cast.")
+            end
 
             return
         elseif not success and result then
@@ -609,19 +683,8 @@ function FishingController:catch()
         return
     end
 
-    self.hasBite = false
-    self:clearQuickTime()
     self:showMessage("Reeling in...", 1)
-
-    local hour = self:getCurrentHour()
-    local period = self:getTimeOfDay()
-
-    self.fishingRemote:FireServer("Catch", {
-        position = self.castPosition,
-        locationType = self.castLocation,
-        hour = hour,
-        timeOfDay = period,
-    })
+    self:attemptCatch()
 end
 
 function FishingController:miss()

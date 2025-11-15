@@ -12,9 +12,9 @@ function Hi.new(parent)
     local self = setmetatable({}, Hi)
     self._parent = parent
     self._gui = nil
-    
+
     self:_createGUI()
-    
+
     return self
 end
 
@@ -24,7 +24,7 @@ function Hi:_createGUI()
     screenGui.Name = "StatsGUI"
     screenGui.ResetOnSpawn = false
     screenGui.Parent = self._parent
-    
+
     -- Create main frame (based on your hi.rbxmx styling)
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
@@ -34,12 +34,12 @@ function Hi:_createGUI()
     mainFrame.BackgroundTransparency = 0
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = screenGui
-    
+
     -- Add corner rounding
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = mainFrame
-    
+
     -- Add padding
     local padding = Instance.new("UIPadding")
     padding.PaddingLeft = UDim.new(0, 10)
@@ -47,7 +47,7 @@ function Hi:_createGUI()
     padding.PaddingTop = UDim.new(0, 10)
     padding.PaddingBottom = UDim.new(0, 10)
     padding.Parent = mainFrame
-    
+
     -- Bells display
     local bellsFrame = Instance.new("Frame")
     bellsFrame.Name = "BellsFrame"
@@ -55,7 +55,7 @@ function Hi:_createGUI()
     bellsFrame.Position = UDim2.new(0, 0, 0, 0)
     bellsFrame.BackgroundTransparency = 1
     bellsFrame.Parent = mainFrame
-    
+
     local bellsIcon = Instance.new("TextLabel")
     bellsIcon.Name = "BellsIcon"
     bellsIcon.Size = UDim2.new(0, 30, 1, 0)
@@ -66,7 +66,7 @@ function Hi:_createGUI()
     bellsIcon.TextScaled = true
     bellsIcon.Font = Enum.Font.GothamBold
     bellsIcon.Parent = bellsFrame
-    
+
     local bellsLabel = Instance.new("TextLabel")
     bellsLabel.Name = "BellsLabel"
     bellsLabel.Size = UDim2.new(1, -40, 1, 0)
@@ -78,7 +78,7 @@ function Hi:_createGUI()
     bellsLabel.Font = Enum.Font.GothamBold
     bellsLabel.TextXAlignment = Enum.TextXAlignment.Left
     bellsLabel.Parent = bellsFrame
-    
+
     -- Miles display
     local milesFrame = Instance.new("Frame")
     milesFrame.Name = "MilesFrame"
@@ -86,7 +86,7 @@ function Hi:_createGUI()
     milesFrame.Position = UDim2.new(0, 130, 0, 0)
     milesFrame.BackgroundTransparency = 1
     milesFrame.Parent = mainFrame
-    
+
     local milesIcon = Instance.new("TextLabel")
     milesIcon.Name = "MilesIcon"
     milesIcon.Size = UDim2.new(0, 30, 1, 0)
@@ -97,7 +97,7 @@ function Hi:_createGUI()
     milesIcon.TextScaled = true
     milesIcon.Font = Enum.Font.GothamBold
     milesIcon.Parent = milesFrame
-    
+
     local milesLabel = Instance.new("TextLabel")
     milesLabel.Name = "MilesLabel"
     milesLabel.Size = UDim2.new(1, -40, 1, 0)
@@ -109,7 +109,7 @@ function Hi:_createGUI()
     milesLabel.Font = Enum.Font.GothamBold
     milesLabel.TextXAlignment = Enum.TextXAlignment.Left
     milesLabel.Parent = milesFrame
-    
+
     self._gui = screenGui
     print("[Hi] Stats GUI created with proper styling")
 end
@@ -129,20 +129,22 @@ function Hi:Hide()
 end
 
 function Hi:UpdateStats(bells: number, miles: number)
-    if not self._gui then return end
-    
+    if not self._gui then
+        return
+    end
+
     -- Update bells display
     local bellsLabel = self._gui:FindFirstChild("MainFrame"):FindFirstChild("BellsFrame"):FindFirstChild("BellsLabel")
     if bellsLabel then
         bellsLabel.Text = tostring(bells)
     end
-    
+
     -- Update miles display
     local milesLabel = self._gui:FindFirstChild("MainFrame"):FindFirstChild("MilesFrame"):FindFirstChild("MilesLabel")
     if milesLabel then
         milesLabel.Text = tostring(miles)
     end
-    
+
     print(`[Hi] Updated stats: {bells} bells, {miles} miles`)
 end
 

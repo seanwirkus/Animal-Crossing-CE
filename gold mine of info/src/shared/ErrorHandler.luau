@@ -25,17 +25,17 @@ ErrorHandler.__index = ErrorHandler
 	@return boolean, any - (success, result)
 ]]
 function ErrorHandler:SafeCall(fn, context)
-	context = context or {}
-	local ok, result = pcall(fn)
-	
-	if not ok then
-		Logger:Error("ErrorHandler", "SafeCall failed", {
-			error = tostring(result),
-			context = context,
-		})
-	end
-	
-	return ok, result
+    context = context or {}
+    local ok, result = pcall(fn)
+
+    if not ok then
+        Logger:Error("ErrorHandler", "SafeCall failed", {
+            error = tostring(result),
+            context = context,
+        })
+    end
+
+    return ok, result
 end
 
 --[[
@@ -47,26 +47,26 @@ end
 	@return boolean, any - (success, result)
 ]]
 function ErrorHandler:RetryCall(fn, maxRetries, baseDelay, context)
-	context = context or {}
-	baseDelay = baseDelay or 0.5
-	maxRetries = maxRetries or 3
-	
-	for attempt = 1, maxRetries do
-		local ok, result = self:SafeCall(fn, context)
-		
-		if ok then
-			return true, result
-		end
-		
-		if attempt < maxRetries then
-			local delay = baseDelay * math.pow(2, attempt - 1)
-			Logger:Warn("ErrorHandler", "Retry attempt " .. attempt .. " in " .. delay .. "s", context)
-			task.wait(delay)
-		end
-	end
-	
-	Logger:Error("ErrorHandler", "RetryCall exhausted " .. maxRetries .. " attempts", context)
-	return false, "Max retries exceeded"
+    context = context or {}
+    baseDelay = baseDelay or 0.5
+    maxRetries = maxRetries or 3
+
+    for attempt = 1, maxRetries do
+        local ok, result = self:SafeCall(fn, context)
+
+        if ok then
+            return true, result
+        end
+
+        if attempt < maxRetries then
+            local delay = baseDelay * math.pow(2, attempt - 1)
+            Logger:Warn("ErrorHandler", "Retry attempt " .. attempt .. " in " .. delay .. "s", context)
+            task.wait(delay)
+        end
+    end
+
+    Logger:Error("ErrorHandler", "RetryCall exhausted " .. maxRetries .. " attempts", context)
+    return false, "Max retries exceeded"
 end
 
 --[[
@@ -76,12 +76,12 @@ end
 	@return boolean, string? - (isValid, errorMessage)
 ]]
 function ErrorHandler:ValidateParams(params, required)
-	for _, paramName in ipairs(required) do
-		if not params[paramName] then
-			return false, "Missing required parameter: " .. paramName
-		end
-	end
-	return true
+    for _, paramName in ipairs(required) do
+        if not params[paramName] then
+            return false, "Missing required parameter: " .. paramName
+        end
+    end
+    return true
 end
 
 --[[
@@ -92,15 +92,15 @@ end
 	@return table - Structured error object
 ]]
 function ErrorHandler:CreateError(errorType, message, data)
-	return {
-		success = false,
-		error = {
-			type = errorType,
-			message = message,
-			data = data,
-			timestamp = os.time(),
-		}
-	}
+    return {
+        success = false,
+        error = {
+            type = errorType,
+            message = message,
+            data = data,
+            timestamp = os.time(),
+        },
+    }
 end
 
 --[[
@@ -110,12 +110,12 @@ end
 	@return table - Structured success object
 ]]
 function ErrorHandler:CreateSuccess(data, metadata)
-	return {
-		success = true,
-		data = data,
-		metadata = metadata or {},
-		timestamp = os.time(),
-	}
+    return {
+        success = true,
+        data = data,
+        metadata = metadata or {},
+        timestamp = os.time(),
+    }
 end
 
 --[[
@@ -126,10 +126,10 @@ end
 	@param data table? - Error context
 ]]
 function ErrorHandler:LogError(module, errorType, message, data)
-	Logger:Error(module, message, {
-		errorType = errorType,
-		data = data,
-	})
+    Logger:Error(module, message, {
+        errorType = errorType,
+        data = data,
+    })
 end
 
 return ErrorHandler

@@ -34,11 +34,6 @@ if not AvatarKitFolder then
     AvatarKitFolder.Parent = ReplicatedStorage
 end
 
-local ChibiRigBuilder = require(ReplicatedStorage.Shared.ChibiRigBuilder)
-
--- Create the ChibiRig model
-ChibiRigBuilder.ensureRig()
-
 local DebugLogger = require(ReplicatedStorage.Shared.DebugLogger)
 local LOG_MODULE = "ServerInit"
 
@@ -58,7 +53,6 @@ end
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
 local BalloonSpawner = require(script:WaitForChild("BalloonSpawner"))
-local ChibiCharacterServer = require(script:WaitForChild("ChibiCharacterServer"))
 local DigMarkerSpawner = require(script:WaitForChild("DigMarkerSpawner"))
 local ShovelSystem = require(script:WaitForChild("ShovelSystem"))
 local TreeShakingSystem = require(script:WaitForChild("TreeShakingSystem"))
@@ -71,8 +65,133 @@ local PlayerIslandService = require(script:WaitForChild("PlayerIslandService"))
 local BuildingService = require(script:WaitForChild("BuildingService"))
 local QuestService = require(script:WaitForChild("QuestService"))
 local QuestHandlers = require(script:WaitForChild("QuestHandlers"))
+local ChibiCharacterServer = require(script:WaitForChild("ChibiCharacterServer"))
 
 local questService = nil
+
+local toolUseRemote = nil
+local toolFeedbackRemote = nil
+
+local function ensureRemoteEvent(parent, name)
+    local remote = parent:FindFirstChild(name)
+    if remote and not remote:IsA("RemoteEvent") then
+        remote:Destroy()
+        remote = nil
+    end
+
+    if not remote then
+        remote = Instance.new("RemoteEvent")
+        remote.Name = name
+        remote.Parent = parent
+        logInfo(string.format("🔗 Created RemoteEvent '%s'", name))
+    end
+
+    return remote
+end
+
+local function fireToolFeedback(player, payload)
+    if toolFeedbackRemote then
+        toolFeedbackRemote:FireClient(player, payload)
+    end
+end
+
+local function handleShovelDig(player)
+    local success, resultType, resultData, errorMessage = ShovelSystem.attemptDig(player)
+
+    if success then
+        fireToolFeedback(player, {
+            toolType = "shovel",
+            action = "dig_success",
+            resultType = resultType or "empty",
+            data = resultData,
+        })
+    else
+        fireToolFeedback(player, {
+            toolType = "shovel",
+            action = "dig_failed",
+            message = errorMessage or "Unable to dig here.",
+        })
+    end
+end
+
+local function handleFishingCast(player, payload)
+    local position = payload.position
+    if typeof(position) ~= "Vector3" then
+        fireToolFeedback(player, {
+            toolType = "fishing",
+            action = "cast_failed",
+            message = "Aim at water to cast.",
+        })
+        return
+    end
+
+    local castSuccess = FishingSystem.startCast(player, position)
+    if not castSuccess then
+        fireToolFeedback(player, {
+            toolType = "fishing",
+            action = "cast_failed",
+            message = "You need to cast into water!",
+        })
+    end
+end
+
+local function handleFishingCatch(player)
+    local caught = FishingSystem.attemptCatch(player)
+    if not caught then
+        fireToolFeedback(player, {
+            toolType = "fishing",
+            action = "catch_result",
+            data = {
+                success = false,
+                reason = "Too early or no fish biting.",
+            },
+        })
+    end
+end
+
+local function handleToolUseRequest(player, payload)
+    if typeof(payload) ~= "table" then
+        logWarn("Received malformed tool payload", { player = player and player.Name })
+        return
+    end
+
+    local toolType = payload.toolType
+    local action = payload.action
+
+    if toolType == "shovel" and action == "dig" then
+        handleShovelDig(player)
+    elseif toolType == "fishing" then
+        if action == "cast" then
+            handleFishingCast(player, payload)
+        elseif action == "attempt_catch" then
+            handleFishingCatch(player)
+        end
+    end
+end
+
+local function determineToolType(itemId: string?): string?
+    if not itemId then
+        return nil
+    end
+
+    local lowerId = string.lower(itemId)
+
+    if string.find(lowerId, "shovel") then
+        return "shovel"
+    elseif string.find(lowerId, "fishing") or string.find(lowerId, "rod") then
+        return "fishing"
+    elseif string.find(lowerId, "slingshot") then
+        return "slingshot"
+    elseif string.find(lowerId, "axe") then
+        return "axe"
+    elseif string.find(lowerId, "net") then
+        return "net"
+    elseif string.find(lowerId, "watering") then
+        return "watering_can"
+    end
+
+    return nil
+end
 
 -- Roblox types and enums
 local Instance = Instance
@@ -91,14 +210,14 @@ logInfo("📊 ServerScriptService scripts will run automatically")
 
 logInfo("🚀 Starting inventory system...")
 
--- Initialize chibi character system
-ChibiCharacterServer.init()
-
 -- Initialize digging systems (replaces HoleSpawner, FossilSpawner, BellSpawner)
 DigMarkerSpawner.init()
 
 -- Initialize shovel system (uses DigSpotManager internally)
 ShovelSystem.init()
+
+-- Replace default avatars with the chibi rig for big-headed characters
+ChibiCharacterServer.init()
 
 -- Initialize tree shaking system (apples drop from trees)
 -- TODO: Replace nil with actual apple asset ID when provided
@@ -148,6 +267,28 @@ end
 local balloonHitRemote = remoteEventsFolder:FindFirstChild("BalloonHit") or Instance.new("RemoteEvent")
 balloonHitRemote.Name = "BalloonHit"
 balloonHitRemote.Parent = remoteEventsFolder
+
+local toolEventsFolder = remoteEventsFolder:FindFirstChild("ToolEvents")
+if not toolEventsFolder then
+    toolEventsFolder = Instance.new("Folder")
+    toolEventsFolder.Name = "ToolEvents"
+    toolEventsFolder.Parent = remoteEventsFolder
+end
+
+toolUseRemote = ensureRemoteEvent(toolEventsFolder, "ToolUse")
+toolFeedbackRemote = ensureRemoteEvent(toolEventsFolder, "ToolFeedback")
+
+if toolUseRemote then
+    toolUseRemote.OnServerEvent:Connect(handleToolUseRequest)
+end
+
+FishingSystem.setFeedbackCallback(function(player, action, data)
+    fireToolFeedback(player, {
+        toolType = "fishing",
+        action = action,
+        data = data,
+    })
+end)
 
 -- Create BindableEvent for balloon present drops
 local balloonPresentDropped = Instance.new("BindableEvent")
@@ -1957,6 +2098,10 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
         else
             logWarn("Item not found in DisplayItems", { itemId = itemId })
         end
+
+        -- Track equipped tool so other systems (shovel/fishing) can verify equipment
+        player:SetAttribute("EquippedToolId", itemId)
+        player:SetAttribute("EquippedToolType", determineToolType(itemId))
     elseif action == "MoveItem" and data then
         local fromIndex = data.fromIndex
         local toIndex = data.toIndex

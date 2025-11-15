@@ -31,6 +31,16 @@ bash tools/run_static_checks.sh
 
 `tools/run_static_checks.sh` runs Stylua formatting (in check mode), Selene linting, Luau-LSP static analysis, RemoteEvent manifest validation, and a full `rojo build`. The same sequence executes automatically in GitHub Actions (`.github/workflows/luau-ci.yml`) on every push and pull request.
 
+#### Quick Luau lint pass
+
+During day-to-day scripting you can run the lightweight wrapper around the Luau analyzer:
+
+```bash
+scripts/check-lint.sh
+```
+
+It ensures `luau-lsp`/`rojo` are available, refreshes `sourcemap.json` if needed, then runs `luau-lsp analyze --sourcemap sourcemap.json` for every Luau file under `src/` and `ReplicatedStorage/` using the shared `.luaurc` configuration. Run it locally before commits to catch missing globals, unused locals, and unreachable code without waiting for the full static check suite.
+
 ## 📋 Key Features
 
 ### ✅ Inventory System
