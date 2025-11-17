@@ -13,6 +13,52 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local sharedFolder = ReplicatedStorage:FindFirstChild("Shared")
+local ItemDataFetcher = nil
+local ok, fetcher = pcall(function()
+    if sharedFolder then
+        return require(sharedFolder:WaitForChild("ItemDataFetcher"))
+    end
+end)
+if ok and fetcher then
+    ItemDataFetcher = fetcher
+end
+
+local function formatNumber(num: number): string
+    local formatted = tostring(math.floor(num or 0))
+    local k
+    repeat
+        formatted, k = formatted:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+    until k == 0
+    return formatted
+end
+
+local function describeRegion(position: Vector3?)
+    if not position then
+        return "Unknown area"
+    end
+
+    local ns = position.Z >= 0 and "South" or "North"
+    local ew = position.X >= 0 and "East" or "West"
+    local distance = math.floor((Vector3.new(position.X, 0, position.Z)).Magnitude)
+    return string.format("%s-%s shores · %dm from plaza", ns, ew, distance)
+end
+
+local TOOL_KEYWORDS = {
+    shovel = "Shovel",
+    axe = "Axe",
+    rod = "Fishing Rod",
+    fishing = "Fishing Rod",
+    net = "Bug Net",
+    slingshot = "Slingshot",
+    watering = "Watering Can",
+    can = "Watering Can",
+    pole = "Vaulting Pole",
+}
 
 local NookPhoneGUI = {}
 NookPhoneGUI.__index = NookPhoneGUI
@@ -145,9 +191,11 @@ local APPS = {
 
 function NookPhoneGUI.new()
     local self = setmetatable({}, NookPhoneGUI)
-    
+
     self.player = Players.LocalPlayer
     self.playerGui = self.player:WaitForChild("PlayerGui")
+    self.sharedFolder = sharedFolder
+    self.itemDataFetcher = ItemDataFetcher
     self.visible = false
     self.currentApp = nil
     self.appModules = {} -- Store app module connections
@@ -156,10 +204,41 @@ function NookPhoneGUI.new()
     self.guiManager = nil -- Will be set by init
     self.minimapModule = nil -- Will be set by init
     self.phoneSize = getPhoneSize()
-    
+    self.inventoryClient = nil
+    self.recipeGUI = nil
+    self.dynamicState = {
+        bells = 0,
+        miles = 0,
+        inventory = {
+            used = 0,
+            max = 0,
+            favoriteItem = "Empty",
+            favoriteCount = 0,
+            uniqueItems = 0,
+            toolCounts = {},
+        },
+        quests = {
+            active = {},
+            completed = 0,
+            total = 0,
+        },
+        recipes = {
+            total = 0,
+            craftable = 0,
+        },
+        map = {
+            lastPosition = nil,
+            region = "Unknown area",
+            weather = "Clear",
+            timeOfDay = 12,
+        },
+    }
+    self.statusChips = {}
+
     self:createGUI()
     self:setupConnections()
-    
+    self:_connectDataSources()
+
     print("[NookPhoneGUI] ✅ New NookPhone initialized (responsive)")
     return self
 end
@@ -195,10 +274,36 @@ function NookPhoneGUI:createGUI()
     phoneContainer.ClipsDescendants = true
     phoneContainer.Parent = screenGui
     self.phoneContainer = phoneContainer
-    
+
     local phoneCorner = Instance.new("UICorner")
     phoneCorner.CornerRadius = UDim.new(0, 40)
     phoneCorner.Parent = phoneContainer
+
+    local phoneStroke = Instance.new("UIStroke")
+    phoneStroke.Thickness = 2
+    phoneStroke.Color = Color3.fromRGB(20, 20, 25)
+    phoneStroke.Transparency = 0.4
+    phoneStroke.Parent = phoneContainer
+
+    local phoneGradient = Instance.new("UIGradient")
+    phoneGradient.Rotation = 90
+    phoneGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 60, 65)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 40)),
+    })
+    phoneGradient.Parent = phoneContainer
+
+    local phoneShadow = Instance.new("ImageLabel")
+    phoneShadow.Name = "Shadow"
+    phoneShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    phoneShadow.Position = UDim2.new(0.5, 0, 0.5, 10)
+    phoneShadow.Size = UDim2.new(1, 80, 1, 80)
+    phoneShadow.BackgroundTransparency = 1
+    phoneShadow.Image = "rbxassetid://1316045217"
+    phoneShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    phoneShadow.ImageTransparency = 0.65
+    phoneShadow.ZIndex = 0
+    phoneShadow.Parent = phoneContainer
     
     -- Phone border/bezel (adjusted for taller phone - less top/bottom padding)
     local phoneBezel = Instance.new("Frame")
@@ -225,6 +330,36 @@ function NookPhoneGUI:createGUI()
     local screenCorner = Instance.new("UICorner")
     screenCorner.CornerRadius = UDim.new(0, 25)
     screenCorner.Parent = screen
+
+    local statusRow = Instance.new("Frame")
+    statusRow.Name = "StatusRow"
+    statusRow.Size = UDim2.new(1, -30, 0, 70)
+    statusRow.Position = UDim2.new(0, 15, 0, 10)
+    statusRow.BackgroundColor3 = Color3.fromRGB(248, 244, 232)
+    statusRow.BorderSizePixel = 0
+    statusRow.Parent = screen
+
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(0, 18)
+    statusCorner.Parent = statusRow
+
+    local statusStroke = Instance.new("UIStroke")
+    statusStroke.Color = COLORS.BORDER
+    statusStroke.Thickness = 2
+    statusStroke.Transparency = 0.5
+    statusStroke.Parent = statusRow
+
+    local statusLayout = Instance.new("UIListLayout")
+    statusLayout.FillDirection = Enum.FillDirection.Horizontal
+    statusLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    statusLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    statusLayout.Padding = UDim.new(0, 10)
+    statusLayout.Parent = statusRow
+
+    local statusPadding = Instance.new("UIPadding")
+    statusPadding.PaddingLeft = UDim.new(0, 15)
+    statusPadding.PaddingRight = UDim.new(0, 15)
+    statusPadding.Parent = statusRow
     
     -- Top bar (notch area)
     local topBar = Instance.new("Frame")
@@ -264,8 +399,8 @@ function NookPhoneGUI:createGUI()
     -- App Grid Container - adjusted for taller phone
     local appGridContainer = Instance.new("ScrollingFrame")
     appGridContainer.Name = "AppGrid"
-    appGridContainer.Size = UDim2.new(1, -20, 1, -50) -- Reduced from -60 to -50 (more grid space)
-    appGridContainer.Position = UDim2.new(0, 10, 0, 50) -- Keep same position
+    appGridContainer.Size = UDim2.new(1, -20, 1, -150)
+    appGridContainer.Position = UDim2.new(0, 10, 0, 100)
     appGridContainer.BackgroundTransparency = 1
     appGridContainer.BorderSizePixel = 0
     appGridContainer.ScrollBarThickness = 6
@@ -293,6 +428,21 @@ function NookPhoneGUI:createGUI()
     for i, app in ipairs(APPS) do
         local appButton = self:createAppIcon(app, i)
         appButton.Parent = appGridContainer
+    end
+
+    self.statusChips = {}
+    local chipConfig = {
+        { key = "bells", icon = "💰", title = "Bells" },
+        { key = "miles", icon = "✈️", title = "Miles" },
+        { key = "inventory", icon = "🎒", title = "Bag" },
+        { key = "quests", icon = "✅", title = "Tasks" },
+    }
+
+    for index, config in ipairs(chipConfig) do
+        local chip, valueLabel = self:createStatusChip(config.icon, config.title)
+        chip.LayoutOrder = index
+        chip.Parent = statusRow
+        self.statusChips[config.key] = valueLabel
     end
     
     -- Update canvas size (responsive)
@@ -403,6 +553,8 @@ function NookPhoneGUI:createGUI()
     workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
         self:updateResponsiveSize()
     end)
+
+    self:updateStatusChips()
 end
 
 function NookPhoneGUI:updateResponsiveSize()
@@ -506,6 +658,93 @@ function NookPhoneGUI:createAppIcon(app, index)
     return appButton
 end
 
+function NookPhoneGUI:createStatusChip(iconText: string, titleText: string)
+    local chip = Instance.new("Frame")
+    chip.Name = "StatusChip"
+    chip.Size = UDim2.new(0, 120, 0, 55)
+    chip.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    chip.BackgroundTransparency = 0.1
+    chip.BorderSizePixel = 0
+
+    local chipCorner = Instance.new("UICorner")
+    chipCorner.CornerRadius = UDim.new(0, 16)
+    chipCorner.Parent = chip
+
+    local chipStroke = Instance.new("UIStroke")
+    chipStroke.Color = COLORS.BORDER
+    chipStroke.Transparency = 0.6
+    chipStroke.Thickness = 1.5
+    chipStroke.Parent = chip
+
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Name = "Icon"
+    iconLabel.Size = UDim2.new(0, 30, 0, 30)
+    iconLabel.Position = UDim2.new(0, 10, 0, 12)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Text = iconText
+    iconLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    iconLabel.Font = Enum.Font.Gotham
+    iconLabel.TextSize = 22
+    iconLabel.TextXAlignment = Enum.TextXAlignment.Left
+    iconLabel.Parent = chip
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -50, 0, 16)
+    titleLabel.Position = UDim2.new(0, 45, 0, 8)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = titleText
+    titleLabel.TextColor3 = COLORS.TEXT_SECONDARY
+    titleLabel.Font = Enum.Font.Gotham
+    titleLabel.TextSize = 14
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = chip
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "Value"
+    valueLabel.Size = UDim2.new(1, -50, 0, 20)
+    valueLabel.Position = UDim2.new(0, 45, 0, 28)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = "--"
+    valueLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 18
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    valueLabel.Parent = chip
+
+    return chip, valueLabel
+end
+
+function NookPhoneGUI:updateStatusChip(key: string, valueText: string)
+    local valueLabel = self.statusChips and self.statusChips[key]
+    if valueLabel then
+        valueLabel.Text = valueText
+    end
+end
+
+function NookPhoneGUI:updateStatusChips()
+    self:updateStatusChip("bells", formatNumber(self.dynamicState.bells) .. " bells")
+    self:updateStatusChip("miles", formatNumber(self.dynamicState.miles) .. " miles")
+
+    local inventoryState = self.dynamicState.inventory
+    local bagText = inventoryState.max > 0 and string.format("%d / %d slots", inventoryState.used, inventoryState.max)
+        or "0 slots"
+    self:updateStatusChip("inventory", bagText)
+
+    local questState = self.dynamicState.quests
+    local tasksText = string.format("%d active · %d done", #questState.active, questState.completed)
+    self:updateStatusChip("quests", tasksText)
+end
+
+function NookPhoneGUI:updateCanvasFromLayout(content: ScrollingFrame, layout: UIListLayout, padding: number?)
+    padding = padding or 40
+    task.defer(function()
+        if content and layout and layout.Parent == content then
+            content.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + padding)
+        end
+    end)
+end
+
 function NookPhoneGUI:setupConnections()
     -- Close button
     self.closeButton.MouseButton1Click:Connect(function()
@@ -533,9 +772,268 @@ function NookPhoneGUI:setupConnections()
     end)
 end
 
+function NookPhoneGUI:_connectDataSources()
+    self:_connectCurrencyUpdates()
+    self:_connectInventoryUpdates()
+    self:_connectQuestUpdates()
+    self:_connectRecipeTracker()
+    self:_startMapWatcher()
+end
+
+function NookPhoneGUI:_connectCurrencyUpdates()
+    local success, remote = pcall(function()
+        return ReplicatedStorage:WaitForChild("CurrencyEvent", 5)
+    end)
+
+    if not success or not remote then
+        warn("[NookPhoneGUI] ⚠️ CurrencyEvent not available")
+        return
+    end
+
+    remote.OnClientEvent:Connect(function(action, data)
+        if action == "UpdateBells" and data then
+            self.dynamicState.bells = data.bells or self.dynamicState.bells
+        elseif action == "UpdateMiles" and data then
+            self.dynamicState.miles = data.miles or self.dynamicState.miles
+        elseif action == "UpdateAll" and data then
+            self.dynamicState.bells = data.bells or self.dynamicState.bells
+            self.dynamicState.miles = data.miles or self.dynamicState.miles
+        end
+
+        self:updateStatusChips()
+    end)
+
+    remote:FireServer("GetCurrency")
+end
+
+function NookPhoneGUI:_waitForGlobal(key: string, timeout: number?)
+    local waited = 0
+    local duration = timeout or 10
+    while waited <= duration do
+        local value = rawget(_G, key)
+        if value then
+            return value
+        end
+        task.wait(0.5)
+        waited += 0.5
+    end
+    return nil
+end
+
+function NookPhoneGUI:_connectInventoryUpdates()
+    task.spawn(function()
+        local inventoryClient = self:_waitForGlobal("InventoryClient", 15)
+        if not inventoryClient then
+            warn("[NookPhoneGUI] ⚠️ InventoryClient not available for phone summaries")
+            return
+        end
+
+        self.inventoryClient = inventoryClient
+
+        if inventoryClient.getInventorySnapshot then
+            local snapshot = inventoryClient:getInventorySnapshot()
+            self:updateInventorySummary(snapshot)
+        end
+
+        if inventoryClient.onInventoryChanged then
+            inventoryClient:onInventoryChanged(function(snapshot)
+                self:updateInventorySummary(snapshot)
+            end)
+        end
+    end)
+end
+
+local function normalizeItemCount(countValue)
+    if type(countValue) == "number" then
+        return countValue
+    end
+    return 1
+end
+
+function NookPhoneGUI:_resolveToolCategory(itemId: string)
+    local lowered = string.lower(itemId or "")
+    for keyword, label in pairs(TOOL_KEYWORDS) do
+        if string.find(lowered, keyword) then
+            return label
+        end
+    end
+    return nil
+end
+
+function NookPhoneGUI:_getItemName(itemId: string)
+    if not itemId then
+        return "Unknown"
+    end
+
+    if self.itemDataFetcher and self.itemDataFetcher.getItem then
+        local success, item = pcall(function()
+            return self.itemDataFetcher.getItem(itemId)
+        end)
+        if success and item then
+            return item.name or item.displayName or itemId
+        end
+    end
+
+    return itemId
+end
+
+function NookPhoneGUI:updateInventorySummary(snapshot)
+    if not snapshot then
+        return
+    end
+
+    local slots = snapshot.slots or {}
+    local used = 0
+    local favoriteItem = "Empty"
+    local favoriteCount = 0
+    local uniqueItems = 0
+    local itemCounts = {}
+    local toolCounts = {}
+
+    for _, state in pairs(slots) do
+        if state and state.itemId then
+            used += 1
+            uniqueItems += 1
+            local count = normalizeItemCount(state.count)
+            itemCounts[state.itemId] = (itemCounts[state.itemId] or 0) + count
+
+            if itemCounts[state.itemId] > favoriteCount then
+                favoriteItem = self:_getItemName(state.itemId)
+                favoriteCount = itemCounts[state.itemId]
+            end
+
+            local toolCategory = self:_resolveToolCategory(state.itemId)
+            if toolCategory then
+                toolCounts[toolCategory] = (toolCounts[toolCategory] or 0) + 1
+            end
+        end
+    end
+
+    self.dynamicState.inventory = {
+        used = used,
+        max = snapshot.maxSlots or self.dynamicState.inventory.max,
+        favoriteItem = favoriteItem,
+        favoriteCount = favoriteCount,
+        uniqueItems = uniqueItems,
+        toolCounts = toolCounts,
+    }
+
+    self:updateStatusChips()
+    self:_refreshRecipeSummaryFromGui()
+end
+
+function NookPhoneGUI:_connectQuestUpdates()
+    local remoteFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if not remoteFolder then
+        warn("[NookPhoneGUI] ⚠️ RemoteEvents folder missing - quest summaries disabled")
+        return
+    end
+
+    local questRemote = remoteFolder:FindFirstChild("QuestEvent")
+    if not questRemote then
+        warn("[NookPhoneGUI] ⚠️ QuestEvent missing - quest summaries disabled")
+        return
+    end
+
+    questRemote.OnClientEvent:Connect(function(action, data)
+        if action == "SyncQuests" then
+            self:updateQuestSummary(data)
+        end
+    end)
+
+    task.delay(1, function()
+        questRemote:FireServer("RequestQuests")
+    end)
+end
+
+function NookPhoneGUI:updateQuestSummary(quests)
+    quests = quests or {}
+    local active = {}
+    local completed = 0
+
+    for _, quest in ipairs(quests) do
+        if quest.state == "completed" then
+            completed += 1
+        else
+            table.insert(active, quest)
+        end
+    end
+
+    table.sort(active, function(a, b)
+        local progressA = (a.progress or 0) / math.max(a.target or 1, 1)
+        local progressB = (b.progress or 0) / math.max(b.target or 1, 1)
+        return progressA > progressB
+    end)
+
+    self.dynamicState.quests = {
+        active = active,
+        completed = completed,
+        total = #quests,
+    }
+
+    self:updateStatusChips()
+end
+
+function NookPhoneGUI:_connectRecipeTracker()
+    task.spawn(function()
+        local recipeGUI = self:_waitForGlobal("RecipesInventoryGUI", 15)
+        if not recipeGUI then
+            return
+        end
+
+        self.recipeGUI = recipeGUI
+        self:_refreshRecipeSummaryFromGui()
+    end)
+end
+
+function NookPhoneGUI:_refreshRecipeSummaryFromGui()
+    local recipeGUI = self.recipeGUI
+    if not recipeGUI or not recipeGUI.allRecipes or not recipeGUI.checkCanCraft then
+        return
+    end
+
+    local total = #recipeGUI.allRecipes
+    local craftable = 0
+
+    for _, recipe in ipairs(recipeGUI.allRecipes) do
+        local success, canCraft = pcall(function()
+            return recipeGUI:checkCanCraft(recipe)
+        end)
+        if success and canCraft then
+            craftable += 1
+        end
+    end
+
+    self.dynamicState.recipes = {
+        total = total,
+        craftable = craftable,
+    }
+end
+
+function NookPhoneGUI:_startMapWatcher()
+    task.spawn(function()
+        while true do
+            self:updateMapSnapshot()
+            task.wait(5)
+        end
+    end)
+end
+
+function NookPhoneGUI:updateMapSnapshot()
+    local character = self.player.Character or self.player.CharacterAdded:Wait()
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if root then
+        self.dynamicState.map.lastPosition = root.Position
+        self.dynamicState.map.region = describeRegion(root.Position)
+    end
+
+    self.dynamicState.map.weather = Lighting:GetAttribute("WeatherState") or "Clear"
+    self.dynamicState.map.timeOfDay = math.floor(Lighting.ClockTime or 12)
+end
+
 function NookPhoneGUI:openApp(appId)
     if self.animating then return end
-    
+
     local app = nil
     for _, a in ipairs(APPS) do
         if a.id == appId then
@@ -549,44 +1047,13 @@ function NookPhoneGUI:openApp(appId)
         return
     end
     
-    -- Handle external apps (open via GUIManager instead of showing in phone)
-    if appId == "inventory" or appId == "quests" or appId == "recipes" or 
-       appId == "tools" or appId == "nook_shopping" or appId == "settings" or 
-       appId == "map" or appId == "nook_home" then
-        self:hide() -- Close phone first
-        
-        -- Small delay to let phone close animation finish
-        task.spawn(function()
-            task.wait(0.2)
-            if appId == "inventory" and self.guiManager then
-                self.guiManager:showGUI("inventory")
-            elseif appId == "quests" and self.guiManager then
-                self.guiManager:showGUI("QuestGUI")
-            elseif appId == "recipes" and self.guiManager then
-                self.guiManager:showGUI("recipes")
-            elseif appId == "tools" and self.guiManager then
-                self.guiManager:showGUI("toolRing")
-            elseif appId == "nook_shopping" and self.guiManager then
-                self.guiManager:showGUI("nookShopping")
-            elseif appId == "settings" and self.guiManager then
-                self.guiManager:showGUI("settings")
-            elseif appId == "nook_home" and self.guiManager then
-                self.guiManager:showGUI("building") -- HomeBuildingGUI is registered as "building"
-            elseif appId == "map" then
-                -- Open minimap directly
-                if self.minimapModule then
-                    self.minimapModule:toggle()
-                else
-                    -- Fallback: try to require it
-                    local success, minimap = pcall(function()
-                        return require(self.playerGui:FindFirstChild("Client"):FindFirstChild("Modules"):FindFirstChild("Minimap"))
-                    end)
-                    if success and minimap then
-                        minimap:toggle()
-                    end
-                end
-            end
-        end)
+    local externalOnly = {
+        nook_shopping = true,
+        nook_home = true,
+    }
+
+    if externalOnly[appId] then
+        self:launchExternalApp(appId)
         return
     end
     
@@ -620,6 +1087,55 @@ function NookPhoneGUI:openApp(appId)
     end)
     
     print("[NookPhoneGUI] 📱 Opened app:", app.name)
+end
+
+function NookPhoneGUI:launchExternalApp(appId)
+    if self.animating then return end
+
+    local function triggerLaunch()
+        if appId == "inventory" and self.guiManager then
+            self.guiManager:showGUI("inventory")
+        elseif appId == "quests" and self.guiManager then
+            self.guiManager:showGUI("QuestGUI")
+        elseif appId == "recipes" and self.guiManager then
+            self.guiManager:showGUI("recipes")
+        elseif appId == "tools" and self.guiManager then
+            self.guiManager:showGUI("toolRing")
+        elseif appId == "nook_shopping" and self.guiManager then
+            self.guiManager:showGUI("nookShopping")
+        elseif appId == "settings" and self.guiManager then
+            self.guiManager:showGUI("settings")
+        elseif appId == "nook_home" and self.guiManager then
+            self.guiManager:showGUI("building")
+        elseif appId == "map" then
+            if self.minimapModule and self.minimapModule.toggle then
+                self.minimapModule:toggle()
+            else
+                local parentFolder = script.Parent
+                local minimapModule = parentFolder and parentFolder:FindFirstChild("Minimap")
+                if minimapModule then
+                    local success, minimap = pcall(function()
+                        return require(minimapModule)
+                    end)
+                    if success and minimap and minimap.toggle then
+                        minimap:toggle()
+                    end
+                end
+            end
+        else
+            warn("[NookPhoneGUI] ⚠️ No external launcher for", appId)
+        end
+    end
+
+    if self.visible then
+        self:hide()
+        task.spawn(function()
+            task.wait(0.35)
+            triggerLaunch()
+        end)
+    else
+        triggerLaunch()
+    end
 end
 
 function NookPhoneGUI:closeApp()
@@ -691,7 +1207,17 @@ function NookPhoneGUI:loadGuideApp(content)
     padding.PaddingBottom = UDim.new(0, 20)
     padding.Parent = content
     
+    local questState = self.dynamicState.quests
+    local inventoryState = self.dynamicState.inventory
     local guides = {
+        {
+            title = string.format("📅 %s Snapshot", os.date("%A")),
+            desc = string.format(
+                "You have %d active quest(s) and %d free inventory slots. Check in with Tom Nook for guidance!",
+                #questState.active,
+                math.max((inventoryState.max or 0) - (inventoryState.used or 0), 0)
+            ),
+        },
         { title = "🎣 Fishing", desc = "Equip a fishing rod and cast near water. Wait for the bobber to go under, then press E!" },
         { title = "🪓 Chopping Trees", desc = "Use an axe to chop trees. They'll drop wood and sometimes fruit!" },
         { title = "🕳️ Digging", desc = "Equip a shovel and right-click on the ground to dig holes. Find fossils and bells!" },
@@ -701,13 +1227,13 @@ function NookPhoneGUI:loadGuideApp(content)
         { title = "✅ Quests", desc = "Press J to view quests. Complete them for rewards!" },
         { title = "🔧 Crafting", desc = "Press C to craft items. Use resources you've collected." },
     }
-    
+
     for i, guide in ipairs(guides) do
         local guideCard = self:createGuideCard(guide.title, guide.desc, i)
         guideCard.Parent = content
     end
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, #guides * 120 + 100)
+
+    self:updateCanvasFromLayout(content, layout, 120)
 end
 
 function NookPhoneGUI:createGuideCard(title, description, index)
@@ -753,119 +1279,249 @@ function NookPhoneGUI:createGuideCard(title, description, index)
 end
 
 function NookPhoneGUI:loadMapApp(content)
-    -- Map opens externally, but show nice info card in phone
+    -- Map opens externally, but show live info inside phone
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim2.new(0, 20)
     padding.PaddingLeft = UDim2.new(0, 20)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
-    local card = self:createInfoCard("🗺️ Island Map", "Opening map...", {
-        "Press M to view the full island map!",
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local mapState = self.dynamicState.map
+    local position = mapState.lastPosition
+    local coordinateText = position
+        and string.format("X %d · Z %d", math.floor(position.X), math.floor(position.Z))
+        or "Explorer data pending"
+
+    local card = self:createInfoCard("🗺️ Island Map", mapState.region, {
+        "Press M for the full minimap view.",
         "",
-        "Explore your island and discover:",
-        "• Resource locations",
-        "• Building sites",
-        "• Special areas",
-        "• Player homes"
+        "Live position:",
+        coordinateText,
+        string.format("Time of day: %02d:00", mapState.timeOfDay or 12),
     }, Color3.fromRGB(76, 175, 80))
     card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 350)
+
+    local weatherCard = self:createInfoCard("🌤️ Weather & Mood", mapState.weather or "Clear", {
+        "Weather affects lighting and ambience.",
+        "Use rainy days to hunt rare fish!",
+    }, Color3.fromRGB(135, 206, 235))
+    weatherCard.Parent = content
+
+    local tipCard = self:createInfoCard("📍 Fast Travel Tips", "Opening map...", {
+        "• Double-check bridge locations before building",
+        "• Beaches hold DIY bottles daily",
+        "• Mark favorite spots with dropped items",
+    }, Color3.fromRGB(255, 200, 120))
+    tipCard.Parent = content
+
+    local openMapButton = self:createActionButton("Open Minimap (M)", function()
+        self:launchExternalApp("map")
+    end)
+    openMapButton.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 220)
 end
 
 function NookPhoneGUI:loadInventoryApp(content)
-    -- Inventory opens externally, but show nice info card
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim2.new(0, 20)
     padding.PaddingLeft = UDim2.new(0, 20)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
-    local card = self:createInfoCard("🎒 Inventory", "Opening inventory...", {
-        "Press E to manage your items!",
-        "",
-        "Features:",
-        "• Manage items and tools",
-        "• Drag items to organize",
-        "• Right-click for options",
-        "• Expand inventory with upgrades"
-    }, Color3.fromRGB(255, 152, 0))
-    card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 350)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local inventoryState = self.dynamicState.inventory
+    local bagSummary = self:createInfoCard(
+        "🎒 Inventory",
+        string.format("%d / %d slots occupied", inventoryState.used or 0, inventoryState.max or 0),
+        {
+            string.format("Favorite item: %s", inventoryState.favoriteItem or "Empty"),
+            string.format("Duplicates held: x%d", inventoryState.favoriteCount or 0),
+            string.format("Unique items: %d", inventoryState.uniqueItems or 0),
+        },
+        Color3.fromRGB(255, 152, 0)
+    )
+    bagSummary.Parent = content
+
+    local toolLines = {}
+    for toolName, count in pairs(inventoryState.toolCounts or {}) do
+        table.insert(toolLines, string.format("• %s x%d", toolName, count))
+    end
+    if #toolLines == 0 then
+        toolLines = { "No tools stored. Craft some DIY gear!" }
+    end
+
+    local toolCard = self:createInfoCard("🧰 Tool Storage", "Quick overview", toolLines, Color3.fromRGB(121, 85, 72))
+    toolCard.Parent = content
+
+    local tipCard = self:createInfoCard("⚡ Quick Tips", "Opening inventory...", {
+        "• Drag items to reorder", "• Right-click for actions", "• Upgrade storage via Resident Services",
+    }, Color3.fromRGB(255, 210, 128))
+    tipCard.Parent = content
+
+    local openButton = self:createActionButton("Open Inventory (E)", function()
+        self:launchExternalApp("inventory")
+    end)
+    openButton.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 220)
 end
 
 function NookPhoneGUI:loadQuestsApp(content)
-    -- Quests opens externally, but show nice info card
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim2.new(0, 20)
     padding.PaddingLeft = UDim2.new(0, 20)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
-    local card = self:createInfoCard("✅ Quests", "Opening quests...", {
-        "Press J to view all quests!",
-        "",
-        "Features:",
-        "• Track your progress",
-        "• Earn bells and items",
-        "• Complete daily tasks",
-        "• Unlock achievements"
-    }, Color3.fromRGB(156, 39, 176))
-    card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 350)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local quests = self.dynamicState.quests.active
+    if #quests == 0 then
+        local empty = self:createInfoCard("✅ Quests", "No active quests", {
+            "Talk to Tom Nook or villagers to unlock new tasks.",
+            "Daily tasks refresh every session!",
+        }, Color3.fromRGB(156, 39, 176))
+        empty.Parent = content
+    else
+        for i = 1, math.min(3, #quests) do
+            local questCard = self:createQuestCard(quests[i], i)
+            questCard.Parent = content
+        end
+    end
+
+    if self.dynamicState.quests.completed > 0 then
+        local summary = self:createInfoCard(
+            "🏁 Completed",
+            string.format("%d quest(s) ready to claim", self.dynamicState.quests.completed),
+            { "Open the Quest app (J) to collect your rewards." },
+            Color3.fromRGB(70, 160, 120)
+        )
+        summary.Parent = content
+    end
+
+    local tips = self:createInfoCard("💡 Quest Tips", "Opening quests...", {
+        "• Daily tasks grant Nook Miles",
+        "• Keep at least one slot free for quest items",
+        "• Some quests progress while fishing or chopping trees",
+    }, Color3.fromRGB(255, 193, 7))
+    tips.Parent = content
+
+    local openButton = self:createActionButton("Open Quest Log (J)", function()
+        self:launchExternalApp("quests")
+    end)
+    openButton.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 230)
 end
 
 function NookPhoneGUI:loadRecipesApp(content)
-    -- Recipes opens externally, but show nice info card
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim2.new(0, 20)
     padding.PaddingLeft = UDim2.new(0, 20)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
-    local card = self:createInfoCard("📖 Recipes", "Opening recipes...", {
-        "Press C to open crafting!",
-        "",
-        "Features:",
-        "• View all recipes",
-        "• Craft items at workbench",
-        "• Learn new recipes",
-        "• Track materials needed"
-    }, Color3.fromRGB(244, 67, 54))
-    card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 350)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local recipeState = self.dynamicState.recipes
+    local summary = self:createInfoCard(
+        "📖 DIY Recipes",
+        string.format("%d recipes catalogued", recipeState.total or 0),
+        {
+            string.format("Ready to craft: %d", recipeState.craftable or 0),
+            "Check your bench (C) to craft instantly!",
+        },
+        Color3.fromRGB(244, 67, 54)
+    )
+    summary.Parent = content
+
+    local craftableLines = {
+        "Craftable recipes use materials from your bag.",
+        string.format("Bells saved: %s", formatNumber(self.dynamicState.bells)),
+    }
+    local craftableCard = self:createInfoCard("🛠️ Crafting Queue", "Opening recipes...", craftableLines, Color3.fromRGB(255, 138, 101))
+    craftableCard.Parent = content
+
+    local tips = self:createInfoCard("🌾 Material Reminders", "", {
+        "• Shake trees for branches", "• Hit rocks for ore", "• Scout beaches for DIY bottles",
+    }, Color3.fromRGB(76, 175, 80))
+    tips.Parent = content
+
+    local openButton = self:createActionButton("Open DIY Recipes (C)", function()
+        self:launchExternalApp("recipes")
+    end)
+    openButton.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 210)
 end
 
 function NookPhoneGUI:loadToolsApp(content)
-    -- Tools opens externally, but show nice info card
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim2.new(0, 20)
     padding.PaddingLeft = UDim2.new(0, 20)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
-    local card = self:createInfoCard("🔧 Tools", "Opening tool wheel...", {
-        "Press T to open tool wheel!",
-        "",
-        "Available tools:",
-        "• Fishing Rod - Catch fish",
-        "• Shovel - Dig holes & trees",
-        "• Axe - Chop trees",
-        "• Net - Catch bugs",
-        "• Slingshot - Pop balloons"
-    }, Color3.fromRGB(121, 85, 72))
-    card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 400)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local equippedTool = self.player:GetAttribute("EquippedToolType")
+    local equippedCard = self:createInfoCard(
+        "🔧 Tools",
+        "Opening tool wheel...",
+        { string.format("Equipped: %s", equippedTool or "None"), "Press T to open your wheel." },
+        Color3.fromRGB(121, 85, 72)
+    )
+    equippedCard.Parent = content
+
+    local inventoryState = self.dynamicState.inventory
+    local toolLines = {}
+    for toolName, count in pairs(inventoryState.toolCounts or {}) do
+        table.insert(toolLines, string.format("• %s x%d", toolName, count))
+    end
+    if #toolLines == 0 then
+        toolLines = { "No crafted tools stored yet." }
+    end
+
+    local bagCard = self:createInfoCard("🎯 Tool Belt", "Stored tools", toolLines, Color3.fromRGB(100, 149, 237))
+    bagCard.Parent = content
+
+    local tips = self:createInfoCard("🪓 Pro Tips", "", {
+        "• Keep extras in case of breakage",
+        "• Upgrade with iron nuggets",
+        "• Vaulting pole saves time crossing rivers",
+    }, Color3.fromRGB(173, 120, 60))
+    tips.Parent = content
+
+    local openButton = self:createActionButton("Open Tool Wheel (T)", function()
+        self:launchExternalApp("tools")
+    end)
+    openButton.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 230)
 end
 
 function NookPhoneGUI:loadAchievementsApp(content)
@@ -875,43 +1531,86 @@ function NookPhoneGUI:loadAchievementsApp(content)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
-    local card = self:createInfoCard("🏆 Your Progress", "Track your achievements", {
-        "Coming soon!",
-        "",
-        "Track your progress:",
-        "• Items collected",
-        "• Quests completed",
-        "• Buildings placed",
-        "• Time played",
-        "• Special milestones"
-    }, Color3.fromRGB(255, 193, 7))
-    card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 400)
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local inventoryState = self.dynamicState.inventory
+    local collectorProgress = (inventoryState.max or 0) > 0 and (inventoryState.used or 0) / inventoryState.max or 0
+    local collector = self:createProgressStatCard(
+        "Collector",
+        string.format("%d / %d slots filled", inventoryState.used or 0, inventoryState.max or 0),
+        collectorProgress,
+        { string.format("Favorite item: %s", inventoryState.favoriteItem or "None") },
+        Color3.fromRGB(255, 193, 7)
+    )
+    collector.Parent = content
+
+    local questState = self.dynamicState.quests
+    local questProgress = questState.total > 0 and questState.completed / questState.total or 0
+    local questCard = self:createProgressStatCard(
+        "Taskmaster",
+        string.format("%d completed today", questState.completed),
+        questProgress,
+        { string.format("%d quest(s) active", #questState.active) },
+        Color3.fromRGB(102, 187, 106)
+    )
+    questCard.Parent = content
+
+    local savingsProgress = math.min((self.dynamicState.bells or 0) / 5000, 1)
+    local savingsCard = self:createProgressStatCard(
+        "Island Investor",
+        string.format("%s bells saved", formatNumber(self.dynamicState.bells)),
+        savingsProgress,
+        { "Goal: 5,000 bells for the next upgrade." },
+        Color3.fromRGB(255, 152, 0)
+    )
+    savingsCard.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 200)
 end
 
 function NookPhoneGUI:loadSettingsApp(content)
-    -- Settings opens externally, but show nice info card
     local padding = Instance.new("UIPadding")
     padding.PaddingTop = UDim2.new(0, 20)
     padding.PaddingLeft = UDim2.new(0, 20)
     padding.PaddingRight = UDim2.new(0, 20)
     padding.PaddingBottom = UDim2.new(0, 20)
     padding.Parent = content
-    
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
     local card = self:createInfoCard("⚙️ Settings", "Opening settings...", {
-        "Press ESC to open settings!",
-        "",
-        "Available options:",
-        "• Graphics options",
-        "• Audio settings",
-        "• Controls & keybinds",
-        "• Account settings"
+        "Press ESC to open the full settings menu.",
+        "Use ` to open the in-game Game Menu.",
     }, Color3.fromRGB(158, 158, 158))
     card.Parent = content
-    
-    content.CanvasSize = UDim2.new(0, 0, 0, 350)
+
+    local safeZoneCard = self:createInfoCard("📐 Safe Zone", "Auto scaling", {
+        string.format("Phone scale: %.0f%%", (self.phoneSize.widthScale or 0) * 100),
+        "Adjust Roblox UI scale in Settings > UI if needed.",
+    }, Color3.fromRGB(200, 200, 200))
+    safeZoneCard.Parent = content
+
+    local controlsCard = self:createInfoCard("🎮 Quick Controls", "", {
+        "P - Toggle NookPhone",
+        "M - Map",
+        "T - Tool Ring",
+        "C - Crafting",
+    }, Color3.fromRGB(120, 144, 156))
+    controlsCard.Parent = content
+
+    local openButton = self:createActionButton("Open Settings (ESC)", function()
+        self:launchExternalApp("settings")
+    end)
+    openButton.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 200)
 end
 
 function NookPhoneGUI:loadPlaceholderApp(content, appId)
@@ -1007,6 +1706,185 @@ function NookPhoneGUI:createInfoCard(title, subtitle, lines, accentColor)
     end
     
     return card
+end
+
+function NookPhoneGUI:createQuestCard(quest, index)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 110)
+    card.BackgroundColor3 = COLORS.APP_ICON_BG
+    card.BorderSizePixel = 0
+    card.LayoutOrder = index or 1
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 12)
+    cardCorner.Parent = card
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 16)
+    padding.PaddingRight = UDim.new(0, 16)
+    padding.Parent = card
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 24)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = quest.name or "Quest"
+    titleLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 20
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = card
+
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Size = UDim2.new(1, 0, 0, 32)
+    descLabel.Position = UDim2.new(0, 0, 0, 26)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = quest.description or "Complete tasks to earn rewards."
+    descLabel.TextColor3 = COLORS.TEXT_SECONDARY
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextSize = 14
+    descLabel.TextWrapped = true
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.Parent = card
+
+    local progressFrame = Instance.new("Frame")
+    progressFrame.Size = UDim2.new(1, 0, 0, 12)
+    progressFrame.Position = UDim2.new(0, 0, 0, 70)
+    progressFrame.BackgroundColor3 = Color3.fromRGB(230, 226, 210)
+    progressFrame.BorderSizePixel = 0
+    progressFrame.Parent = card
+
+    local progressCorner = Instance.new("UICorner")
+    progressCorner.CornerRadius = UDim.new(0, 6)
+    progressCorner.Parent = progressFrame
+
+    local progressBar = Instance.new("Frame")
+    local ratio = math.clamp((quest.progress or 0) / math.max(quest.target or 1, 1), 0, 1)
+    progressBar.Size = UDim2.new(ratio, 0, 1, 0)
+    progressBar.BackgroundColor3 = COLORS.ACCENT
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = progressFrame
+
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(0, 6)
+    barCorner.Parent = progressBar
+
+    local progressText = Instance.new("TextLabel")
+    progressText.Size = UDim2.new(1, 0, 0, 20)
+    progressText.Position = UDim2.new(0, 0, 0, 86)
+    progressText.BackgroundTransparency = 1
+    progressText.Text = string.format("%d / %d", quest.progress or 0, quest.target or 1)
+    progressText.TextColor3 = COLORS.TEXT_SECONDARY
+    progressText.Font = Enum.Font.Gotham
+    progressText.TextSize = 14
+    progressText.TextXAlignment = Enum.TextXAlignment.Left
+    progressText.Parent = card
+
+    return card
+end
+
+function NookPhoneGUI:createProgressStatCard(title, subtitle, progress, descriptionLines, accentColor)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 90)
+    card.BackgroundColor3 = COLORS.APP_ICON_BG
+    card.BorderSizePixel = 0
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 12)
+    cardCorner.Parent = card
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 16)
+    padding.PaddingRight = UDim.new(0, 16)
+    padding.Parent = card
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 20)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 18
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = card
+
+    local subtitleLabel = Instance.new("TextLabel")
+    subtitleLabel.Size = UDim2.new(1, 0, 0, 18)
+    subtitleLabel.Position = UDim2.new(0, 0, 0, 22)
+    subtitleLabel.BackgroundTransparency = 1
+    subtitleLabel.Text = subtitle or ""
+    subtitleLabel.TextColor3 = COLORS.TEXT_SECONDARY
+    subtitleLabel.Font = Enum.Font.Gotham
+    subtitleLabel.TextSize = 14
+    subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    subtitleLabel.Parent = card
+
+    local progressFrame = Instance.new("Frame")
+    progressFrame.Size = UDim2.new(1, 0, 0, 10)
+    progressFrame.Position = UDim2.new(0, 0, 0, 46)
+    progressFrame.BackgroundColor3 = Color3.fromRGB(230, 226, 210)
+    progressFrame.BorderSizePixel = 0
+    progressFrame.Parent = card
+
+    local progressCorner = Instance.new("UICorner")
+    progressCorner.CornerRadius = UDim.new(0, 5)
+    progressCorner.Parent = progressFrame
+
+    local progressFill = Instance.new("Frame")
+    progressFill.Size = UDim2.new(math.clamp(progress or 0, 0, 1), 0, 1, 0)
+    progressFill.BackgroundColor3 = accentColor or COLORS.ACCENT
+    progressFill.BorderSizePixel = 0
+    progressFill.Parent = progressFrame
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 5)
+    fillCorner.Parent = progressFill
+
+    if descriptionLines then
+        local offset = 60
+        for _, line in ipairs(descriptionLines) do
+            local lineLabel = Instance.new("TextLabel")
+            lineLabel.Size = UDim2.new(1, 0, 0, 16)
+            lineLabel.Position = UDim2.new(0, 0, 0, offset)
+            lineLabel.BackgroundTransparency = 1
+            lineLabel.Text = line
+            lineLabel.TextColor3 = COLORS.TEXT_SECONDARY
+            lineLabel.Font = Enum.Font.Gotham
+            lineLabel.TextSize = 13
+            lineLabel.TextXAlignment = Enum.TextXAlignment.Left
+            lineLabel.Parent = card
+            offset += 18
+            card.Size = UDim2.new(1, 0, 0, offset)
+        end
+    end
+
+    return card
+end
+
+function NookPhoneGUI:createActionButton(labelText, callback)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 0, 42)
+    button.BackgroundColor3 = COLORS.ACCENT
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 18
+    button.Text = labelText
+    button.BorderSizePixel = 0
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = button
+
+    button.MouseButton1Click:Connect(function()
+        if callback then
+            callback()
+        end
+    end)
+
+    return button
 end
 
 function NookPhoneGUI:updateTime()
