@@ -234,6 +234,8 @@ function NookPhoneGUI.new()
         },
     }
     self.statusChips = {}
+    self.mapWatcherActive = true -- Flag to control map watcher loop
+    self.mapWatcherThread = nil -- Reference to watcher thread for cleanup
 
     self:createGUI()
     self:setupConnections()
@@ -893,7 +895,6 @@ function NookPhoneGUI:updateInventorySummary(snapshot)
     for _, state in pairs(slots) do
         if state and state.itemId then
             used += 1
-            uniqueItems += 1
             local count = normalizeItemCount(state.count)
             itemCounts[state.itemId] = (itemCounts[state.itemId] or 0) + count
 
@@ -907,6 +908,11 @@ function NookPhoneGUI:updateInventorySummary(snapshot)
                 toolCounts[toolCategory] = (toolCounts[toolCategory] or 0) + 1
             end
         end
+    end
+
+    -- Count unique items by counting keys in itemCounts
+    for _ in pairs(itemCounts) do
+        uniqueItems += 1
     end
 
     self.dynamicState.inventory = {
@@ -1011,17 +1017,53 @@ function NookPhoneGUI:_refreshRecipeSummaryFromGui()
 end
 
 function NookPhoneGUI:_startMapWatcher()
-    task.spawn(function()
-        while true do
-            self:updateMapSnapshot()
-            task.wait(5)
+    -- Prevent starting multiple watchers
+    if self.mapWatcherThread then
+        return
+    end
+    
+    self.mapWatcherActive = true
+    self.mapWatcherThread = task.spawn(function()
+        while self.mapWatcherActive do
+            -- Use pcall to prevent any errors from crashing the loop
+            local success, err = pcall(function()
+                self:updateMapSnapshot()
+            end)
+            
+            if not success then
+                warn("[NookPhoneGUI] Error in map watcher:", err)
+            end
+            
+            -- Wait with cancellation check
+            local waited = 0
+            while waited < 5 and self.mapWatcherActive do
+                task.wait(0.5)
+                waited += 0.5
+            end
         end
+        -- Thread cleanup
+        self.mapWatcherThread = nil
     end)
 end
 
 function NookPhoneGUI:updateMapSnapshot()
-    local character = self.player.Character or self.player.CharacterAdded:Wait()
-    local root = character and character:FindFirstChild("HumanoidRootPart")
+    -- Check if watcher is still active before proceeding
+    if not self.mapWatcherActive then
+        return
+    end
+    
+    -- Get character without blocking - NEVER use CharacterAdded:Wait() as it blocks indefinitely
+    -- If character doesn't exist, we skip position updates but still update weather/time
+    local character = self.player.Character
+    if not character then
+        -- Character doesn't exist yet, but we can still update weather/time
+        self.dynamicState.map.weather = Lighting:GetAttribute("WeatherState") or "Clear"
+        self.dynamicState.map.timeOfDay = math.floor(Lighting.ClockTime or 12)
+        return
+    end
+    
+    -- Safely access character properties with existence checks
+    local root = character:FindFirstChild("HumanoidRootPart")
     if root then
         self.dynamicState.map.lastPosition = root.Position
         self.dynamicState.map.region = describeRegion(root.Position)
@@ -1975,6 +2017,24 @@ end
 
 function NookPhoneGUI:isVisible()
     return self.visible
+end
+
+function NookPhoneGUI:destroy()
+    -- Stop the map watcher to prevent memory leaks
+    if self.mapWatcherActive then
+        self.mapWatcherActive = false
+        -- Wait a moment for the thread to exit gracefully
+        if self.mapWatcherThread then
+            task.wait(0.1)
+        end
+        self.mapWatcherThread = nil
+    end
+    
+    -- Clean up GUI if it exists
+    if self.gui then
+        self.gui:Destroy()
+        self.gui = nil
+    end
 end
 
 -- Connect external modules

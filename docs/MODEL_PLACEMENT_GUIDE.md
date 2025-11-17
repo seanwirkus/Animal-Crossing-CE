@@ -213,7 +213,7 @@ StarterPlayerScripts/
         ├── ToolRingGUI.luau         # Tool ring
         ├── ContextMenu.luau         # Right-click menu
         ├── ACNHCamera.luau          # Camera controller
-        ├── ChibiCharacter.luau      # Character controller
+        ├── CharacterAndToolFixes.luau      # Character controller and tool fixes (chibi system removed)
         ├── FishingController.luau   # Fishing client
         ├── LoadingScreen.luau       # Loading UI
         ├── VisualEffects.luau       # Effects system
