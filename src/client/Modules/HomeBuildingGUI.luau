@@ -132,12 +132,12 @@ function HomeBuildingGUI:createGUI()
 
     self._gui = screenGui
 
-    -- Main frame - larger and better positioned
+    -- Main frame - positioned on right side to avoid Roblox UI overlap
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 650, 0, 700) -- Larger for better layout
+    mainFrame.Size = UDim2.fromOffset(350, 500) -- More compact size
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    mainFrame.Position = UDim2.fromScale(0.75, 0.5) -- Right side positioning
     mainFrame.BackgroundColor3 = COLORS.BG_PRIMARY
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = screenGui
@@ -167,7 +167,7 @@ function HomeBuildingGUI:createTitleBar()
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, 50)
-    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.Position = UDim2.fromOffset(0, 0)
     titleBar.BackgroundColor3 = COLORS.ACCENT_BROWN
     titleBar.BorderSizePixel = 0
     titleBar.Parent = self._mainFrame
@@ -176,41 +176,33 @@ function HomeBuildingGUI:createTitleBar()
     titleCorner.CornerRadius = UDim.new(0, 12)
     titleCorner.Parent = titleBar
 
-    -- Only round top corners
-    local titleMask = Instance.new("UIGradient")
-    titleMask.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(0.95, 0),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    titleMask.Parent = titleBar
-
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(1, -100, 1, 0)
-    title.Position = UDim2.new(0, 20, 0, 0)
+    title.Size = UDim2.new(1, -50, 1, 0)
+    title.Position = UDim2.fromOffset(15, 0)
     title.BackgroundTransparency = 1
     title.Text = "🏠 Home Building"
     title.Font = Enum.Font.GothamBold
-    title.TextSize = 24
+    title.TextSize = 18
     title.TextColor3 = COLORS.TEXT_LIGHT
     title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextYAlignment = Enum.TextYAlignment.Center
     title.Parent = titleBar
 
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 40, 0, 40)
-    closeButton.Position = UDim2.new(1, -50, 0, 5)
+    closeButton.Size = UDim2.fromOffset(35, 35)
+    closeButton.Position = UDim2.new(1, -42, 0.5, -17)
     closeButton.BackgroundColor3 = COLORS.ACCENT_ORANGE
     closeButton.Text = "✕"
     closeButton.Font = Enum.Font.GothamBold
-    closeButton.TextSize = 20
+    closeButton.TextSize = 18
     closeButton.TextColor3 = COLORS.TEXT_LIGHT
     closeButton.BorderSizePixel = 0
     closeButton.Parent = titleBar
 
     local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 8)
+    closeCorner.CornerRadius = UDim.new(0, 6)
     closeCorner.Parent = closeButton
 
     closeButton.MouseButton1Click:Connect(function()
@@ -221,47 +213,47 @@ end
 function HomeBuildingGUI:createContentArea()
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "ContentFrame"
-    contentFrame.Size = UDim2.new(1, -40, 1, -70)
-    contentFrame.Position = UDim2.new(0, 20, 0, 60)
+    contentFrame.Size = UDim2.new(1, -30, 1, -60)
+    contentFrame.Position = UDim2.fromOffset(15, 50)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = self._mainFrame
 
-    -- Current home info
+    -- Current home info (compact)
     local homeInfoLabel = Instance.new("TextLabel")
     homeInfoLabel.Name = "HomeInfoLabel"
-    homeInfoLabel.Size = UDim2.new(1, 0, 0, 30)
+    homeInfoLabel.Size = UDim2.new(1, 0, 0, 28)
     homeInfoLabel.Position = UDim2.new(0, 0, 0, 0)
     homeInfoLabel.BackgroundTransparency = 1
-    homeInfoLabel.Text = "Current Home: None"
+    homeInfoLabel.Text = "📍 Current: None"
     homeInfoLabel.Font = Enum.Font.GothamBold
-    homeInfoLabel.TextSize = 18
+    homeInfoLabel.TextSize = 16
     homeInfoLabel.TextColor3 = COLORS.TEXT_DARK
     homeInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
     homeInfoLabel.Parent = contentFrame
 
     self._homeInfoLabel = homeInfoLabel
 
-    -- Upgrade section
+    -- Upgrade section header (compact)
     local upgradeLabel = Instance.new("TextLabel")
     upgradeLabel.Name = "UpgradeLabel"
-    upgradeLabel.Size = UDim2.new(1, 0, 0, 30)
-    upgradeLabel.Position = UDim2.new(0, 0, 0, 50)
+    upgradeLabel.Size = UDim2.new(1, 0, 0, 24)
+    upgradeLabel.Position = UDim2.fromOffset(0, 32)
     upgradeLabel.BackgroundTransparency = 1
-    upgradeLabel.Text = "Upgrades"
+    upgradeLabel.Text = "Upgrade Options"
     upgradeLabel.Font = Enum.Font.GothamBold
-    upgradeLabel.TextSize = 18
+    upgradeLabel.TextSize = 14
     upgradeLabel.TextColor3 = COLORS.TEXT_DARK
     upgradeLabel.TextXAlignment = Enum.TextXAlignment.Left
     upgradeLabel.Parent = contentFrame
 
-    -- Upgrade buttons container - scrollable
+    -- Upgrade buttons container - scrollable (more compact)
     local upgradeContainer = Instance.new("ScrollingFrame")
     upgradeContainer.Name = "UpgradeContainer"
-    upgradeContainer.Size = UDim2.new(1, 0, 1, -90) -- Fill remaining space
-    upgradeContainer.Position = UDim2.new(0, 0, 0, 90)
+    upgradeContainer.Size = UDim2.new(1, 0, 1, -65) -- Fill remaining space
+    upgradeContainer.Position = UDim2.fromOffset(0, 60)
     upgradeContainer.BackgroundTransparency = 1
     upgradeContainer.BorderSizePixel = 0
-    upgradeContainer.ScrollBarThickness = 6
+    upgradeContainer.ScrollBarThickness = 5
     upgradeContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
     upgradeContainer.Parent = contentFrame
 
@@ -271,7 +263,7 @@ function HomeBuildingGUI:createContentArea()
     upgradeLayout.Parent = upgradeContainer
     
     upgradeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        upgradeContainer.CanvasSize = UDim2.new(0, 0, 0, upgradeLayout.AbsoluteContentSize.Y + 20)
+        upgradeContainer.CanvasSize = UDim2.fromOffset(0, upgradeLayout.AbsoluteContentSize.Y + 20)
     end)
 
     self._upgradeContainer = upgradeContainer
@@ -295,18 +287,17 @@ function HomeBuildingGUI:createUpgradeButtons()
     }
 
     local currentSize = self._currentHomeData and self._currentHomeData.size or "None"
-    local yOffset = 0
 
     for i, upgrade in ipairs(upgrades) do
         if currentSize == upgrade.from or (currentSize == "None" and i == 1) then
-            local buttonFrame = self:createUpgradeButton(upgrade, currentSize)
+            local buttonFrame = self:createUpgradeButton(upgrade)
             buttonFrame.LayoutOrder = i
             buttonFrame.Parent = self._upgradeContainer
         end
     end
 end
 
-function HomeBuildingGUI:createUpgradeButton(upgrade, currentSize)
+function HomeBuildingGUI:createUpgradeButton(upgrade)
     local buttonFrame = Instance.new("Frame")
     buttonFrame.Name = upgrade.to .. "Button"
     buttonFrame.Size = UDim2.new(1, 0, 0, 90)
@@ -326,7 +317,7 @@ function HomeBuildingGUI:createUpgradeButton(upgrade, currentSize)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "NameLabel"
     nameLabel.Size = UDim2.new(0.6, 0, 0, 30)
-    nameLabel.Position = UDim2.new(0, 10, 0, 10)
+    nameLabel.Position = UDim2.fromOffset(10, 10)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = upgrade.name
     nameLabel.Font = Enum.Font.GothamBold
@@ -339,7 +330,7 @@ function HomeBuildingGUI:createUpgradeButton(upgrade, currentSize)
     local costLabel = Instance.new("TextLabel")
     costLabel.Name = "CostLabel"
     costLabel.Size = UDim2.new(0.6, 0, 0, 25)
-    costLabel.Position = UDim2.new(0, 10, 0, 40)
+    costLabel.Position = UDim2.fromOffset(10, 40)
     costLabel.BackgroundTransparency = 1
     costLabel.Text = "💰 " .. upgrade.cost .. " Bells"
     costLabel.Font = Enum.Font.Gotham
@@ -351,7 +342,7 @@ function HomeBuildingGUI:createUpgradeButton(upgrade, currentSize)
     -- Upgrade button
     local upgradeButton = Instance.new("TextButton")
     upgradeButton.Name = "UpgradeButton"
-    upgradeButton.Size = UDim2.new(0, 120, 0, 40)
+    upgradeButton.Size = UDim2.fromOffset(120, 40)
     upgradeButton.Position = UDim2.new(1, -130, 0, 25)
     upgradeButton.BackgroundColor3 = COLORS.CAN_UPGRADE
     upgradeButton.Text = "Upgrade"

@@ -139,6 +139,9 @@ print("[Client] ✅ SlingshotController module loaded")
 local ShovelClientModule = require(script.Modules.ShovelClient)
 print("[Client] ✅ ShovelClient module loaded")
 
+local ToolControllerModule = require(script.Modules.ToolController)
+print("[Client] ✅ ToolController module loaded")
+
 -- WaterEffects DISABLED - was causing material rendering issues in Studio
 -- local WaterEffectsModule = require(script.Modules.WaterEffects)
 -- print("[Client] ✅ WaterEffects module loaded")
@@ -238,6 +241,9 @@ print("[Client] ✅ SlingshotController initialized")
 -- Initialize shovel client
 ShovelClientModule.init()
 print("[Client] ✅ ShovelClient initialized")
+
+ToolControllerModule.init()
+print("[Client] ✅ ToolController initialized")
 
 -- Create GUIManager for exclusive GUI visibility
 local GUIManager = require(script.Modules.GUIManager)

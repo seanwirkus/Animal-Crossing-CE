@@ -235,6 +235,32 @@ function InventoryClient:updateSlotAppearance(slot, state)
     -- Ensure icon is visible
     icon.Visible = true
 
+    -- Ensure ItemCount label exists (create if missing)
+    if not countLabel then
+        countLabel = Instance.new("TextLabel")
+        countLabel.Name = "ItemCount"
+        countLabel.Size = UDim2.new(0, 40, 0, 20)
+        countLabel.Position = UDim2.new(1, -2, 0, 2)
+        countLabel.AnchorPoint = Vector2.new(1, 0)
+        countLabel.BackgroundTransparency = 1
+        countLabel.Text = ""
+        countLabel.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
+        countLabel.TextSize = 14
+        countLabel.Font = Enum.Font.GothamBold
+        countLabel.TextXAlignment = Enum.TextXAlignment.Right
+        countLabel.TextYAlignment = Enum.TextYAlignment.Top
+        countLabel.TextWrapped = false
+        countLabel.ZIndex = 15 -- Higher z-index to ensure it's on top
+        countLabel.Parent = slot
+        
+        -- Add text stroke for visibility on any background
+        local textStroke = Instance.new("UIStroke")
+        textStroke.Color = Color3.fromRGB(255, 255, 255) -- White outline
+        textStroke.Thickness = 2
+        textStroke.Transparency = 0.3
+        textStroke.Parent = countLabel
+    end
+
     if state and state.itemId then
         local definition = self:getItemDefinition(state.itemId)
         if not definition then
@@ -243,14 +269,13 @@ function InventoryClient:updateSlotAppearance(slot, state)
         end
         self:updateItemIcon(icon, definition)
 
-        if countLabel then
-            if state.count and state.count > 1 then
-                countLabel.Text = tostring(state.count)
-                countLabel.Visible = true
-            else
-                countLabel.Text = ""
-                countLabel.Visible = false
-            end
+        -- Update count label
+        if state.count and state.count > 0 then
+            countLabel.Text = tostring(state.count)
+            countLabel.Visible = true
+        else
+            countLabel.Text = ""
+            countLabel.Visible = false
         end
 
         if nameLabel then
@@ -265,15 +290,16 @@ function InventoryClient:updateSlotAppearance(slot, state)
             icon.ImageRectSize = Vector2.new(0, 0)
         end
 
+        -- Hide count label for empty slots
+        if countLabel then
+            countLabel.Text = ""
+            countLabel.Visible = false
+        end
+
         -- Make empty slot visible with light background
         if slot then
             slot.BackgroundTransparency = 0.3 -- Semi-transparent to show it's empty
             slot.BackgroundColor3 = Color3.fromRGB(240, 240, 240) -- Light gray
-        end
-
-        if countLabel then
-            countLabel.Text = ""
-            countLabel.Visible = false
         end
         if nameLabel then
             nameLabel.Text = ""

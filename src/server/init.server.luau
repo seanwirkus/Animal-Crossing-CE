@@ -152,6 +152,191 @@ local function handleFishingCatch(player)
     end
 end
 
+local function handleAxeChop(player, payload)
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    
+    -- Find nearby tree
+    local nearbyTree = nil
+    local closestDistance = 15 -- Max distance to interact with tree
+    local playerPosition = humanoidRootPart.Position
+    
+    -- Search for trees in workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Tree" or 
+            obj:GetAttribute("ResourceType") == "Tree" or 
+            obj.Name:lower():find("tree")) then
+            local treePart = obj:FindFirstChildWhichIsA("BasePart")
+            if treePart then
+                local distance = (treePart.Position - playerPosition).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    nearbyTree = obj
+                end
+            end
+        end
+    end
+    
+    if nearbyTree then
+        -- Give wood (random amount 1-3)
+        local woodCount = math.random(1, 3)
+        local success, err = addItemToInventory(player, {
+            itemId = "wood",
+            count = woodCount,
+        })
+        
+        if success then
+            fireToolFeedback(player, {
+                toolType = "axe",
+                action = "chop_success",
+                data = { wood = woodCount },
+            })
+            logInfo(string.format("🪓 %s chopped tree and got %d wood", player.Name, woodCount))
+        else
+            fireToolFeedback(player, {
+                toolType = "axe",
+                action = "chop_failed",
+                message = err or "Inventory full.",
+            })
+        end
+    else
+        fireToolFeedback(player, {
+            toolType = "axe",
+            action = "chop_failed",
+            message = "No tree nearby.",
+        })
+    end
+end
+
+local function handleNetSwing(player, payload)
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    
+    -- Find nearby bugs
+    local nearbyBug = nil
+    local closestDistance = 10 -- Max distance to catch bug
+    local playerPosition = humanoidRootPart.Position
+    
+    -- Search for bugs in workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Bug" or 
+            obj:GetAttribute("ResourceType") == "Bug" or 
+            obj.Name:lower():find("bug")) then
+            local bugPart = obj:FindFirstChildWhichIsA("BasePart")
+            if bugPart then
+                local distance = (bugPart.Position - playerPosition).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    nearbyBug = obj
+                end
+            end
+        end
+    end
+    
+    if nearbyBug then
+        -- Get bug ID from model (or use default)
+        local bugId = nearbyBug:GetAttribute("ItemId") or "common_butterfly"
+        local bugName = nearbyBug:GetAttribute("ItemName") or "Common Butterfly"
+        
+        -- Add bug to inventory
+        local success, err = addItemToInventory(player, {
+            itemId = bugId,
+            count = 1,
+        })
+        
+        if success then
+            -- Remove bug from world
+            nearbyBug:Destroy()
+            
+            fireToolFeedback(player, {
+                toolType = "net",
+                action = "catch_success",
+                data = { bug = bugName },
+            })
+            logInfo(string.format("🦋 %s caught %s", player.Name, bugName))
+        else
+            fireToolFeedback(player, {
+                toolType = "net",
+                action = "catch_failed",
+                message = err or "Inventory full.",
+            })
+        end
+    else
+        fireToolFeedback(player, {
+            toolType = "net",
+            action = "catch_failed",
+            message = "No bug nearby.",
+        })
+    end
+end
+
+local function handleWateringCan(player, payload)
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    
+    -- Find nearby plants/flowers
+    local nearbyPlant = nil
+    local closestDistance = 8 -- Max distance to water plant
+    local playerPosition = humanoidRootPart.Position
+    
+    -- Search for plants in workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Plant" or 
+            obj:GetAttribute("ResourceType") == "Plant" or 
+            obj.Name:lower():find("flower") or 
+            obj.Name:lower():find("plant")) then
+            local plantPart = obj:FindFirstChildWhichIsA("BasePart")
+            if plantPart then
+                local distance = (plantPart.Position - playerPosition).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    nearbyPlant = obj
+                end
+            end
+        end
+    end
+    
+    if nearbyPlant then
+        -- Mark plant as watered
+        nearbyPlant:SetAttribute("Watered", true)
+        nearbyPlant:SetAttribute("WateredTime", tick())
+        
+        fireToolFeedback(player, {
+            toolType = "watering_can",
+            action = "water_success",
+            data = { plant = nearbyPlant.Name },
+        })
+        logInfo(string.format("💧 %s watered %s", player.Name, nearbyPlant.Name))
+    else
+        fireToolFeedback(player, {
+            toolType = "watering_can",
+            action = "water_failed",
+            message = "No plant nearby.",
+        })
+    end
+end
+
 local function handleToolUseRequest(player, payload)
     if typeof(payload) ~= "table" then
         logWarn("Received malformed tool payload", { player = player and player.Name })
@@ -162,13 +347,19 @@ local function handleToolUseRequest(player, payload)
     local action = payload.action
 
     if toolType == "shovel" and action == "dig" then
-        handleShovelDig(player)
+        handleShovelDig(player, payload)
     elseif toolType == "fishing" then
         if action == "cast" then
             handleFishingCast(player, payload)
         elseif action == "attempt_catch" then
             handleFishingCatch(player)
         end
+    elseif toolType == "axe" and action == "chop" then
+        handleAxeChop(player, payload)
+    elseif toolType == "net" and action == "swing" then
+        handleNetSwing(player, payload)
+    elseif toolType == "watering_can" and action == "water" then
+        handleWateringCan(player, payload)
     end
 end
 

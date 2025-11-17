@@ -482,22 +482,22 @@ local function createInventoryContent()
                 icon.ImageRectSize = Vector2.new()
             end
 
-            -- Item count
-            if itemData.count > 1 then
+            -- Item count (top-right, always visible black text)
+            if itemData.count and itemData.count > 0 then
                 local countLabel = Instance.new("TextLabel")
-                countLabel.Size = UDim2.new(0, 30, 0, 20)
-                countLabel.Position = UDim2.new(1, -35, 1, -25)
-                countLabel.BackgroundColor3 = COLORS.selected
+                countLabel.Name = "ItemCount"
+                countLabel.Size = UDim2.new(0, 40, 0, 20)
+                countLabel.Position = UDim2.new(1, -2, 0, 2)
+                countLabel.AnchorPoint = Vector2.new(1, 0)
+                countLabel.BackgroundTransparency = 1
                 countLabel.Text = tostring(itemData.count)
-                countLabel.Font = Enum.Font.GothamBold
+                countLabel.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
                 countLabel.TextSize = 14
-                countLabel.TextColor3 = COLORS.selectedText
-                countLabel.TextScaled = true
+                countLabel.Font = Enum.Font.GothamBold
+                countLabel.TextXAlignment = Enum.TextXAlignment.Right
+                countLabel.TextYAlignment = Enum.TextYAlignment.Top
+                countLabel.ZIndex = 15
                 countLabel.Parent = slot
-
-                local countCorner = Instance.new("UICorner")
-                countCorner.CornerRadius = UDim.new(0, 4)
-                countCorner.Parent = countLabel
             end
 
             -- Item name tooltip

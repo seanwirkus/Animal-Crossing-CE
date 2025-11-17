@@ -135,21 +135,30 @@ function InventoryGuiSetup.createSlotTemplate()
     itemIcon.ImageRectSize = Vector2.new(36, 36) -- Default sprite size from config
     itemIcon.Parent = slot
 
-    -- Item count label
+    -- Item count label (top-right, always visible black text with stroke)
     local itemCount = Instance.new("TextLabel")
     itemCount.Name = "ItemCount"
-    itemCount.Size = UDim2.new(0.4, 0, 0.25, 0)
-    itemCount.Position = UDim2.new(0.58, 0, 0.73, 0)
-    itemCount.AnchorPoint = Vector2.new(0, 0)
+    itemCount.Size = UDim2.new(0, 40, 0, 20)
+    itemCount.Position = UDim2.new(1, -2, 0, 2)
+    itemCount.AnchorPoint = Vector2.new(1, 0)
     itemCount.BackgroundTransparency = 1
     itemCount.Text = ""
-    itemCount.TextColor3 = Color3.fromRGB(60, 50, 40)
-    itemCount.TextSize = 12
+    itemCount.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
+    itemCount.TextSize = 14
     itemCount.Font = Enum.Font.GothamBold
     itemCount.TextXAlignment = Enum.TextXAlignment.Right
-    itemCount.TextYAlignment = Enum.TextYAlignment.Bottom
-    itemCount.Visible = false
+    itemCount.TextYAlignment = Enum.TextYAlignment.Top
+    itemCount.TextWrapped = false
+    itemCount.Visible = true -- Always visible, will show/hide based on count
+    itemCount.ZIndex = 15 -- Higher z-index to ensure it's on top
     itemCount.Parent = slot
+    
+    -- Add text stroke for visibility on any background
+    local textStroke = Instance.new("UIStroke")
+    textStroke.Color = Color3.fromRGB(255, 255, 255) -- White outline
+    textStroke.Thickness = 2
+    textStroke.Transparency = 0.3
+    textStroke.Parent = itemCount
 
     -- Item name label (shown on hover)
     local itemName = Instance.new("TextLabel")
