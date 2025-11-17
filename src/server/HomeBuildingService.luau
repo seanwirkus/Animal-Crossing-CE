@@ -87,7 +87,11 @@ function HomeBuildingService:_setupRemoteEvents()
     end
 
     placeHomeRemote.OnServerEvent:Connect(function(player, position)
-        self:PlaceHome(player, position)
+        local success, message = self:PlaceHome(player, position)
+        if success then
+            -- Send home data update to client
+            self:_sendHomeDataUpdate(player)
+        end
     end)
 
     -- UpgradeHome RemoteEvent
@@ -99,8 +103,54 @@ function HomeBuildingService:_setupRemoteEvents()
     end
 
     upgradeHomeRemote.OnServerEvent:Connect(function(player)
-        self:UpgradeHome(player)
+        local success, message = self:UpgradeHome(player)
+        
+        -- Send upgrade result to client
+        local upgradeResultRemote = remoteEventsFolder:FindFirstChild("HomeUpgradeResult")
+        if not upgradeResultRemote then
+            upgradeResultRemote = Instance.new("RemoteEvent")
+            upgradeResultRemote.Name = "HomeUpgradeResult"
+            upgradeResultRemote.Parent = remoteEventsFolder
+        end
+        upgradeResultRemote:FireClient(player, success, message)
+        
+        if success then
+            -- Send updated home data
+            self:_sendHomeDataUpdate(player)
+        end
     end)
+
+    -- RequestHomeData RemoteEvent
+    local requestHomeDataRemote = remoteEventsFolder:FindFirstChild("RequestHomeData")
+    if not requestHomeDataRemote then
+        requestHomeDataRemote = Instance.new("RemoteEvent")
+        requestHomeDataRemote.Name = "RequestHomeData"
+        requestHomeDataRemote.Parent = remoteEventsFolder
+    end
+
+    requestHomeDataRemote.OnServerEvent:Connect(function(player)
+        self:_sendHomeDataUpdate(player)
+    end)
+end
+
+function HomeBuildingService:_sendHomeDataUpdate(player)
+    local userId = player.UserId
+    local homeData = self._playerHomes[userId]
+    
+    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if not remoteEventsFolder then
+        return
+    end
+
+    local homeDataUpdateRemote = remoteEventsFolder:FindFirstChild("HomeDataUpdate")
+    if not homeDataUpdateRemote then
+        homeDataUpdateRemote = Instance.new("RemoteEvent")
+        homeDataUpdateRemote.Name = "HomeDataUpdate"
+        homeDataUpdateRemote.Parent = remoteEventsFolder
+    end
+
+    -- Send home data to client (or nil if no home)
+    homeDataUpdateRemote:FireClient(player, homeData)
 end
 
 function HomeBuildingService:_loadExistingHomes()
@@ -300,16 +350,25 @@ function HomeBuildingService:_createHomeModel(player, position, size)
 end
 
 function HomeBuildingService:_getHomeTemplate(size)
-    -- Try to find template in ReplicatedStorage
+    -- First, try to find PlayerHome in ReplicatedStorage (user added this)
+    local playerHome = ReplicatedStorage:FindFirstChild("PlayerHome")
+    if playerHome and playerHome:IsA("Model") then
+        print("[HomeBuildingService] ✅ Found PlayerHome model in ReplicatedStorage")
+        return playerHome
+    end
+
+    -- Fallback: Try to find template in ReplicatedStorage/Models
     local modelsFolder = ReplicatedStorage:FindFirstChild("Models")
     if modelsFolder then
         local templateName = size == "Tent" and "Tent" or "House"
         local template = modelsFolder:FindFirstChild(templateName)
         if template and template:IsA("Model") then
+            print("[HomeBuildingService] ✅ Found template:", templateName, "in Models folder")
             return template
         end
     end
 
+    print("[HomeBuildingService] ⚠️ No home template found, will use fallback tent")
     return nil
 end
 

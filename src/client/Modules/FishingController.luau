@@ -370,10 +370,11 @@ function FishingController:onCastRequested()
     end
 
     if not self:isToolReady() then
-        if not self.hasShownNoRodMessage then
-            self.hasShownNoRodMessage = true
-            self:showMessage("Equip a fishing rod first!", 2)
-        end
+        -- Message disabled - don't show "Equip a fishing rod first!"
+        -- if not self.hasShownNoRodMessage then
+        --     self.hasShownNoRodMessage = true
+        --     self:showMessage("Equip a fishing rod first!", 2)
+        -- end
         return
     end
 

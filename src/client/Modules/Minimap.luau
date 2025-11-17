@@ -75,31 +75,69 @@ function Minimap:createGUI()
     title.TextSize = 18
     title.Parent = container
 
-    -- Map view (simplified - shows player position)
-    local mapFrame = Instance.new("Frame")
+    -- Map view with top-down camera view using ViewportFrame
+    local mapFrame = Instance.new("ViewportFrame")
     mapFrame.Name = "MapFrame"
     mapFrame.Size = UDim2.new(1, -20, 1, -50)
     mapFrame.Position = UDim2.new(0, 10, 0, 40)
-    mapFrame.BackgroundColor3 = Color3.fromRGB(92, 159, 115) -- Grass green
+    mapFrame.BackgroundColor3 = Color3.fromRGB(92, 159, 115) -- Grass green fallback
     mapFrame.BorderSizePixel = 0
     mapFrame.Parent = container
 
     local mapCorner = Instance.new("UICorner")
     mapCorner.CornerRadius = UDim.new(0, 8)
     mapCorner.Parent = mapFrame
+    
+    -- Create a camera for the top-down view (MUST be parented to ViewportFrame)
+    local mapCamera = Instance.new("Camera")
+    mapCamera.Name = "MapCamera"
+    mapCamera.Parent = mapFrame -- Parent to ViewportFrame, not workspace
+    mapFrame.CurrentCamera = mapCamera
+    
+    -- Create a WorldModel to hold cloned island content for rendering
+    local worldModel = Instance.new("WorldModel")
+    worldModel.Name = "IslandWorld"
+    worldModel.Parent = mapFrame
+    
+    -- Set up top-down camera position (high above island center, looking straight down)
+    local ISLAND_CENTER = Vector3.new(0, 0, 0) -- Default center
+    local ISLAND_RADIUS = 300
+    local CAMERA_HEIGHT = 600 -- High above island (increased for better view)
+    
+    -- Position camera directly above island center, looking straight down
+    mapCamera.CFrame = CFrame.new(
+        ISLAND_CENTER + Vector3.new(0, CAMERA_HEIGHT, 0), -- Camera position (high above)
+        ISLAND_CENTER -- Look at center (straight down)
+    )
+    mapCamera.FieldOfView = 100 -- Wider FOV to see entire island better
+    
+    -- Store worldModel for later use
+    self.worldModel = worldModel
 
-    -- Player indicator
+    -- Player indicator overlay (UI element on top of viewport)
+    local playerDotContainer = Instance.new("Frame")
+    playerDotContainer.Name = "PlayerDotContainer"
+    playerDotContainer.Size = UDim2.new(1, -20, 1, -50) -- Match mapFrame size
+    playerDotContainer.Position = UDim2.new(0, 10, 0, 40) -- Match mapFrame position
+    playerDotContainer.BackgroundTransparency = 1
+    playerDotContainer.BorderSizePixel = 0
+    playerDotContainer.ZIndex = 10 -- Above viewport
+    playerDotContainer.Parent = container
+    
+    -- Player indicator (arrow shape to show direction)
     local playerDot = Instance.new("Frame")
     playerDot.Name = "PlayerDot"
-    playerDot.Size = UDim2.new(0, 12, 0, 12)
-    playerDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    playerDot.Size = UDim2.new(0, 16, 0, 16)
+    playerDot.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
     playerDot.BorderSizePixel = 0
     playerDot.AnchorPoint = Vector2.new(0.5, 0.5)
     playerDot.Position = UDim2.fromScale(0.5, 0.5) -- Center initially
-    playerDot.Parent = mapFrame
+    playerDot.ZIndex = 11 -- Above container
+    playerDot.Parent = playerDotContainer
 
+    -- Make it look like an arrow pointing in direction
     local dotCorner = Instance.new("UICorner")
-    dotCorner.CornerRadius = UDim.new(0, 6)
+    dotCorner.CornerRadius = UDim.new(0, 2)
     dotCorner.Parent = playerDot
 
     local dotStroke = Instance.new("UIStroke")
@@ -132,8 +170,115 @@ function Minimap:createGUI()
     self.gui = screenGui
     self.mapFrame = mapFrame
     self.playerDot = playerDot
+    self.playerDotContainer = playerDotContainer
+    self.mapCamera = mapCamera
+    self.worldModel = worldModel
+
+    -- Clone island terrain and objects into viewport for rendering
+    task.spawn(function()
+        self:populateViewport()
+    end)
 
     return screenGui
+end
+
+function Minimap:populateViewport()
+    if not self.worldModel or not self.mapFrame then
+        return
+    end
+    
+    -- Clear existing content
+    self.worldModel:ClearAllChildren()
+    
+    local ISLAND_RADIUS = 300
+    local ISLAND_CENTER = Vector3.new(0, 0, 0)
+    
+    -- Try to get player's island center
+    local playerIslands = workspace:FindFirstChild("PlayerIslands")
+    if playerIslands then
+        for _, islandFolder in ipairs(playerIslands:GetChildren()) do
+            if islandFolder:IsA("Folder") and islandFolder.Name:find("Island_" .. LocalPlayer.UserId) then
+                -- Found player's island - try to get center from island data
+                -- For now, use default center
+                break
+            end
+        end
+    end
+    
+    -- Create a large ground plane to represent the island (scaled down for viewport)
+    local groundPlane = Instance.new("Part")
+    groundPlane.Name = "IslandGround"
+    groundPlane.Size = Vector3.new(ISLAND_RADIUS * 2, 2, ISLAND_RADIUS * 2)
+    groundPlane.Position = ISLAND_CENTER
+    groundPlane.Material = Enum.Material.Grass
+    groundPlane.Color = Color3.fromRGB(92, 159, 115) -- Grass green
+    groundPlane.Anchored = true
+    groundPlane.CanCollide = false
+    groundPlane.TopSurface = Enum.SurfaceType.Smooth
+    groundPlane.BottomSurface = Enum.SurfaceType.Smooth
+    groundPlane.Parent = self.worldModel
+    
+    -- Add lighting to viewport
+    local light = Instance.new("PointLight")
+    light.Brightness = 2
+    light.Color = Color3.fromRGB(255, 255, 255)
+    light.Range = 1000
+    light.Shadows = false
+    light.Parent = groundPlane
+    
+    -- Clone trees from player's island
+    task.spawn(function()
+        -- Wait for trees to be generated (check multiple times)
+        for i = 1, 5 do
+            task.wait(0.3)
+            
+            local playerIslands = workspace:FindFirstChild("PlayerIslands")
+            if playerIslands then
+                -- Find player's island
+                local playerIslandFolder = nil
+                for _, islandFolder in ipairs(playerIslands:GetChildren()) do
+                    if islandFolder:IsA("Folder") and islandFolder.Name:find("Island_" .. LocalPlayer.UserId) then
+                        playerIslandFolder = islandFolder
+                        break
+                    end
+                end
+                
+                -- If not found by userId, use first island
+                if not playerIslandFolder and #playerIslands:GetChildren() > 0 then
+                    playerIslandFolder = playerIslands:GetChildren()[1]
+                end
+                
+                if playerIslandFolder then
+                    local treesFolder = playerIslandFolder:FindFirstChild("Trees")
+                    if treesFolder and #treesFolder:GetChildren() > 0 then
+                        local treeCount = 0
+                        for _, tree in ipairs(treesFolder:GetChildren()) do
+                            if tree:IsA("Model") and tree.PrimaryPart then
+                                local treeClone = tree:Clone()
+                                -- Make trees smaller for minimap view
+                                if treeClone.PrimaryPart then
+                                    treeClone:ScaleTo(0.3) -- Scale down trees for minimap
+                                end
+                                treeClone.Parent = self.worldModel
+                                treeCount = treeCount + 1
+                                
+                                -- Limit tree count for performance
+                                if treeCount >= 50 then
+                                    break
+                                end
+                            end
+                        end
+                        if treeCount > 0 then
+                            print(string.format("[Minimap] ✅ Cloned %d trees into viewport", treeCount))
+                            break -- Success, exit retry loop
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    print("[Minimap] ✅ Populated viewport with island representation")
 end
 
 function Minimap:show()
@@ -147,6 +292,14 @@ function Minimap:show()
 
     self.isVisible = true
     self.gui.Enabled = true
+
+    -- Refresh viewport content when showing (with delay to ensure trees are loaded)
+    if self.worldModel then
+        task.spawn(function()
+            task.wait(0.2) -- Small delay to ensure island is fully loaded
+            self:populateViewport()
+        end)
+    end
 
     -- Animate in
     self.gui.Container.Position = UDim2.new(1, 20, 0, 20) -- Start off-screen
@@ -194,18 +347,73 @@ function Minimap:startUpdating()
         return
     end
 
-    -- Simple update: center player dot (for now)
-    -- TODO: Add actual island bounds and coordinate mapping
+    -- Island bounds (default - can be adjusted based on actual island size)
+    -- Based on GenerationRules: ISLAND_RADIUS is typically 300 studs
+    local ISLAND_RADIUS = 300 -- studs from center
+    local ISLAND_CENTER = Vector3.new(0, 0, 0)
+    local ISLAND_MIN_X = -ISLAND_RADIUS
+    local ISLAND_MAX_X = ISLAND_RADIUS
+    local ISLAND_MIN_Z = -ISLAND_RADIUS
+    local ISLAND_MAX_Z = ISLAND_RADIUS
+    local CAMERA_HEIGHT = 500
+    
+    -- Try to detect actual island bounds from terrain or player spawn
+    local spawnLocation = LocalPlayer:GetAttribute("SpawnLocation")
+    if spawnLocation then
+        -- If player has a spawn location attribute, use that as island center
+        local spawnPos = typeof(spawnLocation) == "Vector3" and spawnLocation or Vector3.new(0, 0, 0)
+        ISLAND_CENTER = spawnPos
+        ISLAND_MIN_X = spawnPos.X - ISLAND_RADIUS
+        ISLAND_MAX_X = spawnPos.X + ISLAND_RADIUS
+        ISLAND_MIN_Z = spawnPos.Z - ISLAND_RADIUS
+        ISLAND_MAX_Z = spawnPos.Z + ISLAND_RADIUS
+    end
+    
+    local islandWidth = ISLAND_MAX_X - ISLAND_MIN_X
+    local islandDepth = ISLAND_MAX_Z - ISLAND_MIN_Z
+
     self.updateConnection = RunService.Heartbeat:Connect(function()
-        if not self.isVisible or not LocalPlayer.Character then
+        if not self.isVisible then
             return
         end
 
-        local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            -- For now, just keep player centered
-            -- In future, map world coordinates to minimap coordinates
-            self.playerDot.Position = UDim2.fromScale(0.5, 0.5)
+        -- Update top-down camera to stay centered on island
+        if self.mapCamera then
+            -- Keep camera fixed above island center, looking straight down
+            -- Use wider FOV for better island visibility
+            self.mapCamera.FieldOfView = 100
+            self.mapCamera.CFrame = CFrame.new(
+                ISLAND_CENTER + Vector3.new(0, CAMERA_HEIGHT, 0),
+                ISLAND_CENTER
+            )
+        end
+
+        -- Update player dot position if character exists
+        if LocalPlayer.Character then
+            local rootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local worldPos = rootPart.Position
+                
+                -- Map world coordinates to minimap coordinates (0-1 scale)
+                local normalizedX = (worldPos.X - ISLAND_MIN_X) / islandWidth
+                local normalizedZ = (worldPos.Z - ISLAND_MIN_Z) / islandDepth
+                
+                -- Clamp to map bounds (0-1)
+                normalizedX = math.clamp(normalizedX, 0, 1)
+                normalizedZ = math.clamp(normalizedZ, 0, 1)
+                
+                -- Update player dot position on minimap
+                if self.playerDot then
+                    self.playerDot.Position = UDim2.fromScale(normalizedX, normalizedZ)
+                    
+                    -- Rotate player dot to show facing direction
+                    if rootPart.CFrame then
+                        local lookDirection = rootPart.CFrame.LookVector
+                        local angle = math.atan2(lookDirection.X, lookDirection.Z)
+                        self.playerDot.Rotation = math.deg(angle)
+                    end
+                end
+            end
         end
     end)
 end

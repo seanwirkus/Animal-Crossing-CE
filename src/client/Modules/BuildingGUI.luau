@@ -128,7 +128,7 @@ function BuildingGUI:_buildGui()
     container.Name = "Container"
     container.AnchorPoint = Vector2.new(0.5, 0.5)
     container.Position = UDim2.new(0.5, 0, 0.5, 0)
-    container.Size = UDim2.new(0, 860, 0, 520)
+    container.Size = UDim2.new(0, 1000, 0, 650) -- Larger for better layout
     container.BackgroundColor3 = COLORS.BACKGROUND
     container.BorderSizePixel = 0
     container.Parent = screenGui
@@ -209,7 +209,7 @@ function BuildingGUI:_buildGui()
 
     local projectFrame = Instance.new("Frame")
     projectFrame.Name = "ProjectFrame"
-    projectFrame.Size = UDim2.new(0, 310, 1, 0)
+    projectFrame.Size = UDim2.new(0, 360, 1, 0) -- Wider for better text display
     projectFrame.Position = UDim2.new(0, 220, 0, 0)
     projectFrame.BackgroundColor3 = COLORS.PANEL
     projectFrame.BorderSizePixel = 0
@@ -241,8 +241,8 @@ function BuildingGUI:_buildGui()
 
     local detailFrame = Instance.new("Frame")
     detailFrame.Name = "DetailFrame"
-    detailFrame.Size = UDim2.new(1, -560, 1, 0)
-    detailFrame.Position = UDim2.new(0, 540, 0, 0)
+    detailFrame.Size = UDim2.new(1, -600, 1, 0) -- Adjusted for wider project frame
+    detailFrame.Position = UDim2.new(0, 600, 0, 0) -- Adjusted position
     detailFrame.BackgroundColor3 = COLORS.PANEL
     detailFrame.BorderSizePixel = 0
     detailFrame.Parent = content
@@ -473,21 +473,39 @@ function BuildingGUI:_renderProjectList()
         button.AutoButtonColor = false
         button.Size = UDim2.new(1, -8, 0, 70)
         button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        button.TextColor3 = COLORS.TEXT
-        button.Font = Enum.Font.Gotham
-        button.TextSize = 16
-        button.RichText = true
-        button.Text = string.format(
-            '<b>%s</b>\n<font size=14 color="#%02X%02X%02X">%s</font>',
-            project.name,
-            r,
-            g,
-            b,
-            statusLabelText(status, delivered, required)
-        )
+        button.Text = "" -- Clear default text
         button.LayoutOrder = index
         button.Parent = self.projectList
         button:SetAttribute("ProjectId", project.id)
+        
+        -- Project name label (bold)
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "NameLabel"
+        nameLabel.Size = UDim2.new(1, -16, 0, 30)
+        nameLabel.Position = UDim2.new(0, 8, 0, 8)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = project.name
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 16
+        nameLabel.TextColor3 = COLORS.TEXT
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.TextYAlignment = Enum.TextYAlignment.Top
+        nameLabel.TextWrapped = true
+        nameLabel.Parent = button
+        
+        -- Status label (colored)
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Name = "StatusLabel"
+        statusLabel.Size = UDim2.new(1, -16, 0, 25)
+        statusLabel.Position = UDim2.new(0, 8, 0, 38)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = statusLabelText(status, delivered, required)
+        statusLabel.Font = Enum.Font.Gotham
+        statusLabel.TextSize = 14
+        statusLabel.TextColor3 = statusColor
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+        statusLabel.Parent = button
 
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 8)

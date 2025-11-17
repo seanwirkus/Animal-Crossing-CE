@@ -63,9 +63,10 @@ local OnboardingService = require(script:WaitForChild("OnboardingService"))
 local _HomeBuildingService = require(script:WaitForChild("HomeBuildingService"))
 local PlayerIslandService = require(script:WaitForChild("PlayerIslandService"))
 local BuildingService = require(script:WaitForChild("BuildingService"))
+local NookConstructionService = require(script:WaitForChild("NookConstructionService"))
 local QuestService = require(script:WaitForChild("QuestService"))
 local QuestHandlers = require(script:WaitForChild("QuestHandlers"))
-local ChibiCharacterServer = require(script:WaitForChild("ChibiCharacterServer"))
+local CharacterAndToolFixes = require(ReplicatedStorage.Shared.CharacterAndToolFixes)
 
 local questService = nil
 
@@ -95,8 +96,10 @@ local function fireToolFeedback(player, payload)
     end
 end
 
-local function handleShovelDig(player)
-    local success, resultType, resultData, errorMessage = ShovelSystem.attemptDig(player)
+local function handleShovelDig(player, payload)
+    local targetPosition = payload and payload.position
+    local targetInstance = payload and payload.targetInstance
+    local success, resultType, resultData, errorMessage = ShovelSystem.attemptDig(player, targetPosition, targetInstance)
 
     if success then
         fireToolFeedback(player, {
@@ -216,8 +219,12 @@ DigMarkerSpawner.init()
 -- Initialize shovel system (uses DigSpotManager internally)
 ShovelSystem.init()
 
--- Replace default avatars with the chibi rig for big-headed characters
-ChibiCharacterServer.init()
+-- Connect inventory function to ShovelSystem for tree digging
+ShovelSystem.setAddItemFunction(addItemToInventory)
+
+-- Initialize character and tool fixes (scales characters, fixes tool anchoring)
+logInfo("👤 Initializing character and tool fixes...")
+CharacterAndToolFixes.init()
 
 -- Initialize tree shaking system (apples drop from trees)
 -- TODO: Replace nil with actual apple asset ID when provided
@@ -239,6 +246,7 @@ islandService:initialize()
 -- Connect HomeBuildingService to PlayerIslandService
 logInfo("🏠 Connecting HomeBuildingService to PlayerIslandService...")
 _HomeBuildingService:SetPlayerIslandService(islandService)
+NookConstructionService:SetPlayerIslandService(islandService)
 
 -- Connect HomeBuildingService to CurrencyManager
 logInfo("🏠 Connecting HomeBuildingService to CurrencyManager...")

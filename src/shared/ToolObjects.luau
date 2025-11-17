@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local PhysicsService = game:GetService("PhysicsService")
+local Players = game:GetService("Players")
 
 local TOOL_MODELS = {
     -- Fishing Rods (with underscores to match sprite IDs)
@@ -40,6 +41,14 @@ local TOOL_MODELS = {
 local SLINGSHOT_SCALE = 0.2
 
 local ToolObjects = {}
+
+local function getRightHandPart(character: Model): BasePart?
+    return character:FindFirstChild("RightHand")
+        or character:FindFirstChild("RightLowerArm")
+        or character:FindFirstChild("Right Arm")
+        or character:FindFirstChild("RightUpperArm")
+        or character:FindFirstChild("Torso")
+end
 
 local function ensureDefaultCFrame(part: BasePart?): CFrameValue?
     if not part or not part:IsA("BasePart") then
@@ -202,6 +211,45 @@ local function disableShovelCollision(shovelModel: Model)
     end
 end
 
+-- Create a simple custom shovel model
+local function createCustomShovelModel(): Model
+    local shovelModel = Instance.new("Model")
+    shovelModel.Name = "Shovel"
+    
+    -- Shovel handle (long stick)
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(0.2, 2.5, 0.2)
+    handle.Material = Enum.Material.Wood
+    handle.Color = Color3.fromRGB(101, 67, 33) -- Brown wood
+    handle.CanCollide = false
+    handle.Massless = true
+    handle.Parent = shovelModel
+    
+    -- Shovel blade (metal part)
+    local blade = Instance.new("Part")
+    blade.Name = "Blade"
+    blade.Size = Vector3.new(0.5, 0.8, 0.1)
+    blade.Material = Enum.Material.Metal
+    blade.Color = Color3.fromRGB(200, 200, 200) -- Silver metal
+    blade.CanCollide = false
+    blade.Massless = true
+    blade.Parent = shovelModel
+    
+    -- Position blade at bottom of handle
+    local bladeWeld = Instance.new("WeldConstraint")
+    bladeWeld.Part0 = handle
+    bladeWeld.Part1 = blade
+    bladeWeld.Parent = blade
+    
+    blade.CFrame = handle.CFrame * CFrame.new(0, -handle.Size.Y / 2 - blade.Size.Y / 2 + 0.1, 0) * CFrame.Angles(math.rad(-20), 0, 0)
+    
+    -- Set primary part
+    shovelModel.PrimaryPart = handle
+    
+    return shovelModel
+end
+
 function ToolObjects.getToolModel(spriteId: string): Model?
     print("[ToolObjects] Looking for tool model:", spriteId)
     local modelName = TOOL_MODELS[spriteId]
@@ -270,7 +318,7 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
 
     -- Special handling for shovels - create visual attachment instead of functional tool
     if spriteId:find("shovel") then
-        print("[ToolObjects] Creating visual shovel attachment...")
+        print("[ToolObjects] Creating custom shovel attachment...")
 
         -- Remove any existing tools from character
         for _, item in ipairs(character:GetChildren()) do
@@ -285,69 +333,97 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
             existingAttachment:Destroy()
         end
 
+        -- Create a custom shovel model instead of using external model
+        local shovelModel = createCustomShovelModel()
+
         -- Create a visual attachment for the shovel
         local attachment = Instance.new("Model")
         attachment.Name = "EquippedTool"
 
-        -- Clone the shovel model and position it
-        local shovelClone = toolModel:Clone()
-        shovelClone.Name = "Shovel"
-        disableShovelCollision(shovelClone)
-        shovelClone.Parent = attachment
+        -- Use our custom shovel model
+        shovelModel.Name = "Shovel"
+        disableShovelCollision(shovelModel)
+        shovelModel.Parent = attachment
 
-        -- Position the shovel relative to the character (right hand position)
+        -- Position the shovel relative to the character hand
+        local attachPart = getRightHandPart(character)
         local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            -- Position shovel in right hand area
-            shovelClone:PivotTo(
-                humanoidRootPart.CFrame * CFrame.new(0.5, -0.5, 0.5) * CFrame.Angles(math.rad(-90), 0, math.rad(45))
-            )
+        local primaryPart = shovelModel.PrimaryPart or shovelModel:FindFirstChildWhichIsA("BasePart")
+        
+        if attachPart and primaryPart then
+            shovelModel.PrimaryPart = primaryPart
 
-            -- Create a weld to keep it attached
+            -- Position shovel in hand - angled down and forward
+            local offset = CFrame.new(0, -0.4, 0.3) * CFrame.Angles(math.rad(-45), 0, math.rad(10))
+            shovelModel:PivotTo(attachPart.CFrame * offset)
+
+            -- Weld shovel to hand
             local weld = Instance.new("WeldConstraint")
-            weld.Part0 = humanoidRootPart
-            weld.Part1 = shovelClone.PrimaryPart or shovelClone:FindFirstChildWhichIsA("BasePart")
-            weld.Parent = shovelClone
+            weld.Part0 = attachPart
+            weld.Part1 = primaryPart
+            weld.Parent = primaryPart
+        else
+            -- Fallback: attach to root part if hand not found
+            if humanoidRootPart and primaryPart then
+                shovelModel.PrimaryPart = primaryPart
+                local offset = CFrame.new(0.5, -0.5, 0.5) * CFrame.Angles(math.rad(-45), 0, math.rad(45))
+                shovelModel:PivotTo(humanoidRootPart.CFrame * offset)
+
+                local weld = Instance.new("WeldConstraint")
+                weld.Part0 = humanoidRootPart
+                weld.Part1 = primaryPart
+                weld.Parent = primaryPart
+            end
         end
 
         attachment.Parent = character
 
-        -- Create a dummy tool object for compatibility and smooth movement
+        -- Create a simple tool object just for tracking (don't interfere with movement)
         local dummyTool = Instance.new("Tool")
         dummyTool.Name = spriteId
         dummyTool.CanBeDropped = false
-        dummyTool.RequiresHandle = true -- Require handle for tool system compatibility
+        dummyTool.RequiresHandle = false -- No handle needed
         dummyTool.ManualActivationOnly = true
 
-        -- Create an invisible handle that's not part of collision
+        -- Create an invisible handle for tool system compatibility
         local handle = Instance.new("Part")
         handle.Name = "Handle"
-        handle.Size = Vector3.new(0.01, 0.01, 0.01) -- Minimize size to avoid collision
+        handle.Size = Vector3.new(0.01, 0.01, 0.01)
         handle.Transparency = 1
         handle.CanCollide = false
-        handle.CFrame = humanoidRootPart.CFrame + humanoidRootPart.CFrame.LookVector * 0.1 -- Position in front
+        handle.Anchored = true
         handle.Massless = true
         handle.Parent = dummyTool
 
-        dummyTool.Grip = CFrame.new(0, -0.3, 0.3) * CFrame.Angles(math.rad(-45), 0, 0) -- Position forward in hand
         dummyTool.Parent = character
 
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if humanoid then
             humanoid.Sit = false
             humanoid.PlatformStand = false
-            print("[ToolObjects] ✅ Dummy shovel state applied for smooth movement")
+        end
+        
+        -- Set player attribute so ShovelClient can detect it
+        local player = Players:GetPlayerFromCharacter(character)
+        if player then
+            player:SetAttribute("EquippedToolType", "shovel")
         end
 
+        -- Clean up attachment when tool is unequipped
         dummyTool.AncestryChanged:Connect(function(_, newParent)
             if newParent ~= character then
                 if attachment and attachment.Parent then
                     attachment:Destroy()
                 end
+                -- Clear player attribute
+                local player = Players:GetPlayerFromCharacter(character)
+                if player then
+                    player:SetAttribute("EquippedToolType", nil)
+                end
             end
         end)
 
-        print("[ToolObjects] ✅ Visual shovel attachment created")
+        print("[ToolObjects] ✅ Custom shovel attachment created")
         return dummyTool
     end
 

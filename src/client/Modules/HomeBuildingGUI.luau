@@ -67,9 +67,37 @@ function HomeBuildingGUI:setupRemoteListeners()
         return
     end
 
-    -- Listen for home data updates
-    -- This would be sent from server when home is placed/upgraded
-    -- For now, we'll request it when opening
+    -- Listen for home data updates from server
+    -- Create a RemoteEvent for home data updates if it doesn't exist
+    local homeDataRemote = remoteEventsFolder:FindFirstChild("HomeDataUpdate")
+    if not homeDataRemote then
+        homeDataRemote = Instance.new("RemoteEvent")
+        homeDataRemote.Name = "HomeDataUpdate"
+        homeDataRemote.Parent = remoteEventsFolder
+    end
+
+    homeDataRemote.OnClientEvent:Connect(function(homeData)
+        self:updateHomeInfo(homeData)
+        print("[HomeBuildingGUI] Received home data update from server")
+    end)
+
+    -- Listen for upgrade results
+    local upgradeResultRemote = remoteEventsFolder:FindFirstChild("HomeUpgradeResult")
+    if not upgradeResultRemote then
+        upgradeResultRemote = Instance.new("RemoteEvent")
+        upgradeResultRemote.Name = "HomeUpgradeResult"
+        upgradeResultRemote.Parent = remoteEventsFolder
+    end
+
+    upgradeResultRemote.OnClientEvent:Connect(function(success, message)
+        if success then
+            print("[HomeBuildingGUI] ✅ Home upgrade successful:", message)
+            -- Request updated home data
+            self:requestHomeData()
+        else
+            warn("[HomeBuildingGUI] ❌ Home upgrade failed:", message)
+        end
+    end)
 end
 
 function HomeBuildingGUI:setupCurrencyListener()
@@ -104,10 +132,10 @@ function HomeBuildingGUI:createGUI()
 
     self._gui = screenGui
 
-    -- Main frame
+    -- Main frame - larger and better positioned
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 500, 0, 600)
+    mainFrame.Size = UDim2.new(0, 650, 0, 700) -- Larger for better layout
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     mainFrame.BackgroundColor3 = COLORS.BG_PRIMARY
@@ -226,13 +254,25 @@ function HomeBuildingGUI:createContentArea()
     upgradeLabel.TextXAlignment = Enum.TextXAlignment.Left
     upgradeLabel.Parent = contentFrame
 
-    -- Upgrade buttons container
-    local upgradeContainer = Instance.new("Frame")
+    -- Upgrade buttons container - scrollable
+    local upgradeContainer = Instance.new("ScrollingFrame")
     upgradeContainer.Name = "UpgradeContainer"
-    upgradeContainer.Size = UDim2.new(1, 0, 0, 400)
+    upgradeContainer.Size = UDim2.new(1, 0, 1, -90) -- Fill remaining space
     upgradeContainer.Position = UDim2.new(0, 0, 0, 90)
     upgradeContainer.BackgroundTransparency = 1
+    upgradeContainer.BorderSizePixel = 0
+    upgradeContainer.ScrollBarThickness = 6
+    upgradeContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
     upgradeContainer.Parent = contentFrame
+
+    local upgradeLayout = Instance.new("UIListLayout")
+    upgradeLayout.Padding = UDim.new(0, 10)
+    upgradeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    upgradeLayout.Parent = upgradeContainer
+    
+    upgradeLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        upgradeContainer.CanvasSize = UDim2.new(0, 0, 0, upgradeLayout.AbsoluteContentSize.Y + 20)
+    end)
 
     self._upgradeContainer = upgradeContainer
 
@@ -260,9 +300,8 @@ function HomeBuildingGUI:createUpgradeButtons()
     for i, upgrade in ipairs(upgrades) do
         if currentSize == upgrade.from or (currentSize == "None" and i == 1) then
             local buttonFrame = self:createUpgradeButton(upgrade, currentSize)
-            buttonFrame.Position = UDim2.new(0, 0, 0, yOffset)
+            buttonFrame.LayoutOrder = i
             buttonFrame.Parent = self._upgradeContainer
-            yOffset = yOffset + 100
         end
     end
 end
@@ -389,9 +428,13 @@ function HomeBuildingGUI:updateHomeInfo(homeData)
 
     if self._homeInfoLabel then
         if homeData then
-            self._homeInfoLabel.Text = "Current Home: " .. (homeData.size or "Unknown")
+            local size = homeData.size or "Unknown"
+            local rooms = homeData.rooms or 1
+            local created = homeData.created and os.date("%Y-%m-%d", homeData.created) or "Unknown"
+            self._homeInfoLabel.Text = string.format("Current Home: %s (%d room%s) - Built: %s", 
+                size, rooms, rooms > 1 and "s" or "", created)
         else
-            self._homeInfoLabel.Text = "Current Home: None"
+            self._homeInfoLabel.Text = "Current Home: None - Place your first home to get started!"
         end
     end
 
@@ -421,9 +464,28 @@ function HomeBuildingGUI:open()
         self._isOpen = true
 
         -- Request current home data from server
-        -- For now, we'll just show the UI
+        self:requestHomeData()
+        
         print("[HomeBuildingGUI] Opened")
     end
+end
+
+function HomeBuildingGUI:requestHomeData()
+    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if not remoteEventsFolder then
+        return
+    end
+
+    -- Request home data from server
+    local requestHomeDataRemote = remoteEventsFolder:FindFirstChild("RequestHomeData")
+    if not requestHomeDataRemote then
+        requestHomeDataRemote = Instance.new("RemoteEvent")
+        requestHomeDataRemote.Name = "RequestHomeData"
+        requestHomeDataRemote.Parent = remoteEventsFolder
+    end
+
+    requestHomeDataRemote:FireServer()
+    print("[HomeBuildingGUI] Requested home data from server")
 end
 
 function HomeBuildingGUI:close()

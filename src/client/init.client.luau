@@ -139,9 +139,6 @@ print("[Client] ✅ SlingshotController module loaded")
 local ShovelClientModule = require(script.Modules.ShovelClient)
 print("[Client] ✅ ShovelClient module loaded")
 
--- local ChibiCharacter = require(script.Modules.ChibiCharacter)
--- print("[Client] ✅ ChibiCharacter module loaded")
-
 -- WaterEffects DISABLED - was causing material rendering issues in Studio
 -- local WaterEffectsModule = require(script.Modules.WaterEffects)
 -- print("[Client] ✅ WaterEffects module loaded")
@@ -153,9 +150,9 @@ print("[Client] ✅ VisualEffects module loaded")
 local ParticleEffectsModule = require(script.Modules.ParticleEffects)
 print("[Client] ✅ ParticleEffects module loaded")
 
--- Startup Keybind Hint - Persistent controls display
-local StartupKeybindHintModule = require(script.Modules.StartupKeybindHint)
-print("[Client] ✅ StartupKeybindHint module loaded")
+-- Startup Keybind Hint - DISABLED (user requested removal)
+-- local StartupKeybindHintModule = require(script.Modules.StartupKeybindHint)
+-- print("[Client] ✅ StartupKeybindHint module loaded")
 
 -- NookPlane - Cutscene system for flying
 local NookPlaneModule = require(script.Modules.NookPlane)
@@ -274,9 +271,10 @@ HomeScreenModule.initialize({
     keybindManager = keybindManager,
 })
 
-local KeybindGuideModule = require(script.Modules.KeybindGuide)
-KeybindGuideModule.init(guiManager, keybindManager, GameMenuModule, settingsController)
-print("[Client] ✅ Keybind Guide initialized (F1)")
+-- KeybindGuide - DISABLED (user requested removal)
+-- local KeybindGuideModule = require(script.Modules.KeybindGuide)
+-- KeybindGuideModule.init(guiManager, keybindManager, GameMenuModule, settingsController)
+-- print("[Client] ✅ Keybind Guide initialized (F1)")
 
 keybindManager:registerBind("GAME_MENU", function(inputState)
     if inputState == "began" then
@@ -284,11 +282,12 @@ keybindManager:registerBind("GAME_MENU", function(inputState)
     end
 end)
 
-keybindManager:registerBind("KEYBIND_GUIDE", function(inputState)
-    if inputState == "began" then
-        KeybindGuideModule.toggle()
-    end
-end)
+-- KEYBIND_GUIDE keybind - DISABLED (user requested removal)
+-- keybindManager:registerBind("KEYBIND_GUIDE", function(inputState)
+--     if inputState == "began" then
+--         KeybindGuideModule.toggle()
+--     end
+-- end)
 
 local localPlayer = _Players.LocalPlayer
 
@@ -305,8 +304,8 @@ print("[Client] ⏸️ LOADING SCREEN & ONBOARDING DISABLED FOR DEBUG")
 print("[Client] ✅ Game fully ready - skipping startup flows")
 
 task.wait(0.2) -- Brief wait for modules to settle
-StartupKeybindHintModule.init()
-print("[Client] 🎮 Keybind hint displayed")
+-- StartupKeybindHintModule.init() -- Disabled: Remove keybind GUI
+-- print("[Client] 🎮 Keybind hint displayed")
 
 -- Expose NookPlane for cutscenes (can be called from scripts)
 _G.NookPlane = NookPlaneModule
@@ -402,9 +401,13 @@ local nookShoppingGUI = NookShoppingGUIModule.new()
 guiManager:registerGUI("nookShopping", nookShoppingGUI)
 print("[Client] ✅ NookShoppingGUI initialized")
 
--- Initialize NookPhoneGUI and connect it to NookShoppingGUI
+-- Initialize Minimap first (needed for NookPhone map app)
+local MinimapModule = require(script.Modules.Minimap)
+
+-- Initialize NookPhoneGUI and connect it to NookShoppingGUI, GUIManager, and Minimap
 local nookPhoneGUI = NookPhoneGUIModule.new()
 nookPhoneGUI:setShopGUI(nookShoppingGUI)
+nookPhoneGUI:init(guiManager, MinimapModule) -- Connect to GUIManager and Minimap for app functionality
 guiManager:registerGUI("nookPhone", nookPhoneGUI)
 print("[Client] ✅ NookPhoneGUI initialized")
 
@@ -734,7 +737,7 @@ keybindManager:registerBind("SETTINGS", function(inputState)
 end)
 
 -- Register missing keybind handlers (MAP, EMOTE, DROP_ITEM)
-local MinimapModule = require(script.Modules.Minimap)
+-- MinimapModule already loaded above for NookPhone
 keybindManager:registerBind("MAP", function(inputState)
     if inputState == "began" then
         MinimapModule:toggle()
