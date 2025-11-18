@@ -956,7 +956,6 @@ function NookPhoneGUI:updateInventorySummary(snapshot)
     for _, state in pairs(slots) do
         if state and state.itemId then
             used += 1
-            uniqueItems += 1
             local count = normalizeItemCount(state.count)
             itemCounts[state.itemId] = (itemCounts[state.itemId] or 0) + count
 
@@ -970,6 +969,11 @@ function NookPhoneGUI:updateInventorySummary(snapshot)
                 toolCounts[toolCategory] = (toolCounts[toolCategory] or 0) + 1
             end
         end
+    end
+
+    -- Count unique items by counting keys in itemCounts
+    for _ in pairs(itemCounts) do
+        uniqueItems += 1
     end
 
     self.dynamicState.inventory = {
@@ -1098,6 +1102,8 @@ function NookPhoneGUI:_startMapWatcher()
                 waited += 0.5
             end
         end
+        -- Thread cleanup
+        self.mapWatcherThread = nil
     end)
 end
 
