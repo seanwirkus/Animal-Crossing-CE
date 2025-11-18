@@ -2,97 +2,263 @@
 -- Creates the inventory GUI structure with responsive slot templates
 
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+
+local ThemeProvider = require(script.Parent.ThemeProvider)
+local GUIContentManager = require(script.Parent.GUIContentManager)
+local LayoutLint = require(script.Parent.LayoutLint)
 
 local InventoryGuiSetup = {}
 
--- Track if inventory GUI has been initialized to prevent repeated calls
 local _inventoryGuiInitialized = false
+
+local function ensureScreenGui(playerGui)
+    local existing = playerGui:FindFirstChild("InventoryGUI")
+    if existing and existing:IsA("ScreenGui") then
+        return existing
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "InventoryGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.DisplayOrder = 25
+    screenGui.IgnoreGuiInset = true
+    screenGui.Enabled = true
+    screenGui.Parent = playerGui
+
+    print("[InventoryGuiSetup] ✨ Created default InventoryGUI container")
+    return screenGui
+end
+
+local function applyFrameStyling(frame, layout)
+    ThemeProvider.styleFrame(frame, {
+        backgroundColor = "cream",
+        cornerRadius = layout.cornerRadius and UDim.new(0, layout.cornerRadius) or "xlarge",
+        strokeColor = "lightBrown",
+        strokeThickness = 2,
+        shadow = "large",
+    })
+
+    local padding = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, layout.padding.top or 24)
+    padding.PaddingBottom = UDim.new(0, layout.padding.bottom or 24)
+    padding.PaddingLeft = UDim.new(0, layout.padding.left or 24)
+    padding.PaddingRight = UDim.new(0, layout.padding.right or 24)
+    padding.Parent = frame
+end
+
+local function createHeader(frame, layout)
+    local header = frame:FindFirstChild("InventoryHeader")
+    if header and header:IsA("Frame") then
+        return header
+    end
+
+    header = Instance.new("Frame")
+    header.Name = "InventoryHeader"
+    header.Size = UDim2.new(1, 0, 0, layout.headerHeight or 48)
+    header.BackgroundTransparency = 1
+    header.Parent = frame
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, -60, 1, 0)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = GUIContentManager.Inventory.title
+    titleLabel.Font = ThemeProvider.getFont("bold")
+    titleLabel.TextSize = ThemeProvider.getTextSize("xxlarge")
+    titleLabel.TextColor3 = ThemeProvider.getColor("buttonBrown")
+    titleLabel.Parent = header
+
+    local closeButton = ThemeProvider.createCloseButton(header, {
+        onClick = function()
+            local inventoryFrame = header:FindFirstAncestor("InventoryFrame")
+            if inventoryFrame then
+                inventoryFrame.Visible = false
+            end
+        end,
+    })
+    closeButton.Name = "CloseButton"
+    closeButton.Text = GUIContentManager.Inventory.buttons.close
+
+    return header
+end
+
+local function createActionRow(frame, layout)
+    local actionRow = frame:FindFirstChild("InventoryActions")
+    if actionRow and actionRow:IsA("Frame") then
+        return actionRow
+    end
+
+    actionRow = Instance.new("Frame")
+    actionRow.Name = "InventoryActions"
+    actionRow.Size = UDim2.new(1, 0, 0, layout.searchHeight or 36)
+    actionRow.BackgroundTransparency = 1
+    actionRow.Parent = frame
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.FillDirection = Enum.FillDirection.Horizontal
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    listLayout.Padding = UDim.new(0, 12)
+    listLayout.Parent = actionRow
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.Size = UDim2.new(1, -150, 1, 0)
+    searchBox.BackgroundColor3 = ThemeProvider.getColor("eggshell")
+    searchBox.TextColor3 = ThemeProvider.getColor("textPrimary")
+    searchBox.Font = ThemeProvider.getFont("primary")
+    searchBox.TextSize = ThemeProvider.getTextSize("medium")
+    searchBox.PlaceholderText = GUIContentManager.Inventory.buttons.search
+    searchBox.TextXAlignment = Enum.TextXAlignment.Left
+    searchBox.Text = ""
+    searchBox.ClearTextOnFocus = false
+    searchBox.Parent = actionRow
+
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = ThemeProvider.getRadius("medium")
+    searchCorner.Parent = searchBox
+
+    local searchStroke = Instance.new("UIStroke")
+    searchStroke.Color = ThemeProvider.getColor("lightBrown")
+    searchStroke.Thickness = 1
+    searchStroke.Parent = searchBox
+
+    local sortButton = ThemeProvider.createSecondaryButton(actionRow, GUIContentManager.Inventory.buttons.sort, {
+        size = UDim2.new(0, 120, 1, 0),
+    })
+    sortButton.Name = "SortButton"
+    sortButton.AutoButtonColor = true
+
+    return actionRow
+end
+
+local function ensureInventoryItems(frame, layout)
+    local inventoryItems = frame:FindFirstChild("InventoryItems")
+    if not inventoryItems or not inventoryItems:IsA("ScrollingFrame") then
+        inventoryItems = Instance.new("ScrollingFrame")
+        inventoryItems.Name = "InventoryItems"
+        inventoryItems.BackgroundTransparency = 1
+        inventoryItems.BorderSizePixel = 0
+        inventoryItems.ScrollBarThickness = 6
+        inventoryItems.ScrollingDirection = Enum.ScrollingDirection.Y
+        inventoryItems.CanvasSize = UDim2.new(0, 0, 0, 0)
+        inventoryItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        inventoryItems.Parent = frame
+    end
+
+    local padding = inventoryItems:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, layout.footerHeight or 24)
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.PaddingRight = UDim.new(0, 8)
+    padding.Parent = inventoryItems
+
+    local existingGrid = inventoryItems:FindFirstChildOfClass("UIGridLayout")
+    if not existingGrid then
+        existingGrid = Instance.new("UIGridLayout")
+        existingGrid.FillDirection = Enum.FillDirection.Horizontal
+        existingGrid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        existingGrid.VerticalAlignment = Enum.VerticalAlignment.Top
+        existingGrid.SortOrder = Enum.SortOrder.LayoutOrder
+        existingGrid.Parent = inventoryItems
+    end
+
+    local slotLayout = layout.slot or {}
+    existingGrid.CellSize = slotLayout.size or UDim2.new(0, 60, 0, 60)
+    local paddingValue = 8
+    if slotLayout.padding then
+        paddingValue = slotLayout.padding.Offset ~= 0 and slotLayout.padding.Offset or paddingValue
+    end
+    existingGrid.CellPadding = UDim2.new(0, paddingValue, 0, paddingValue)
+
+    return inventoryItems
+end
+
+local function createFooter(frame, layout)
+    local footer = frame:FindFirstChild("InventoryFooter")
+    if footer and footer:IsA("TextLabel") then
+        return footer
+    end
+
+    footer = Instance.new("TextLabel")
+    footer.Name = "InventoryFooter"
+    footer.Size = UDim2.new(1, 0, 0, layout.footerHeight or 24)
+    footer.BackgroundTransparency = 1
+    footer.Position = UDim2.new(0, 0, 1, -((layout.footerHeight or 24)))
+    footer.TextXAlignment = Enum.TextXAlignment.Left
+    footer.Text = GUIContentManager.Inventory.messages.empty
+    footer.Font = ThemeProvider.getFont("secondary")
+    footer.TextSize = ThemeProvider.getTextSize("small")
+    footer.TextColor3 = ThemeProvider.getColor("textSecondary")
+    footer.Parent = frame
+
+    return footer
+end
+
+local function buildInventoryFrame(screenGui, layout)
+    local frame = Instance.new("Frame")
+    frame.Name = "InventoryFrame"
+    frame.AnchorPoint = layout.anchorPoint or Vector2.new(0.5, 1)
+    frame.Position = layout.position or UDim2.new(0.5, 0, 1, -40)
+    frame.Size = layout.size or UDim2.new(0, 720, 0, 360)
+    frame.BackgroundTransparency = 0
+    frame.BorderSizePixel = 0
+    frame.Visible = false
+    frame.Parent = screenGui
+
+    applyFrameStyling(frame, layout)
+    createHeader(frame, layout)
+    createActionRow(frame, layout)
+    ensureInventoryItems(frame, layout)
+    createFooter(frame, layout)
+
+    print("[InventoryGuiSetup] ✨ Created InventoryFrame with responsive layout")
+    return frame
+end
 
 function InventoryGuiSetup.createInventoryGui()
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
 
-    -- Only initialize once
-    if _inventoryGuiInitialized then
-        return playerGui:FindFirstChild("InventoryGUI")
-    end
+    local layout = LayoutLint.validate("Inventory", GUIContentManager.getLayoutConfig("Inventory"), {
+        "anchorPoint",
+        "position",
+        "size",
+    })
 
-    -- Look for existing InventoryGUI in Roblox (don't create it)
-    local screenGui = playerGui:FindFirstChild("InventoryGUI")
+    local screenGui = ensureScreenGui(playerGui)
     if not screenGui then
-        warn("[InventoryGuiSetup] ❌ InventoryGUI not found in PlayerGui - make sure it exists in Roblox!")
         return nil
     end
 
-    print("[InventoryGuiSetup] ✅ Found existing InventoryGUI in PlayerGui")
-    _inventoryGuiInitialized = true
+    if not _inventoryGuiInitialized then
+        _inventoryGuiInitialized = true
+    end
 
-    -- Find InventoryFrame
     local inventoryFrame = screenGui:FindFirstChild("InventoryFrame")
-    if not inventoryFrame then
-        warn("[InventoryGuiSetup] ❌ InventoryFrame not found in InventoryGUI")
-        return screenGui
-    end
-
-    print("[InventoryGuiSetup] ✅ Found InventoryFrame")
-
-    -- Find or create InventoryItems ScrollingFrame
-    local inventoryItems = inventoryFrame:FindFirstChild("InventoryItems")
-
-    if not inventoryItems then
-        warn("[InventoryGuiSetup] ⚠ InventoryItems not found, creating it...")
-        inventoryItems = Instance.new("ScrollingFrame")
-        inventoryItems.Name = "InventoryItems"
-        inventoryItems.Size = UDim2.new(1, 0, 1, 0)
-        inventoryItems.Position = UDim2.new(0, 0, 0, 0)
-        inventoryItems.BackgroundTransparency = 0
-        inventoryItems.BorderSizePixel = 0
-        inventoryItems.ScrollBarThickness = 8
-        inventoryItems.CanvasSize = UDim2.new(0, 0, 0, 0)
-        inventoryItems.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        inventoryItems.Parent = inventoryFrame
-    end
-
-    -- Check for existing layout - if user added UIListLayout, use it; otherwise create UIGridLayout
-    local existingListLayout = inventoryItems:FindFirstChildOfClass("UIListLayout")
-    local existingGridLayout = inventoryItems:FindFirstChildOfClass("UIGridLayout")
-
-    if existingListLayout then
-        print("[InventoryGuiSetup] ✅ Found existing UIListLayout - using it")
-        -- Ensure it's configured correctly
-        if existingListLayout.SortOrder ~= Enum.SortOrder.LayoutOrder then
-            existingListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        end
-    elseif not existingGridLayout then
-        -- Create UIGridLayout only if no layout exists
-        local gridLayout = Instance.new("UIGridLayout")
-        gridLayout.FillDirection = Enum.FillDirection.Horizontal
-        gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-        gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        gridLayout.CellSize = UDim2.new(0, 50, 0, 50)
-        gridLayout.CellPadding = UDim2.new(0, 5, 0, 5)
-        gridLayout.Parent = inventoryItems
-        print("[InventoryGuiSetup] ✅ Created UIGridLayout for inventory slots")
+    if not inventoryFrame or not inventoryFrame:IsA("Frame") then
+        inventoryFrame = buildInventoryFrame(screenGui, layout)
     else
-        print("[InventoryGuiSetup] ✅ Found existing UIGridLayout - using it")
+        applyFrameStyling(inventoryFrame, layout)
+        createHeader(inventoryFrame, layout)
+        createActionRow(inventoryFrame, layout)
+        ensureInventoryItems(inventoryFrame, layout)
+        createFooter(inventoryFrame, layout)
+        print("[InventoryGuiSetup] ♻️ Refreshed existing InventoryFrame")
     end
 
-    print("[InventoryGuiSetup] ✅ InventoryItems ready")
-
-    -- Find or create ItemSlotTemplate
+    local inventoryItems = ensureInventoryItems(inventoryFrame, layout)
     local slotTemplate = inventoryItems:FindFirstChild("ItemSlotTemplate")
     if not slotTemplate then
-        print("[InventoryGuiSetup] Creating ItemSlotTemplate...")
         slotTemplate = InventoryGuiSetup.createSlotTemplate()
         slotTemplate.Name = "ItemSlotTemplate"
         slotTemplate.Visible = false
         slotTemplate.Parent = inventoryItems
     end
 
-    print("[InventoryGuiSetup] ✅ Inventory GUI setup complete!")
-
+    print("[InventoryGuiSetup] ✅ Inventory GUI ready")
     return screenGui
 end
 
@@ -114,7 +280,9 @@ function InventoryGuiSetup.createSlotTemplate()
 
     local slot = Instance.new("Frame")
     slot.Name = "ItemSlot"
-    slot.Size = UDim2.new(0, slotSize, 0, slotSize)
+    local slotLayout = GUIContentManager.getLayoutConfig("Inventory")
+    local slotSizeOverride = slotLayout and slotLayout.slot and slotLayout.slot.size
+    slot.Size = slotSizeOverride or UDim2.new(0, slotSize, 0, slotSize)
     slot.BackgroundColor3 = Color3.fromRGB(255, 250, 240)
     slot.BorderSizePixel = 2
     slot.BorderColor3 = Color3.fromRGB(180, 170, 150)

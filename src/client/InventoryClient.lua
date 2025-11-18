@@ -19,6 +19,19 @@ if success and tooltipModule then
     print("[InventoryClient] ✅ ItemTooltip loaded")
 end
 
+local InventoryGuiSetup = nil
+local okGuiSetup, guiSetupModule = pcall(function()
+    local clientFolder = script.Parent
+    local modulesFolder = clientFolder:FindFirstChild("Modules")
+    if modulesFolder then
+        return require(modulesFolder:FindFirstChild("InventoryGuiSetup"))
+    end
+    return nil
+end)
+if okGuiSetup and guiSetupModule then
+    InventoryGuiSetup = guiSetupModule
+end
+
 local InventoryClient = {}
 InventoryClient.__index = InventoryClient
 InventoryClient.MAX_SLOTS = 10 -- Always show 10 slots (1 row)
@@ -1121,6 +1134,12 @@ function InventoryClient:bindInput()
 end
 
 function InventoryClient:attachGui()
+    if InventoryGuiSetup then
+        pcall(function()
+            InventoryGuiSetup.createInventoryGui()
+        end)
+    end
+
     -- Prefer existing GUI authored in Studio: find any Frame named "InventoryFrame" under PlayerGui
     local function findDescendantByName(root, name)
         for _, d in ipairs(root:GetDescendants()) do
