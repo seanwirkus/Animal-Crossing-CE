@@ -499,6 +499,8 @@ local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
+local InventoryUpgrades = require(sharedFolder:WaitForChild("inventory"):WaitForChild("InventoryUpgrades"))
+local RecipeDiscoveryService = require(script.Parent:WaitForChild("RecipeDiscoveryService"))
 local ToolObjects = require(sharedFolder:WaitForChild("ToolObjects"))
 
 local InventoryConstants = InventoryDomain.Constants
@@ -518,6 +520,18 @@ local InventoryDataStore = DataStoreService:GetDataStore("PlayerInventories")
 
 -- Player currency storage
 local playerCurrencyStates = {}
+
+RecipeDiscoveryService.init()
+
+local function updateInventoryAttributes(player: Player?, inventory)
+    if not player or not inventory then
+        return
+    end
+
+    local level = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
+    player:SetAttribute("InventoryLevel", level)
+    player:SetAttribute("InventoryMaxSlots", inventory.maxSlots or InventoryConstants.getMaxSlotsFromLevel(level))
+end
 local lastInventorySave = 0
 
 local CurrencyDataStore = DataStoreService:GetDataStore("PlayerCurrency")
@@ -831,6 +845,7 @@ local function initializePlayerInventory(player)
     }
 
     logInfo("✅ Initialized empty inventory", { player = player.Name, level = inventoryLevel, slots = maxSlots })
+    updateInventoryAttributes(player, playerInventories[player.UserId])
 end
 
 local function decodeLegacyPayload(payload)
@@ -1174,6 +1189,8 @@ function syncInventoryToClient(player)
         inventoryLevel = inventoryLevel,
         slots = serializedSlots,
     })
+
+    updateInventoryAttributes(player, inventory)
 end
 
 local function consumeCraftingMaterials(player, materials, quantity)
@@ -1214,6 +1231,37 @@ local function consumeCraftingMaterials(player, materials, quantity)
     -- Auto-save after inventory changes
     savePlayerInventory(player)
     return true
+end
+
+local function buildUpgradePayload(player: Player, inventory)
+    local level = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
+    local bells = CurrencyManager.getBells(player)
+    return InventoryUpgrades.buildUpgradePayload(level, bells)
+end
+
+local function attemptInventoryUpgrade(player: Player, inventory)
+    local currentLevel = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
+    local nextConfig = InventoryUpgrades.getNextConfig(currentLevel)
+    if not nextConfig then
+        return false, buildUpgradePayload(player, inventory), "MAX_LEVEL"
+    end
+
+    local cost = nextConfig.cost or 0
+    if cost > 0 then
+        local success = CurrencyManager.removeBells(player, cost)
+        if not success then
+            return false, buildUpgradePayload(player, inventory), "INSUFFICIENT_FUNDS"
+        end
+    end
+
+    inventory.inventoryLevel = nextConfig.level
+    inventory.maxSlots = InventoryConstants.getMaxSlotsFromLevel(nextConfig.level)
+    inventory.slots = inventory.slots or {}
+
+    updateInventoryAttributes(player, inventory)
+    RecipeDiscoveryService.unlockForInventoryLevel(player, nextConfig.level)
+
+    return true, buildUpgradePayload(player, inventory), nil
 end
 
 local function grantCraftedItems(player, craftedItems)
@@ -2172,6 +2220,21 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
     if action == "RequestInventory" then
         logInfo("Sending inventory to player", { player = player.Name, items = countFilledSlots(inventory.slots) })
         syncInventoryToClient(player)
+        inventoryRemote:FireClient(player, "InventoryUpgradeInfo", buildUpgradePayload(player, inventory))
+    elseif action == "GetInventoryUpgradeInfo" then
+        inventoryRemote:FireClient(player, "InventoryUpgradeInfo", buildUpgradePayload(player, inventory))
+    elseif action == "UpgradeInventory" then
+        local success, payload, errorCode = attemptInventoryUpgrade(player, inventory)
+        inventoryRemote:FireClient(player, "InventoryUpgradeResult", {
+            success = success,
+            error = errorCode,
+            state = payload,
+        })
+
+        if success then
+            syncInventoryToClient(player)
+            savePlayerInventory(player)
+        end
     elseif action == "ImportLegacyInventory" and data then
         logInfo("Importing legacy inventory payload", { player = player.Name })
         hydrateInventoryFromLegacy(inventory, data.payload, data.options)
@@ -2565,6 +2628,7 @@ Players.PlayerAdded:Connect(function(player)
         }
 
         logInfo("✅ Restored inventory", { player = player.Name, items = countFilledSlots(slots) })
+        updateInventoryAttributes(player, playerInventories[player.UserId])
     else
         -- Initialize empty inventory
         logInfo("Initializing new inventory", { player = player.Name })

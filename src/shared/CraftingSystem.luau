@@ -73,6 +73,21 @@ local function hasCraftingStation(player, stationType)
     return false
 end
 
+function CraftingSystem.isStationUnlocked(player, stationType)
+    return hasCraftingStation(player, stationType)
+end
+
+function CraftingSystem.getUnlockedStations(player)
+    local playerData = playerCraftingStations[player.UserId]
+    if not playerData then
+        return {}
+    end
+
+    local stations = table.clone(playerData.unlockedStations)
+    table.sort(stations)
+    return stations
+end
+
 -- Start crafting an item
 function CraftingSystem.startCrafting(player, itemId, quantity)
     quantity = math.max(1, quantity or 1)

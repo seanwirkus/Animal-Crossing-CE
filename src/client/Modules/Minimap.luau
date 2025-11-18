@@ -10,6 +10,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local GUIContentManager = require(script.Parent.GUIContentManager)
+local GUIStyleUtil = require(script.Parent.GUIStyleUtil)
+
 local Minimap = {}
 Minimap.__index = Minimap
 
@@ -65,21 +68,36 @@ function Minimap:createGUI()
     stroke.Parent = container
 
     -- Title
+    local mapCopy = GUIContentManager.Map or {}
+
     local title = Instance.new("TextLabel")
     title.Name = "Title"
     title.Size = UDim2.new(1, 0, 0, 30)
     title.BackgroundTransparency = 1
-    title.Text = "🗺️ Island Map"
     title.TextColor3 = Color3.fromRGB(65, 120, 160)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 18
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Text = mapCopy.title or "🗺️ Island Map"
     title.Parent = container
+
+    local hint = Instance.new("TextLabel")
+    hint.Name = "Hint"
+    hint.Size = UDim2.new(1, 0, 0, 20)
+    hint.Position = UDim2.new(0, 0, 0, 32)
+    hint.BackgroundTransparency = 1
+    hint.TextColor3 = Color3.fromRGB(110, 140, 160)
+    hint.Font = Enum.Font.Gotham
+    hint.TextSize = 12
+    hint.TextXAlignment = Enum.TextXAlignment.Left
+    hint.Text = mapCopy.hint or "Press M to toggle"
+    hint.Parent = container
 
     -- Map view with top-down camera view using ViewportFrame
     local mapFrame = Instance.new("ViewportFrame")
     mapFrame.Name = "MapFrame"
-    mapFrame.Size = UDim2.new(1, -20, 1, -50)
-    mapFrame.Position = UDim2.new(0, 10, 0, 40)
+    mapFrame.Size = UDim2.new(1, -20, 1, -70)
+    mapFrame.Position = UDim2.new(0, 10, 0, 60)
     mapFrame.BackgroundColor3 = Color3.fromRGB(92, 159, 115) -- Grass green fallback
     mapFrame.BorderSizePixel = 0
     mapFrame.Parent = container
@@ -117,8 +135,8 @@ function Minimap:createGUI()
     -- Player indicator overlay (UI element on top of viewport)
     local playerDotContainer = Instance.new("Frame")
     playerDotContainer.Name = "PlayerDotContainer"
-    playerDotContainer.Size = UDim2.new(1, -20, 1, -50) -- Match mapFrame size
-    playerDotContainer.Position = UDim2.new(0, 10, 0, 40) -- Match mapFrame position
+    playerDotContainer.Size = UDim2.new(1, -20, 1, -70)
+    playerDotContainer.Position = UDim2.new(0, 10, 0, 60)
     playerDotContainer.BackgroundTransparency = 1
     playerDotContainer.BorderSizePixel = 0
     playerDotContainer.ZIndex = 10 -- Above viewport

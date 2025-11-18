@@ -159,6 +159,26 @@ GUIContentManager.Inventory = {
         "Materials",
         "Other",
     },
+
+    upgrades = {
+        title = "Pocket Upgrades",
+        summary = "Level {level} • {slots} slots",
+        description = "Invest Bells with Nook Inc. to expand your carry capacity.",
+        button = "Upgrade ({cost} Bells)",
+        maxButton = "Pocket Maxed",
+        maxDescription = "You're already carrying as much as possible!",
+        successMessage = "Your pockets feel roomier already!",
+        errors = {
+            MAX_LEVEL = "You've already unlocked every upgrade.",
+            INSUFFICIENT_FUNDS = "You need more Bells to purchase this.",
+        },
+        stations = {
+            title = "Crafting Stations",
+            unlocked = "Unlocked",
+            locked = "Locked - {cost} Bells",
+            unlockButton = "Unlock ({cost} Bells)",
+        },
+    },
 }
 
 -- =============================================================================
@@ -378,6 +398,16 @@ GUIContentManager.Tutorial = {
         text = "Skip Tutorial",
         confirm = "Are you sure you want to skip the tutorial?",
     },
+}
+
+GUIContentManager.Emotes = {
+    title = "Reactions",
+    hint = "Select an emote to share how you're feeling!",
+}
+
+GUIContentManager.Map = {
+    title = "🗺️ Island Map",
+    hint = "Shows your island layout and player position.",
 }
 
 -- =============================================================================
