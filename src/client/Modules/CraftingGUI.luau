@@ -16,7 +16,6 @@ local playerGui = player:WaitForChild("PlayerGui")
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
-local GUIContentManager = require(script.Parent.GUIContentManager)
 
 local CraftingGUI = {}
 CraftingGUI.__index = CraftingGUI
@@ -24,18 +23,22 @@ CraftingGUI.__index = CraftingGUI
 -- Singleton instance
 local _instance = nil
 
--- UI Colors (Animal Crossing themed)
+-- UI Colors (Animal Crossing themed - enhanced)
 local COLORS = {
-    BG_PRIMARY = Color3.fromRGB(250, 245, 235), -- Cream
+    BG_PRIMARY = Color3.fromRGB(255, 251, 231), -- Cream
     BG_SECONDARY = Color3.fromRGB(255, 255, 255), -- White
-    BG_RECIPE_ITEM = Color3.fromRGB(245, 240, 230),
+    BG_RECIPE_ITEM = Color3.fromRGB(250, 245, 235),
+    BG_SELECTED = Color3.fromRGB(255, 242, 217), -- Light orange tint
     ACCENT_ORANGE = Color3.fromRGB(255, 160, 100),
     ACCENT_BROWN = Color3.fromRGB(139, 90, 43),
+    ACCENT_TEAL = Color3.fromRGB(4, 175, 166), -- ACNH teal
     TEXT_DARK = Color3.fromRGB(60, 50, 40),
     TEXT_LIGHT = Color3.fromRGB(255, 255, 255),
+    TEXT_SUBTLE = Color3.fromRGB(120, 110, 100),
     CAN_CRAFT = Color3.fromRGB(100, 200, 100),
     CANNOT_CRAFT = Color3.fromRGB(200, 100, 100),
     BORDER = Color3.fromRGB(210, 180, 140),
+    QUANTITY_BADGE = Color3.fromRGB(255, 193, 77), -- Bell gold
 }
 
 function CraftingGUI.new()
@@ -168,19 +171,49 @@ function CraftingGUI:createGUI()
 
     self._gui = screenGui
 
-    -- Main frame (smaller size, positioned to avoid top-left corner)
+    -- Backdrop
+    local backdrop = Instance.new("Frame")
+    backdrop.Name = "Backdrop"
+    backdrop.Size = UDim2.fromScale(1, 1)
+    backdrop.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    backdrop.BackgroundTransparency = 0.4
+    backdrop.BorderSizePixel = 0
+    backdrop.ZIndex = 1
+    backdrop.Parent = screenGui
+    
+    backdrop.Active = true
+    backdrop.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            self:close()
+        end
+    end)
+
+    -- Main frame (responsive with constraints)
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0.65, 0, 0.65, 0) -- Smaller: 65% width, 65% height
+    mainFrame.Size = UDim2.fromScale(0.75, 0.8) -- Larger for better layout
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    mainFrame.Position = UDim2.new(0.5, 0, 0.55, 0) -- Lower than center to avoid top-left
+    mainFrame.Position = UDim2.fromScale(0.5, 0.5)
     mainFrame.BackgroundColor3 = COLORS.BG_PRIMARY
     mainFrame.BorderSizePixel = 0
+    mainFrame.ZIndex = 2
     mainFrame.Parent = screenGui
 
+    -- Size constraints
+    local sizeConstraint = Instance.new("UISizeConstraint")
+    sizeConstraint.MinSize = Vector2.new(900, 600)
+    sizeConstraint.MaxSize = Vector2.new(1400, 900)
+    sizeConstraint.Parent = mainFrame
+
     local mainCorner = Instance.new("UICorner")
-    mainCorner.CornerRadius = UDim.new(0, 8) -- Reduced from 12
+    mainCorner.CornerRadius = UDim.new(0, 16)
     mainCorner.Parent = mainFrame
+
+    local mainStroke = Instance.new("UIStroke")
+    mainStroke.Color = COLORS.BORDER
+    mainStroke.Thickness = 3
+    mainStroke.Transparency = 0.3
+    mainStroke.Parent = mainFrame
 
     self._mainFrame = mainFrame
 
@@ -200,102 +233,165 @@ end
 function CraftingGUI:createTitleBar()
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, -8, 0, 35) -- Reduced height from 50 to 35
-    titleBar.Position = UDim2.new(0, 4, 0, 4) -- Small padding from edges
+    titleBar.Size = UDim2.new(1, -16, 0, 60)
+    titleBar.Position = UDim2.fromOffset(8, 8)
     titleBar.BackgroundColor3 = COLORS.ACCENT_BROWN
     titleBar.BorderSizePixel = 0
     titleBar.Parent = self._mainFrame
 
     local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 6) -- Reduced from 12
+    titleCorner.CornerRadius = UDim.new(0, 12)
     titleCorner.Parent = titleBar
 
-    -- Title fix: Cover bottom corners (smaller)
-    local titleFix = Instance.new("Frame")
-    titleFix.Size = UDim2.new(1, 0, 0, 6) -- Reduced from 12
-    titleFix.Position = UDim2.new(0, 0, 1, -6) -- Adjusted
-    titleFix.BackgroundColor3 = COLORS.ACCENT_BROWN
-    titleFix.BorderSizePixel = 0
-    titleFix.Parent = titleBar
+    local titleStroke = Instance.new("UIStroke")
+    titleStroke.Color = Color3.fromRGB(100, 70, 30)
+    titleStroke.Thickness = 2
+    titleStroke.Parent = titleBar
 
     -- Title text
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
-    titleLabel.Size = UDim2.new(1, -45, 1, 0) -- Reduced from -60
-    titleLabel.Position = UDim2.new(0, 5, 0, 0) -- Reduced padding from 10
+    titleLabel.Size = UDim2.new(1, -100, 1, 0)
+    titleLabel.Position = UDim2.fromOffset(20, 0)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 18 -- Reduced from 24
+    titleLabel.TextSize = 24
     titleLabel.TextColor3 = COLORS.TEXT_LIGHT
     titleLabel.Text = "🔨 DIY Crafting"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
 
-    -- Close button - smaller
+    -- Recipe count
+    local countLabel = Instance.new("TextLabel")
+    countLabel.Name = "CountLabel"
+    countLabel.Size = UDim2.new(0, 200, 1, 0)
+    countLabel.Position = UDim2.new(1, -220, 0, 0)
+    countLabel.BackgroundTransparency = 1
+    countLabel.Font = Enum.Font.Gotham
+    countLabel.TextSize = 16
+    countLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    countLabel.Text = #self._allRecipes .. " recipes"
+    countLabel.TextXAlignment = Enum.TextXAlignment.Right
+    countLabel.Parent = titleBar
+
+    -- Close button
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 30, 0, 30) -- Reduced from 40, 40
-    closeButton.Position = UDim2.new(1, -35, 0, 2) -- Adjusted position
+    closeButton.Size = UDim2.fromOffset(40, 40)
+    closeButton.Position = UDim2.new(1, -50, 0, 10)
     closeButton.BackgroundColor3 = COLORS.ACCENT_ORANGE
     closeButton.BorderSizePixel = 0
     closeButton.Font = Enum.Font.GothamBold
-    closeButton.TextSize = 20
+    closeButton.TextSize = 24
     closeButton.TextColor3 = COLORS.TEXT_LIGHT
     closeButton.Text = "✕"
     closeButton.Parent = titleBar
 
     local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 8)
+    closeCorner.CornerRadius = UDim.new(0, 10)
     closeCorner.Parent = closeButton
 
     closeButton.MouseButton1Click:Connect(function()
         self:close()
+    end)
+    
+    -- Hover effect
+    closeButton.MouseEnter:Connect(function()
+        closeButton.BackgroundColor3 = Color3.fromRGB(255, 180, 120)
+    end)
+    closeButton.MouseLeave:Connect(function()
+        closeButton.BackgroundColor3 = COLORS.ACCENT_ORANGE
     end)
 end
 
 function CraftingGUI:createRecipeListPanel()
     local panel = Instance.new("Frame")
     panel.Name = "RecipeListPanel"
-    panel.Size = UDim2.new(0.35, -6, 1, -43) -- Adjusted for smaller title bar (35px) + padding
-    panel.Position = UDim2.new(0, 4, 0, 43) -- Start after title bar + padding
+    panel.Size = UDim2.new(0.38, -12, 1, -80)
+    panel.Position = UDim2.fromOffset(8, 76)
     panel.BackgroundColor3 = COLORS.BG_SECONDARY
     panel.BorderSizePixel = 0
     panel.Parent = self._mainFrame
 
     local panelCorner = Instance.new("UICorner")
-    panelCorner.CornerRadius = UDim.new(0, 6) -- Reduced from 8
+    panelCorner.CornerRadius = UDim.new(0, 12)
     panelCorner.Parent = panel
+
+    local panelStroke = Instance.new("UIStroke")
+    panelStroke.Color = COLORS.BORDER
+    panelStroke.Thickness = 2
+    panelStroke.Transparency = 0.5
+    panelStroke.Parent = panel
 
     -- Add padding to panel
     local panelPadding = Instance.new("UIPadding")
-    panelPadding.PaddingTop = UDim.new(0, 4)
-    panelPadding.PaddingBottom = UDim.new(0, 4)
-    panelPadding.PaddingLeft = UDim.new(0, 4)
-    panelPadding.PaddingRight = UDim.new(0, 4)
+    panelPadding.PaddingTop = UDim.new(0, 8)
+    panelPadding.PaddingBottom = UDim.new(0, 8)
+    panelPadding.PaddingLeft = UDim.new(0, 8)
+    panelPadding.PaddingRight = UDim.new(0, 8)
     panelPadding.Parent = panel
+
+    -- Search bar
+    local searchFrame = Instance.new("Frame")
+    searchFrame.Name = "SearchFrame"
+    searchFrame.Size = UDim2.new(1, 0, 0, 40)
+    searchFrame.Position = UDim2.new(0, 0, 0, 0)
+    searchFrame.BackgroundColor3 = COLORS.BG_PRIMARY
+    searchFrame.BorderSizePixel = 0
+    searchFrame.Parent = panel
+
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = UDim.new(0, 8)
+    searchCorner.Parent = searchFrame
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.Size = UDim2.new(1, -16, 1, -8)
+    searchBox.Position = UDim2.fromOffset(8, 4)
+    searchBox.BackgroundTransparency = 1
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.TextSize = 16
+    searchBox.TextColor3 = COLORS.TEXT_DARK
+    searchBox.PlaceholderText = "🔍 Search recipes..."
+    searchBox.PlaceholderColor3 = COLORS.TEXT_SUBTLE
+    searchBox.Text = ""
+    searchBox.TextXAlignment = Enum.TextXAlignment.Left
+    searchBox.Parent = searchFrame
+
+    self._searchBox = searchBox
 
     -- Scrolling frame for recipes
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Name = "RecipeScroll"
-    scrollFrame.Size = UDim2.new(1, 0, 1, 0) -- Full size (padding handled by parent)
-    scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+    scrollFrame.Size = UDim2.new(1, 0, 1, -48)
+    scrollFrame.Position = UDim2.fromOffset(0, 48)
     scrollFrame.BackgroundTransparency = 1
     scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 5 -- Reduced from 6
+    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.ScrollBarImageColor3 = COLORS.ACCENT_TEAL
     scrollFrame.Parent = panel
 
     local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding = UDim.new(0, 4) -- Reduced from 5
+    listLayout.Padding = UDim.new(0, 6)
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Parent = scrollFrame
 
     self._recipeListFrame = scrollFrame
+
+    -- Search functionality
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        self:filterRecipes(searchBox.Text)
+    end)
 
     -- Populate recipes
     self:refreshRecipeList()
 end
 
 function CraftingGUI:refreshRecipeList()
+    self:filterRecipes(self._searchBox and self._searchBox.Text or "")
+end
+
+function CraftingGUI:filterRecipes(searchText)
     -- Clear existing
     for _, child in ipairs(self._recipeListFrame:GetChildren()) do
         if child:IsA("Frame") then
@@ -303,85 +399,99 @@ function CraftingGUI:refreshRecipeList()
         end
     end
 
+    -- Filter recipes
+    local filtered = {}
+    local searchLower = string.lower(searchText or "")
+    
+    for _, recipeData in ipairs(self._allRecipes) do
+        if searchText == "" or string.find(string.lower(recipeData.name), searchLower, 1, true) then
+            table.insert(filtered, recipeData)
+        end
+    end
+
     -- Add recipe items
-    for i, recipeData in ipairs(self._allRecipes) do
+    for i, recipeData in ipairs(filtered) do
         self:createRecipeItem(recipeData, i)
     end
 
     -- Update canvas size
     local listLayout = self._recipeListFrame:FindFirstChildOfClass("UIListLayout")
     if listLayout then
-        self._recipeListFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+        self._recipeListFrame.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y + 10)
     end
 end
 
 function CraftingGUI:createRecipeItem(recipeData, index)
     local canCraft = self:canCraftRecipe(recipeData.recipe)
+    local isSelected = self._selectedRecipe and self._selectedRecipe.itemId == recipeData.itemId
 
     local itemFrame = Instance.new("Frame")
     itemFrame.Name = "RecipeItem" .. index
-    itemFrame.Size = UDim2.new(1, 0, 0, 55) -- Reduced height from 60, full width (padding handled by parent)
-    itemFrame.BackgroundColor3 = COLORS.BG_RECIPE_ITEM
+    itemFrame.Size = UDim2.new(1, 0, 0, 70)
+    itemFrame.BackgroundColor3 = isSelected and COLORS.BG_SELECTED or COLORS.BG_RECIPE_ITEM
     itemFrame.BorderSizePixel = 0
     itemFrame.Parent = self._recipeListFrame
 
     local itemCorner = Instance.new("UICorner")
-    itemCorner.CornerRadius = UDim.new(0, 4) -- Reduced from 6
+    itemCorner.CornerRadius = UDim.new(0, 8)
     itemCorner.Parent = itemFrame
 
-    -- Add padding to item frame
-    local itemPadding = Instance.new("UIPadding")
-    itemPadding.PaddingTop = UDim.new(0, 2)
-    itemPadding.PaddingBottom = UDim.new(0, 2)
-    itemPadding.PaddingLeft = UDim.new(0, 2)
-    itemPadding.PaddingRight = UDim.new(0, 2)
-    itemPadding.Parent = itemFrame
+    local itemStroke = Instance.new("UIStroke")
+    itemStroke.Color = isSelected and COLORS.ACCENT_ORANGE or COLORS.BORDER
+    itemStroke.Thickness = isSelected and 2 or 1
+    itemStroke.Transparency = isSelected and 0 or 0.6
+    itemStroke.Parent = itemFrame
 
-    -- Sprite icon - smaller
+    -- Sprite icon
     local iconLabel = Instance.new("ImageLabel")
     iconLabel.Name = "Icon"
-    iconLabel.Size = UDim2.new(0, 45, 0, 45) -- Reduced from 50, 50
-    iconLabel.Position = UDim2.new(0, 2, 0, 2) -- Reduced padding
-    iconLabel.BackgroundTransparency = 1
+    iconLabel.Size = UDim2.fromOffset(56, 56)
+    iconLabel.Position = UDim2.fromOffset(8, 7)
+    iconLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+    iconLabel.BorderSizePixel = 0
     iconLabel.Image = SpriteConfig.SHEET_ASSET
     local offset, size = SpriteConfig.getSpriteRect(recipeData.spriteIndex)
     iconLabel.ImageRectOffset = offset
     iconLabel.ImageRectSize = size
     iconLabel.Parent = itemFrame
 
-    -- Recipe name - smaller
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(0, 6)
+    iconCorner.Parent = iconLabel
+
+    -- Recipe name
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
-    nameLabel.Size = UDim2.new(1, -60, 0, 28) -- Adjusted for smaller icon
-    nameLabel.Position = UDim2.new(0, 50, 0, 2) -- Reduced padding
+    nameLabel.Size = UDim2.new(1, -140, 0, 32)
+    nameLabel.Position = UDim2.fromOffset(72, 6)
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Font = Enum.Font.Gotham
-    nameLabel.TextSize = 14 -- Reduced from 16
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 16
     nameLabel.TextColor3 = COLORS.TEXT_DARK
     nameLabel.Text = recipeData.name
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
     nameLabel.Parent = itemFrame
 
-    -- Material count - smaller
+    -- Material count with quantity info
     local materialCount = #(recipeData.recipe.materials or {})
     local materialLabel = Instance.new("TextLabel")
     materialLabel.Name = "Materials"
-    materialLabel.Size = UDim2.new(1, -60, 0, 18) -- Reduced height
-    materialLabel.Position = UDim2.new(0, 50, 0, 30) -- Adjusted position
+    materialLabel.Size = UDim2.new(1, -140, 0, 22)
+    materialLabel.Position = UDim2.fromOffset(72, 38)
     materialLabel.BackgroundTransparency = 1
     materialLabel.Font = Enum.Font.Gotham
-    materialLabel.TextSize = 11 -- Reduced from 12
-    materialLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
-    materialLabel.Text = string.format("📦 %d materials", materialCount)
+    materialLabel.TextSize = 13
+    materialLabel.TextColor3 = COLORS.TEXT_SUBTLE
+    materialLabel.Text = string.format("📦 %d material%s", materialCount, materialCount == 1 and "" or "s")
     materialLabel.TextXAlignment = Enum.TextXAlignment.Left
     materialLabel.Parent = itemFrame
 
-    -- Can craft indicator - smaller
+    -- Can craft indicator (larger, more visible)
     local indicator = Instance.new("Frame")
     indicator.Name = "Indicator"
-    indicator.Size = UDim2.new(0, 6, 1, -4) -- Reduced width from 8
-    indicator.Position = UDim2.new(1, -8, 0, 2) -- Adjusted position
+    indicator.Size = UDim2.new(0, 8, 1, -12)
+    indicator.Position = UDim2.new(1, -12, 0, 6)
     indicator.BackgroundColor3 = canCraft and COLORS.CAN_CRAFT or COLORS.CANNOT_CRAFT
     indicator.BorderSizePixel = 0
     indicator.Parent = itemFrame
@@ -390,9 +500,22 @@ function CraftingGUI:createRecipeItem(recipeData, index)
     indicatorCorner.CornerRadius = UDim.new(1, 0)
     indicatorCorner.Parent = indicator
 
+    -- Status text
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "Status"
+    statusLabel.Size = UDim2.fromOffset(100, 18)
+    statusLabel.Position = UDim2.new(1, -120, 0, 48)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 11
+    statusLabel.TextColor3 = canCraft and COLORS.CAN_CRAFT or COLORS.CANNOT_CRAFT
+    statusLabel.Text = canCraft and "✓ Ready" or "✗ Missing"
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Right
+    statusLabel.Parent = itemFrame
+
     -- Click to select
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 1, 0)
+    button.Size = UDim2.fromScale(1, 1)
     button.BackgroundTransparency = 1
     button.Text = ""
     button.Parent = itemFrame
@@ -403,105 +526,185 @@ function CraftingGUI:createRecipeItem(recipeData, index)
 
     -- Hover effect
     button.MouseEnter:Connect(function()
-        itemFrame.BackgroundColor3 = COLORS.ACCENT_ORANGE:Lerp(Color3.new(1, 1, 1), 0.7)
+        if not isSelected then
+            itemFrame.BackgroundColor3 = COLORS.BG_SELECTED
+            itemStroke.Transparency = 0.3
+        end
     end)
 
     button.MouseLeave:Connect(function()
-        itemFrame.BackgroundColor3 = COLORS.BG_RECIPE_ITEM
+        if not isSelected then
+            itemFrame.BackgroundColor3 = COLORS.BG_RECIPE_ITEM
+            itemStroke.Transparency = 0.6
+        end
     end)
 end
 
 function CraftingGUI:createDetailsPanel()
     local panel = Instance.new("Frame")
     panel.Name = "DetailsPanel"
-    panel.Size = UDim2.new(0.65, -6, 1, -43) -- Adjusted for smaller title bar and padding
-    panel.Position = UDim2.new(0.35, 2, 0, 43) -- Start after title bar + padding, small gap from left panel
+    panel.Size = UDim2.new(0.62, -12, 1, -80)
+    panel.Position = UDim2.new(0.38, 4, 0, 76)
     panel.BackgroundColor3 = COLORS.BG_SECONDARY
     panel.BorderSizePixel = 0
     panel.Parent = self._mainFrame
 
     local panelCorner = Instance.new("UICorner")
-    panelCorner.CornerRadius = UDim.new(0, 6) -- Reduced from 8
+    panelCorner.CornerRadius = UDim.new(0, 12)
     panelCorner.Parent = panel
+
+    local panelStroke = Instance.new("UIStroke")
+    panelStroke.Color = COLORS.BORDER
+    panelStroke.Thickness = 2
+    panelStroke.Transparency = 0.5
+    panelStroke.Parent = panel
 
     -- Add padding to details panel
     local detailsPadding = Instance.new("UIPadding")
-    detailsPadding.PaddingTop = UDim.new(0, 4)
-    detailsPadding.PaddingBottom = UDim.new(0, 4)
-    detailsPadding.PaddingLeft = UDim.new(0, 4)
-    detailsPadding.PaddingRight = UDim.new(0, 4)
+    detailsPadding.PaddingTop = UDim.new(0, 12)
+    detailsPadding.PaddingBottom = UDim.new(0, 12)
+    detailsPadding.PaddingLeft = UDim.new(0, 12)
+    detailsPadding.PaddingRight = UDim.new(0, 12)
     detailsPadding.Parent = panel
 
-    self._detailsFrame = panel
+    -- Scrolling frame for details content
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Name = "DetailsScroll"
+    scrollFrame.Size = UDim2.new(1, 0, 1, 0)
+    scrollFrame.Position = UDim2.new(0, 0, 0, 0)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.ScrollBarImageColor3 = COLORS.ACCENT_TEAL
+    scrollFrame.Parent = panel
 
-    -- Placeholder text - smaller
+    self._detailsFrame = panel
+    self._detailsScroll = scrollFrame
+
+    -- Placeholder text
     local placeholder = Instance.new("TextLabel")
     placeholder.Name = "Placeholder"
     placeholder.Size = UDim2.new(1, 0, 1, 0)
     placeholder.BackgroundTransparency = 1
     placeholder.Font = Enum.Font.Gotham
-    placeholder.TextSize = 16 -- Reduced from 18
-    placeholder.TextColor3 = Color3.fromRGB(150, 150, 150)
-    placeholder.Text = "Select a recipe to view details"
-    placeholder.Parent = panel
+    placeholder.TextSize = 20
+    placeholder.TextColor3 = COLORS.TEXT_SUBTLE
+    placeholder.Text = "👈 Select a recipe to view details"
+    placeholder.Parent = scrollFrame
 end
 
 function CraftingGUI:selectRecipe(recipeData)
     self._selectedRecipe = recipeData
 
-    -- Clear details panel
-    for _, child in ipairs(self._detailsFrame:GetChildren()) do
-        if not child:IsA("UICorner") then
-            child:Destroy()
-        end
+    -- Refresh recipe list to show selection
+    self:refreshRecipeList()
+
+    -- Clear details scroll frame
+    for _, child in ipairs(self._detailsScroll:GetChildren()) do
+        child:Destroy()
     end
 
-    -- Recipe title
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "RecipeTitle"
-    titleLabel.Size = UDim2.new(1, -20, 0, 40)
-    titleLabel.Position = UDim2.new(0, 10, 0, 10)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 24
-    titleLabel.TextColor3 = COLORS.TEXT_DARK
-    titleLabel.Text = recipeData.name
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = self._detailsFrame
+    local recipe = recipeData.recipe
+    local canCraft = self:canCraftRecipe(recipe)
+
+    -- Recipe header section
+    local headerFrame = Instance.new("Frame")
+    headerFrame.Name = "HeaderFrame"
+    headerFrame.Size = UDim2.new(1, 0, 0, 140)
+    headerFrame.Position = UDim2.new(0, 0, 0, 0)
+    headerFrame.BackgroundColor3 = COLORS.BG_RECIPE_ITEM
+    headerFrame.BorderSizePixel = 0
+    headerFrame.Parent = self._detailsScroll
+
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 10)
+    headerCorner.Parent = headerFrame
 
     -- Large recipe icon
     local iconLabel = Instance.new("ImageLabel")
     iconLabel.Name = "LargeIcon"
-    iconLabel.Size = UDim2.new(0, 100, 0, 100)
-    iconLabel.Position = UDim2.new(0, 10, 0, 60)
-    iconLabel.BackgroundColor3 = COLORS.BG_RECIPE_ITEM
+    iconLabel.Size = UDim2.new(0, 120, 0, 120)
+    iconLabel.Position = UDim2.new(0, 10, 0, 10)
+    iconLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+    iconLabel.BorderSizePixel = 0
     iconLabel.Image = SpriteConfig.SHEET_ASSET
     local offset, size = SpriteConfig.getSpriteRect(recipeData.spriteIndex)
     iconLabel.ImageRectOffset = offset
     iconLabel.ImageRectSize = size
     iconLabel.ScaleType = Enum.ScaleType.Fit
-    iconLabel.Parent = self._detailsFrame
+    iconLabel.Parent = headerFrame
 
     local iconCorner = Instance.new("UICorner")
-    iconCorner.CornerRadius = UDim.new(0, 8)
+    iconCorner.CornerRadius = UDim.new(0, 10)
     iconCorner.Parent = iconLabel
 
-    -- Materials section
-    local materialsLabel = Instance.new("TextLabel")
-    materialsLabel.Name = "MaterialsLabel"
-    materialsLabel.Size = UDim2.new(1, -20, 0, 30)
-    materialsLabel.Position = UDim2.new(0, 10, 0, 180)
-    materialsLabel.BackgroundTransparency = 1
-    materialsLabel.Font = Enum.Font.GothamBold
-    materialsLabel.TextSize = 18
-    materialsLabel.TextColor3 = COLORS.TEXT_DARK
-    materialsLabel.Text = "📦 Materials Required:"
-    materialsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    materialsLabel.Parent = self._detailsFrame
+    local iconStroke = Instance.new("UIStroke")
+    iconStroke.Color = COLORS.BORDER
+    iconStroke.Thickness = 2
+    iconStroke.Parent = iconLabel
+
+    -- Recipe title
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "RecipeTitle"
+    titleLabel.Size = UDim2.new(1, -140, 0, 50)
+    titleLabel.Position = UDim2.new(0, 140, 0, 10)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 28
+    titleLabel.TextColor3 = COLORS.TEXT_DARK
+    titleLabel.Text = recipeData.name
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.TextWrapped = true
+    titleLabel.Parent = headerFrame
+
+    -- Craft status badge
+    local statusBadge = Instance.new("Frame")
+    statusBadge.Name = "StatusBadge"
+    statusBadge.Size = UDim2.new(0, 180, 0, 35)
+    statusBadge.Position = UDim2.new(0, 140, 0, 65)
+    statusBadge.BackgroundColor3 = canCraft and COLORS.CAN_CRAFT or COLORS.CANNOT_CRAFT
+    statusBadge.BorderSizePixel = 0
+    statusBadge.Parent = headerFrame
+
+    local badgeCorner = Instance.new("UICorner")
+    badgeCorner.CornerRadius = UDim.new(0, 8)
+    badgeCorner.Parent = statusBadge
+
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(1, 0, 1, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.Font = Enum.Font.GothamBold
+    statusText.TextSize = 16
+    statusText.TextColor3 = COLORS.TEXT_LIGHT
+    statusText.Text = canCraft and "✓ Ready to Craft" or "✗ Missing Materials"
+    statusText.Parent = statusBadge
+
+    -- Materials section header
+    local materialsHeader = Instance.new("TextLabel")
+    materialsHeader.Name = "MaterialsHeader"
+    materialsHeader.Size = UDim2.new(1, 0, 0, 40)
+    materialsHeader.Position = UDim2.new(0, 0, 0, 160)
+    materialsHeader.BackgroundTransparency = 1
+    materialsHeader.Font = Enum.Font.GothamBold
+    materialsHeader.TextSize = 20
+    materialsHeader.TextColor3 = COLORS.TEXT_DARK
+    materialsHeader.Text = "📦 Materials Required"
+    materialsHeader.TextXAlignment = Enum.TextXAlignment.Left
+    materialsHeader.Parent = self._detailsScroll
 
     -- Materials list
-    local yOffset = 220
-    local recipe = recipeData.recipe
+    local yOffset = 210
+    local materialsContainer = Instance.new("Frame")
+    materialsContainer.Name = "MaterialsContainer"
+    materialsContainer.Size = UDim2.new(1, 0, 0, 0)
+    materialsContainer.Position = UDim2.new(0, 0, 0, yOffset)
+    materialsContainer.BackgroundTransparency = 1
+    materialsContainer.Parent = self._detailsScroll
+
+    local materialsLayout = Instance.new("UIListLayout")
+    materialsLayout.Padding = UDim.new(0, 8)
+    materialsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    materialsLayout.Parent = materialsContainer
 
     for i, material in ipairs(recipe.materials or {}) do
         local materialId = material.itemId or material[1]
@@ -516,79 +719,164 @@ function CraftingGUI:selectRecipe(recipeData)
         -- Material frame
         local matFrame = Instance.new("Frame")
         matFrame.Name = "Material" .. i
-        matFrame.Size = UDim2.new(1, -20, 0, 50)
-        matFrame.Position = UDim2.new(0, 10, 0, yOffset)
-        matFrame.BackgroundColor3 = COLORS.BG_RECIPE_ITEM
+        matFrame.Size = UDim2.new(1, 0, 0, 70)
+        matFrame.BackgroundColor3 = hasEnough and Color3.fromRGB(240, 255, 240) or COLORS.BG_RECIPE_ITEM
         matFrame.BorderSizePixel = 0
-        matFrame.Parent = self._detailsFrame
+        matFrame.LayoutOrder = i
+        matFrame.Parent = materialsContainer
 
         local matCorner = Instance.new("UICorner")
-        matCorner.CornerRadius = UDim.new(0, 6)
+        matCorner.CornerRadius = UDim.new(0, 8)
         matCorner.Parent = matFrame
 
-        -- Material icon
+        local matStroke = Instance.new("UIStroke")
+        matStroke.Color = hasEnough and COLORS.CAN_CRAFT or COLORS.CANNOT_CRAFT
+        matStroke.Thickness = 2
+        matStroke.Transparency = hasEnough and 0.3 or 0.6
+        matStroke.Parent = matFrame
+
+        -- Material icon frame
+        local iconFrame = Instance.new("Frame")
+        iconFrame.Size = UDim2.new(0, 60, 0, 60)
+        iconFrame.Position = UDim2.new(0, 8, 0, 5)
+        iconFrame.BackgroundColor3 = COLORS.BG_SECONDARY
+        iconFrame.BorderSizePixel = 0
+        iconFrame.Parent = matFrame
+
+        local iconFrameCorner = Instance.new("UICorner")
+        iconFrameCorner.CornerRadius = UDim.new(0, 8)
+        iconFrameCorner.Parent = iconFrame
+
         local matIcon = Instance.new("ImageLabel")
-        matIcon.Size = UDim2.new(0, 40, 0, 40)
-        matIcon.Position = UDim2.new(0, 5, 0, 5)
+        matIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
+        matIcon.Position = UDim2.new(0.1, 0, 0.1, 0)
         matIcon.BackgroundTransparency = 1
         matIcon.Image = SpriteConfig.SHEET_ASSET
         local matOffset, matSize = SpriteConfig.getSpriteRect(materialSprite)
         matIcon.ImageRectOffset = matOffset
         matIcon.ImageRectSize = matSize
-        matIcon.Parent = matFrame
+        matIcon.Parent = iconFrame
+
+        -- Quantity label on icon (top-right, black text)
+        local iconQuantity = Instance.new("TextLabel")
+        iconQuantity.Name = "IconQuantity"
+        iconQuantity.Size = UDim2.new(0, 30, 0, 16)
+        iconQuantity.Position = UDim2.new(1, -2, 0, 2)
+        iconQuantity.AnchorPoint = Vector2.new(1, 0)
+        iconQuantity.BackgroundTransparency = 1
+        iconQuantity.Text = tostring(owned)
+        iconQuantity.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
+        iconQuantity.TextSize = 12
+        iconQuantity.Font = Enum.Font.GothamBold
+        iconQuantity.TextXAlignment = Enum.TextXAlignment.Right
+        iconQuantity.TextYAlignment = Enum.TextYAlignment.Top
+        iconQuantity.ZIndex = 10
+        iconQuantity.Parent = iconFrame
 
         -- Material name
         local matName = Instance.new("TextLabel")
-        matName.Size = UDim2.new(1, -120, 0, 25)
-        matName.Position = UDim2.new(0, 50, 0, 5)
+        matName.Size = UDim2.new(1, -200, 0, 30)
+        matName.Position = UDim2.new(0, 80, 0, 8)
         matName.BackgroundTransparency = 1
-        matName.Font = Enum.Font.Gotham
-        matName.TextSize = 14
+        matName.Font = Enum.Font.GothamBold
+        matName.TextSize = 16
         matName.TextColor3 = COLORS.TEXT_DARK
         matName.Text = materialName
         matName.TextXAlignment = Enum.TextXAlignment.Left
         matName.TextTruncate = Enum.TextTruncate.AtEnd
         matName.Parent = matFrame
 
-        -- Quantity label
-        local quantityLabel = Instance.new("TextLabel")
-        quantityLabel.Size = UDim2.new(1, -50, 0, 20)
-        quantityLabel.Position = UDim2.new(0, 50, 0, 25)
-        quantityLabel.BackgroundTransparency = 1
-        quantityLabel.Font = Enum.Font.Gotham
-        quantityLabel.TextSize = 12
-        quantityLabel.TextColor3 = hasEnough and COLORS.CAN_CRAFT or COLORS.CANNOT_CRAFT
-        quantityLabel.Text = string.format("%d / %d", owned, required)
-        quantityLabel.TextXAlignment = Enum.TextXAlignment.Left
-        quantityLabel.Parent = matFrame
+        -- Quantity display with badges
+        local quantityFrame = Instance.new("Frame")
+        quantityFrame.Size = UDim2.new(0, 180, 0, 30)
+        quantityFrame.Position = UDim2.new(1, -190, 0, 20)
+        quantityFrame.BackgroundTransparency = 1
+        quantityFrame.Parent = matFrame
 
-        yOffset = yOffset + 55
+        -- Owned quantity badge
+        local ownedBadge = Instance.new("TextLabel")
+        ownedBadge.Name = "OwnedBadge"
+        ownedBadge.Size = UDim2.new(0, 70, 1, 0)
+        ownedBadge.Position = UDim2.new(0, 0, 0, 0)
+        ownedBadge.BackgroundColor3 = hasEnough and COLORS.CAN_CRAFT or Color3.fromRGB(200, 150, 150)
+        ownedBadge.BorderSizePixel = 0
+        ownedBadge.Font = Enum.Font.GothamBold
+        ownedBadge.TextSize = 14
+        ownedBadge.TextColor3 = COLORS.TEXT_LIGHT
+        ownedBadge.Text = "Own: " .. owned
+        ownedBadge.TextXAlignment = Enum.TextXAlignment.Center
+        ownedBadge.Parent = quantityFrame
+
+        local ownedCorner = Instance.new("UICorner")
+        ownedCorner.CornerRadius = UDim.new(0, 6)
+        ownedCorner.Parent = ownedBadge
+
+        -- Required quantity badge
+        local requiredBadge = Instance.new("TextLabel")
+        requiredBadge.Name = "RequiredBadge"
+        requiredBadge.Size = UDim2.new(0, 70, 1, 0)
+        requiredBadge.Position = UDim2.new(0, 80, 0, 0)
+        requiredBadge.BackgroundColor3 = COLORS.QUANTITY_BADGE
+        requiredBadge.BorderSizePixel = 0
+        requiredBadge.Font = Enum.Font.GothamBold
+        requiredBadge.TextSize = 14
+        requiredBadge.TextColor3 = COLORS.TEXT_LIGHT
+        requiredBadge.Text = "Need: " .. required
+        requiredBadge.TextXAlignment = Enum.TextXAlignment.Center
+        requiredBadge.Parent = quantityFrame
+
+        local requiredCorner = Instance.new("UICorner")
+        requiredCorner.CornerRadius = UDim.new(0, 6)
+        requiredCorner.Parent = requiredBadge
     end
 
-    -- Craft button
-    local canCraft = self:canCraftRecipe(recipe)
+    -- Update materials container size and craft button position
+    task.wait()
+    local materialsHeight = 0
+    if materialsLayout then
+        materialsHeight = materialsLayout.AbsoluteContentSize.Y
+        materialsContainer.Size = UDim2.new(1, 0, 0, materialsHeight)
+    end
 
+    -- Craft button (fixed at bottom)
     local craftButton = Instance.new("TextButton")
     craftButton.Name = "CraftButton"
-    craftButton.Size = UDim2.new(0, 200, 0, 50)
-    craftButton.Position = UDim2.new(0.5, -100, 1, -60)
-    craftButton.BackgroundColor3 = canCraft and COLORS.CAN_CRAFT or COLORS.CANNOT_CRAFT
+    craftButton.Size = UDim2.new(0, 250, 0, 60)
+    craftButton.Position = UDim2.new(0.5, -125, 0, yOffset + materialsHeight + 30)
+    craftButton.BackgroundColor3 = canCraft and COLORS.ACCENT_TEAL or COLORS.CANNOT_CRAFT
     craftButton.BorderSizePixel = 0
     craftButton.Font = Enum.Font.GothamBold
-    craftButton.TextSize = 20
+    craftButton.TextSize = 22
     craftButton.TextColor3 = COLORS.TEXT_LIGHT
-    craftButton.Text = canCraft and "✓ Craft" or "✗ Missing Materials"
-    craftButton.Parent = self._detailsFrame
+    craftButton.Text = canCraft and "✓ Craft Item" or "✗ Missing Materials"
+    craftButton.Parent = self._detailsScroll
 
     local craftCorner = Instance.new("UICorner")
-    craftCorner.CornerRadius = UDim.new(0, 8)
+    craftCorner.CornerRadius = UDim.new(0, 12)
     craftCorner.Parent = craftButton
+
+    local craftStroke = Instance.new("UIStroke")
+    craftStroke.Color = canCraft and Color3.fromRGB(0, 150, 140) or Color3.fromRGB(150, 50, 50)
+    craftStroke.Thickness = 2
+    craftStroke.Parent = craftButton
 
     if canCraft then
         craftButton.MouseButton1Click:Connect(function()
             self:craftItem(recipeData)
         end)
+        
+        craftButton.MouseEnter:Connect(function()
+            craftButton.BackgroundColor3 = Color3.fromRGB(5, 195, 185)
+        end)
+        craftButton.MouseLeave:Connect(function()
+            craftButton.BackgroundColor3 = COLORS.ACCENT_TEAL
+        end)
     end
+
+    -- Update scroll canvas size
+    task.wait()
+    local totalHeight = yOffset + materialsHeight + 120
+    self._detailsScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 end
 
 function CraftingGUI:canCraftRecipe(recipe)

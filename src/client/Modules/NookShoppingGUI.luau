@@ -6,7 +6,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local NookShoppingGUI = {}
 NookShoppingGUI.__index = NookShoppingGUI
@@ -97,7 +96,7 @@ function NookShoppingGUI:buildGui()
     local container = Instance.new("Frame")
     container.Name = "ShopContainer"
     container.AnchorPoint = Vector2.new(0.5, 0.5)
-    container.Size = UDim2.new(0, 800, 0, 600)
+    container.Size = UDim2.fromOffset(800, 600)
     container.Position = UDim2.fromScale(0.5, 0.5)
     container.BackgroundColor3 = COLORS.BG_PRIMARY
     container.BorderSizePixel = 0
@@ -130,8 +129,8 @@ function NookShoppingGUI:buildGui()
     -- Title
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
-    titleLabel.Size = UDim2.new(0, 300, 0, 50)
-    titleLabel.Position = UDim2.new(0, 24, 0, 15)
+    titleLabel.Size = UDim2.fromOffset(300, 50)
+    titleLabel.Position = UDim2.fromOffset(24, 15)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 32
@@ -144,7 +143,7 @@ function NookShoppingGUI:buildGui()
     -- Bells display
     local bellsFrame = Instance.new("Frame")
     bellsFrame.Name = "BellsFrame"
-    bellsFrame.Size = UDim2.new(0, 180, 0, 40)
+    bellsFrame.Size = UDim2.fromOffset(180, 40)
     bellsFrame.Position = UDim2.new(1, -220, 0, 20)
     bellsFrame.BackgroundColor3 = COLORS.ACCENT
     bellsFrame.BorderSizePixel = 0
@@ -170,7 +169,7 @@ function NookShoppingGUI:buildGui()
     -- Close button
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 40, 0, 40)
+    closeButton.Size = UDim2.fromOffset(40, 40)
     closeButton.Position = UDim2.new(1, -50, 0, 20)
     closeButton.BackgroundColor3 = Color3.fromRGB(220, 100, 100)
     closeButton.TextColor3 = COLORS.TEXT_LIGHT
@@ -200,7 +199,7 @@ function NookShoppingGUI:buildGui()
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "ContentFrame"
     contentFrame.Size = UDim2.new(1, -48, 1, -100)
-    contentFrame.Position = UDim2.new(0, 24, 0, 100)
+    contentFrame.Position = UDim2.fromOffset(24, 100)
     contentFrame.BackgroundTransparency = 1
     contentFrame.ZIndex = 3
     contentFrame.Parent = container
@@ -217,8 +216,8 @@ function NookShoppingGUI:buildGui()
     scrollFrame.Parent = contentFrame
 
     local listLayout = Instance.new("UIGridLayout")
-    listLayout.CellSize = UDim2.new(0, ITEM_SLOT_SIZE, 0, ITEM_SLOT_SIZE + 50)
-    listLayout.CellPadding = UDim2.new(0, GRID_PADDING, 0, GRID_PADDING)
+    listLayout.CellSize = UDim2.fromOffset(ITEM_SLOT_SIZE, ITEM_SLOT_SIZE + 50)
+    listLayout.CellPadding = UDim2.fromOffset(GRID_PADDING, GRID_PADDING)
     listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -238,7 +237,7 @@ end
 function NookShoppingGUI:createItemSlot(shopItem, index)
     local slot = Instance.new("Frame")
     slot.Name = "ItemSlot_" .. shopItem.id
-    slot.Size = UDim2.new(0, ITEM_SLOT_SIZE, 0, ITEM_SLOT_SIZE + 50)
+    slot.Size = UDim2.fromOffset(ITEM_SLOT_SIZE, ITEM_SLOT_SIZE + 50)
     slot.BackgroundColor3 = COLORS.SLOT_BG
     slot.BorderSizePixel = 0
     slot.ZIndex = 5
@@ -259,8 +258,8 @@ function NookShoppingGUI:createItemSlot(shopItem, index)
     -- Item icon
     local icon = Instance.new("ImageLabel")
     icon.Name = "ItemIcon"
-    icon.Size = UDim2.new(0, ITEM_SLOT_SIZE - 16, 0, ITEM_SLOT_SIZE - 16)
-    icon.Position = UDim2.new(0, 8, 0, 8)
+    icon.Size = UDim2.fromOffset(ITEM_SLOT_SIZE - 16, ITEM_SLOT_SIZE - 16)
+    icon.Position = UDim2.fromOffset(8, 8)
     icon.BackgroundColor3 = COLORS.BG_SECONDARY
     icon.BorderSizePixel = 0
     icon.ZIndex = 6
@@ -274,11 +273,34 @@ function NookShoppingGUI:createItemSlot(shopItem, index)
         self.spriteConfig.applySprite(icon, shopItem.spriteIndex)
     end
 
+    -- Quantity badge (for items in inventory - if we have stock info)
+    -- Note: Shop items don't have quantity, but we can show stock if available
+    if shopItem.stock and shopItem.stock > 0 and shopItem.stock ~= -1 then
+        local quantityBadge = Instance.new("TextLabel")
+        quantityBadge.Name = "QuantityBadge"
+        quantityBadge.Size = UDim2.fromOffset(32, 22)
+        quantityBadge.Position = UDim2.new(1, -36, 0, 4)
+        quantityBadge.BackgroundColor3 = Color3.fromRGB(100, 200, 100) -- Green for available
+        quantityBadge.BorderSizePixel = 0
+        quantityBadge.Text = tostring(shopItem.stock)
+        quantityBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+        quantityBadge.TextSize = 12
+        quantityBadge.Font = Enum.Font.GothamBold
+        quantityBadge.TextXAlignment = Enum.TextXAlignment.Center
+        quantityBadge.TextYAlignment = Enum.TextYAlignment.Center
+        quantityBadge.ZIndex = 7
+        quantityBadge.Parent = slot
+        
+        local qtyCorner = Instance.new("UICorner")
+        qtyCorner.CornerRadius = UDim.new(0, 6)
+        qtyCorner.Parent = quantityBadge
+    end
+
     -- Item name
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "ItemName"
     nameLabel.Size = UDim2.new(1, -8, 0, 24)
-    nameLabel.Position = UDim2.new(0, 4, 0, ITEM_SLOT_SIZE - 8)
+    nameLabel.Position = UDim2.fromOffset(4, ITEM_SLOT_SIZE - 8)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Font = Enum.Font.GothamMedium
     nameLabel.TextSize = 14
@@ -293,7 +315,7 @@ function NookShoppingGUI:createItemSlot(shopItem, index)
     local priceLabel = Instance.new("TextLabel")
     priceLabel.Name = "PriceLabel"
     priceLabel.Size = UDim2.new(1, -8, 0, 20)
-    priceLabel.Position = UDim2.new(0, 4, 0, ITEM_SLOT_SIZE + 16)
+    priceLabel.Position = UDim2.fromOffset(4, ITEM_SLOT_SIZE + 16)
     priceLabel.BackgroundTransparency = 1
     priceLabel.Font = Enum.Font.GothamBold
     priceLabel.TextSize = 16
@@ -307,7 +329,7 @@ function NookShoppingGUI:createItemSlot(shopItem, index)
     local buyButton = Instance.new("TextButton")
     buyButton.Name = "BuyButton"
     buyButton.Size = UDim2.new(1, -8, 0, 28)
-    buyButton.Position = UDim2.new(0, 4, 0, ITEM_SLOT_SIZE + 38)
+    buyButton.Position = UDim2.fromOffset(4, ITEM_SLOT_SIZE + 38)
     buyButton.BackgroundColor3 = COLORS.ACCENT
     buyButton.TextColor3 = COLORS.TEXT_LIGHT
     buyButton.Font = Enum.Font.GothamBold
@@ -372,7 +394,7 @@ function NookShoppingGUI:populateItems()
     -- Update canvas size
     local rows = math.ceil(#allShopItems / GRID_COLS)
     local totalHeight = rows * (ITEM_SLOT_SIZE + 50 + GRID_PADDING) + GRID_PADDING
-    self.scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+    self.scrollFrame.CanvasSize = UDim2.fromOffset(0, totalHeight)
 
     print("[NookShoppingGUI] ✅ Populated", #allShopItems, "items")
 end

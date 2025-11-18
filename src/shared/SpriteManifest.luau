@@ -389,7 +389,7 @@ return {
     gold_ornament = { name = "gold ornament", spriteIndex = 272 },
 
     -- Materials
-    hardwood = { name = "hardwood", spriteIndex = 273 },
+    hardwood = { name = "Hardwood", spriteIndex = 44 },
 
     -- Other
     horse_mackerel = { name = "horse mackerel", spriteIndex = 274 },
@@ -413,13 +413,13 @@ return {
     red_ornament = { name = "red ornament", spriteIndex = 280 },
 
     -- Materials
-    softwood = { name = "softwood", spriteIndex = 281 },
+    softwood = { name = "Softwood", spriteIndex = 46 },
     star_fragment = { name = "star fragment", spriteIndex = 282 },
     stone = { name = "stone", spriteIndex = 283 },
     sugar = { name = "sugar", spriteIndex = 284 },
     sugarcane = { name = "sugarcane", spriteIndex = 285 },
     wasp_nest = { name = "wasp nest", spriteIndex = 286 },
     whole_wheat_flour = { name = "whole-wheat flour", spriteIndex = 287 },
-    wood = { name = "wood", spriteIndex = 288 },
+    wood = { name = "Wood", spriteIndex = 45 },
     young_spring_bamboo = { name = "young spring bamboo", spriteIndex = 289 },
 }

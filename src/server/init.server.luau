@@ -27,6 +27,22 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 
+-- Create RemoteEvents folder and QuestEvent early (before client loads)
+local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+if not remoteEventsFolder then
+    remoteEventsFolder = Instance.new("Folder")
+    remoteEventsFolder.Name = "RemoteEvents"
+    remoteEventsFolder.Parent = ReplicatedStorage
+end
+
+-- Create QuestEvent early so client can find it
+local questEvent = remoteEventsFolder:FindFirstChild("QuestEvent")
+if not questEvent then
+    questEvent = Instance.new("RemoteEvent")
+    questEvent.Name = "QuestEvent"
+    questEvent.Parent = remoteEventsFolder
+end
+
 local AvatarKitFolder = ReplicatedStorage:FindFirstChild("AvatarKit")
 if not AvatarKitFolder then
     AvatarKitFolder = Instance.new("Folder")
@@ -152,6 +168,191 @@ local function handleFishingCatch(player)
     end
 end
 
+local function handleAxeChop(player, payload)
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    
+    -- Find nearby tree
+    local nearbyTree = nil
+    local closestDistance = 15 -- Max distance to interact with tree
+    local playerPosition = humanoidRootPart.Position
+    
+    -- Search for trees in workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Tree" or 
+            obj:GetAttribute("ResourceType") == "Tree" or 
+            obj.Name:lower():find("tree")) then
+            local treePart = obj:FindFirstChildWhichIsA("BasePart")
+            if treePart then
+                local distance = (treePart.Position - playerPosition).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    nearbyTree = obj
+                end
+            end
+        end
+    end
+    
+    if nearbyTree then
+        -- Give wood (random amount 1-3)
+        local woodCount = math.random(1, 3)
+        local success, err = addItemToInventory(player, {
+            itemId = "wood",
+            count = woodCount,
+        })
+        
+        if success then
+            fireToolFeedback(player, {
+                toolType = "axe",
+                action = "chop_success",
+                data = { wood = woodCount },
+            })
+            logInfo(string.format("🪓 %s chopped tree and got %d wood", player.Name, woodCount))
+        else
+            fireToolFeedback(player, {
+                toolType = "axe",
+                action = "chop_failed",
+                message = err or "Inventory full.",
+            })
+        end
+    else
+        fireToolFeedback(player, {
+            toolType = "axe",
+            action = "chop_failed",
+            message = "No tree nearby.",
+        })
+    end
+end
+
+local function handleNetSwing(player, payload)
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    
+    -- Find nearby bugs
+    local nearbyBug = nil
+    local closestDistance = 10 -- Max distance to catch bug
+    local playerPosition = humanoidRootPart.Position
+    
+    -- Search for bugs in workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Bug" or 
+            obj:GetAttribute("ResourceType") == "Bug" or 
+            obj.Name:lower():find("bug")) then
+            local bugPart = obj:FindFirstChildWhichIsA("BasePart")
+            if bugPart then
+                local distance = (bugPart.Position - playerPosition).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    nearbyBug = obj
+                end
+            end
+        end
+    end
+    
+    if nearbyBug then
+        -- Get bug ID from model (or use default)
+        local bugId = nearbyBug:GetAttribute("ItemId") or "common_butterfly"
+        local bugName = nearbyBug:GetAttribute("ItemName") or "Common Butterfly"
+        
+        -- Add bug to inventory
+        local success, err = addItemToInventory(player, {
+            itemId = bugId,
+            count = 1,
+        })
+        
+        if success then
+            -- Remove bug from world
+            nearbyBug:Destroy()
+            
+            fireToolFeedback(player, {
+                toolType = "net",
+                action = "catch_success",
+                data = { bug = bugName },
+            })
+            logInfo(string.format("🦋 %s caught %s", player.Name, bugName))
+        else
+            fireToolFeedback(player, {
+                toolType = "net",
+                action = "catch_failed",
+                message = err or "Inventory full.",
+            })
+        end
+    else
+        fireToolFeedback(player, {
+            toolType = "net",
+            action = "catch_failed",
+            message = "No bug nearby.",
+        })
+    end
+end
+
+local function handleWateringCan(player, payload)
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    
+    -- Find nearby plants/flowers
+    local nearbyPlant = nil
+    local closestDistance = 8 -- Max distance to water plant
+    local playerPosition = humanoidRootPart.Position
+    
+    -- Search for plants in workspace
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Plant" or 
+            obj:GetAttribute("ResourceType") == "Plant" or 
+            obj.Name:lower():find("flower") or 
+            obj.Name:lower():find("plant")) then
+            local plantPart = obj:FindFirstChildWhichIsA("BasePart")
+            if plantPart then
+                local distance = (plantPart.Position - playerPosition).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    nearbyPlant = obj
+                end
+            end
+        end
+    end
+    
+    if nearbyPlant then
+        -- Mark plant as watered
+        nearbyPlant:SetAttribute("Watered", true)
+        nearbyPlant:SetAttribute("WateredTime", tick())
+        
+        fireToolFeedback(player, {
+            toolType = "watering_can",
+            action = "water_success",
+            data = { plant = nearbyPlant.Name },
+        })
+        logInfo(string.format("💧 %s watered %s", player.Name, nearbyPlant.Name))
+    else
+        fireToolFeedback(player, {
+            toolType = "watering_can",
+            action = "water_failed",
+            message = "No plant nearby.",
+        })
+    end
+end
+
 local function handleToolUseRequest(player, payload)
     if typeof(payload) ~= "table" then
         logWarn("Received malformed tool payload", { player = player and player.Name })
@@ -162,13 +363,19 @@ local function handleToolUseRequest(player, payload)
     local action = payload.action
 
     if toolType == "shovel" and action == "dig" then
-        handleShovelDig(player)
+        handleShovelDig(player, payload)
     elseif toolType == "fishing" then
         if action == "cast" then
             handleFishingCast(player, payload)
         elseif action == "attempt_catch" then
             handleFishingCatch(player)
         end
+    elseif toolType == "axe" and action == "chop" then
+        handleAxeChop(player, payload)
+    elseif toolType == "net" and action == "swing" then
+        handleNetSwing(player, payload)
+    elseif toolType == "watering_can" and action == "water" then
+        handleWateringCan(player, payload)
     end
 end
 
@@ -307,7 +514,10 @@ local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
+local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
+local InventoryUpgrades = require(sharedFolder:WaitForChild("inventory"):WaitForChild("InventoryUpgrades"))
+local RecipeDiscoveryService = require(script.Parent.RecipeDiscoveryService)
 local ToolObjects = require(sharedFolder:WaitForChild("ToolObjects"))
 
 local InventoryConstants = InventoryDomain.Constants
@@ -327,6 +537,18 @@ local InventoryDataStore = DataStoreService:GetDataStore("PlayerInventories")
 
 -- Player currency storage
 local playerCurrencyStates = {}
+
+RecipeDiscoveryService.init()
+
+local function updateInventoryAttributes(player: Player?, inventory)
+    if not player or not inventory then
+        return
+    end
+
+    local level = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
+    player:SetAttribute("InventoryLevel", level)
+    player:SetAttribute("InventoryMaxSlots", inventory.maxSlots or InventoryConstants.getMaxSlotsFromLevel(level))
+end
 local lastInventorySave = 0
 
 local CurrencyDataStore = DataStoreService:GetDataStore("PlayerCurrency")
@@ -422,6 +644,11 @@ CurrencyManager.configure({
 -- Start with level 1 inventory (10 slots)
 local STARTING_INVENTORY_LEVEL = InventoryConstants.STARTING_INVENTORY_LEVEL
 local MAX_SLOTS = InventoryConstants.getMaxSlotsFromLevel(STARTING_INVENTORY_LEVEL)
+local DEFAULT_STATION_TYPE = CraftingSystem.CRAFTING_STATIONS.WORKBENCH
+local DEFAULT_STATION_REWARD_TAG = (function()
+    local config = CraftingStationsConfig.getStationConfig(DEFAULT_STATION_TYPE)
+    return config and config.rewardTag or nil
+end)()
 
 -- World item storage - tracks all dropped items
 local worldItems = {}
@@ -640,6 +867,7 @@ local function initializePlayerInventory(player)
     }
 
     logInfo("✅ Initialized empty inventory", { player = player.Name, level = inventoryLevel, slots = maxSlots })
+    updateInventoryAttributes(player, playerInventories[player.UserId])
 end
 
 local function decodeLegacyPayload(payload)
@@ -983,6 +1211,8 @@ function syncInventoryToClient(player)
         inventoryLevel = inventoryLevel,
         slots = serializedSlots,
     })
+
+    updateInventoryAttributes(player, inventory)
 end
 
 local function consumeCraftingMaterials(player, materials, quantity)
@@ -1023,6 +1253,79 @@ local function consumeCraftingMaterials(player, materials, quantity)
     -- Auto-save after inventory changes
     savePlayerInventory(player)
     return true
+end
+
+local function buildUpgradePayload(player: Player, inventory)
+    local level = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
+    local bells = CurrencyManager.getBells(player)
+    return InventoryUpgrades.buildUpgradePayload(level, bells)
+end
+
+local function replayRecipeDiscoveries(player: Player, inventory, savedData)
+    if not player or not inventory then
+        return
+    end
+
+    local currentLevel = math.max(STARTING_INVENTORY_LEVEL, inventory.inventoryLevel or STARTING_INVENTORY_LEVEL)
+    local maxConfigLevel = InventoryUpgrades.getMaxLevel()
+    local levelCap = math.min(currentLevel, maxConfigLevel)
+    for level = STARTING_INVENTORY_LEVEL + 1, levelCap do
+        RecipeDiscoveryService.unlockForInventoryLevel(player, level)
+    end
+
+    if DEFAULT_STATION_REWARD_TAG then
+        RecipeDiscoveryService.unlockForTag(player, DEFAULT_STATION_REWARD_TAG)
+    end
+
+    if savedData then
+        local tags = nil
+        if typeof(savedData.unlockedStationTags) == "table" then
+            tags = savedData.unlockedStationTags
+        elseif typeof(savedData.unlockedStations) == "table" then
+            tags = {}
+            for _, stationId in ipairs(savedData.unlockedStations) do
+                if typeof(stationId) == "string" then
+                    local config = CraftingStationsConfig.getStationConfig(stationId)
+                    if config and config.rewardTag then
+                        table.insert(tags, config.rewardTag)
+                    end
+                end
+            end
+        end
+
+        if typeof(tags) == "table" then
+            for _, tag in ipairs(tags) do
+                if typeof(tag) == "string" then
+                    RecipeDiscoveryService.unlockForTag(player, tag)
+                end
+            end
+        end
+    end
+end
+
+local function attemptInventoryUpgrade(player: Player, inventory)
+    local currentLevel = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
+    local nextConfig = InventoryUpgrades.getNextConfig(currentLevel)
+    if not nextConfig then
+        return false, buildUpgradePayload(player, inventory), "MAX_LEVEL"
+    end
+
+    local cost = nextConfig.cost or 0
+    if cost > 0 then
+        local success = CurrencyManager.removeBells(player, cost)
+        if not success then
+            return false, buildUpgradePayload(player, inventory), "INSUFFICIENT_FUNDS"
+        end
+    end
+
+    inventory.inventoryLevel = nextConfig.level
+    inventory.maxSlots = InventoryConstants.getMaxSlotsFromLevel(nextConfig.level)
+    inventory.slots = inventory.slots or {}
+
+    updateInventoryAttributes(player, inventory)
+    RecipeDiscoveryService.unlockForInventoryLevel(player, nextConfig.level)
+
+    return true, buildUpgradePayload(player, inventory), nil
 end
 
 local function grantCraftedItems(player, craftedItems)
@@ -1981,6 +2284,21 @@ inventoryRemote.OnServerEvent:Connect(function(player, action, data)
     if action == "RequestInventory" then
         logInfo("Sending inventory to player", { player = player.Name, items = countFilledSlots(inventory.slots) })
         syncInventoryToClient(player)
+        inventoryRemote:FireClient(player, "InventoryUpgradeInfo", buildUpgradePayload(player, inventory))
+    elseif action == "GetInventoryUpgradeInfo" then
+        inventoryRemote:FireClient(player, "InventoryUpgradeInfo", buildUpgradePayload(player, inventory))
+    elseif action == "UpgradeInventory" then
+        local success, payload, errorCode = attemptInventoryUpgrade(player, inventory)
+        inventoryRemote:FireClient(player, "InventoryUpgradeResult", {
+            success = success,
+            error = errorCode,
+            state = payload,
+        })
+
+        if success then
+            syncInventoryToClient(player)
+            savePlayerInventory(player)
+        end
     elseif action == "ImportLegacyInventory" and data then
         logInfo("Importing legacy inventory payload", { player = player.Name })
         hydrateInventoryFromLegacy(inventory, data.payload, data.options)
@@ -2374,6 +2692,7 @@ Players.PlayerAdded:Connect(function(player)
         }
 
         logInfo("✅ Restored inventory", { player = player.Name, items = countFilledSlots(slots) })
+        updateInventoryAttributes(player, playerInventories[player.UserId])
     else
         -- Initialize empty inventory
         logInfo("Initializing new inventory", { player = player.Name })
@@ -2381,6 +2700,7 @@ Players.PlayerAdded:Connect(function(player)
     end
 
     local inventory = playerInventories[player.UserId]
+    replayRecipeDiscoveries(player, inventory, savedData)
     local legacyAttribute = player:GetAttribute("LegacyInventoryPayload")
     if legacyAttribute then
         logInfo("Found legacy payload attribute", { player = player.Name })

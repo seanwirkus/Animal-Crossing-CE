@@ -159,7 +159,80 @@ GUIContentManager.Inventory = {
         "Materials",
         "Other",
     },
+
+    upgrades = {
+        title = "Pocket Upgrades",
+        summary = "Level {level} • {slots} slots",
+        description = "Invest Bells with Nook Inc. to expand your carry capacity.",
+        button = "Upgrade ({cost} Bells)",
+        maxButton = "Pocket Maxed",
+        maxDescription = "You're already carrying as much as possible!",
+        successMessage = "Your pockets feel roomier already!",
+        errors = {
+            MAX_LEVEL = "You've already unlocked every upgrade.",
+            INSUFFICIENT_FUNDS = "You need more Bells to purchase this.",
+        },
+        stations = {
+            title = "Crafting Stations",
+            unlocked = "Unlocked",
+            locked = "Locked - {cost} Bells",
+            unlockButton = "Unlock ({cost} Bells)",
+        },
+    },
 }
+
+-- =============================================================================
+-- LAYOUT TOKENS (shared by Inventory/NookPhone/other GUIs)
+-- =============================================================================
+
+GUIContentManager.Layouts = {
+    Inventory = {
+        anchorPoint = Vector2.new(0.5, 1),
+        position = UDim2.new(0.5, 0, 1, -32),
+        size = UDim2.new(0, 760, 0, 380),
+        cornerRadius = 24,
+        padding = {
+            top = 32,
+            bottom = 28,
+            left = 32,
+            right = 32,
+        },
+        headerHeight = 52,
+        searchHeight = 36,
+        footerHeight = 28,
+        slot = {
+            size = UDim2.new(0, 64, 0, 64),
+            padding = UDim.new(0, 10),
+            maxColumns = 10,
+        },
+    },
+    NookPhone = {
+        anchorPoint = Vector2.new(0.5, 1),
+        position = UDim2.new(0.5, 0, 1, -24),
+        size = UDim2.new(0, 380, 0, 640),
+        aspectRatio = 9 / 16,
+        padding = {
+            horizontal = 18,
+            vertical = 20,
+        },
+        notchHeight = 48,
+        statusRowHeight = 64,
+        closeButtonOffset = Vector2.new(0, -50),
+        grid = {
+            columns = 3,
+            iconSize = 90,
+            spacing = 12,
+        },
+    },
+}
+
+function GUIContentManager.getLayoutConfig(layoutName: string)
+    local layout = GUIContentManager.Layouts[layoutName]
+    if not layout then
+        warn(string.format("[GUIContentManager] ⚠️ Layout '%s' is not defined", tostring(layoutName)))
+    end
+    return layout
+end
 
 -- =============================================================================
 -- CRAFTING GUI CONTENT
@@ -378,6 +451,16 @@ GUIContentManager.Tutorial = {
         text = "Skip Tutorial",
         confirm = "Are you sure you want to skip the tutorial?",
     },
+}
+
+GUIContentManager.Emotes = {
+    title = "Reactions",
+    hint = "Select an emote to share how you're feeling!",
+}
+
+GUIContentManager.Map = {
+    title = "🗺️ Island Map",
+    hint = "Shows your island layout and player position.",
 }
 
 -- =============================================================================

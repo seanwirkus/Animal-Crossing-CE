@@ -22,7 +22,11 @@ local GameMenu = {}
 
 local UIComponents = require(script.Parent.UIComponents)
 local KeybindManagerModule = require(script.Parent.Parent.KeybindManager)
-local KeybindDescriptions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("KeybindDescriptions"))
+local GUIContentManager = require(script.Parent.GUIContentManager)
+local GUIStyleUtil = require(script.Parent.GUIStyleUtil)
+local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
+local KeybindDescriptions = require(sharedFolder:WaitForChild("KeybindDescriptions"))
+local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
 
 -- State
 local _screenGui = nil
@@ -34,6 +38,10 @@ local _currentTab = "inventory"
 local _guiManager = nil
 local _settingsController = nil
 local _inventoryClient = nil
+local _upgradeState = nil
+local _lastUpgradeResult = nil
+local _stationStatus = { unlocked = {} }
+local _craftingRemote = ReplicatedStorage:FindFirstChild("CraftingEvent")
 local _escapeConnection = nil -- Track escape key connection
 
 -- Colors matching Animal Crossing theme
@@ -49,6 +57,7 @@ local COLORS = {
 -- Tab definitions
 local TABS = {
     { id = "inventory", title = "Inventory", icon = "🎒", keybind = "E" },
+    { id = "upgrades", title = "Upgrades", icon = "⬆️", keybind = "U" },
     { id = "settings", title = "Settings", icon = "⚙️", keybind = "ESC" },
     { id = "graphics", title = "Graphics", icon = "🎨", keybind = nil },
     { id = "controls", title = "Controls", icon = "🎮", keybind = nil },
@@ -78,6 +87,19 @@ local DEBUG_KEYBIND_ORDER = {
     "QUEST_BOARD",
     "START_ONBOARDING",
 }
+
+local function formatCopy(template, replacements)
+    if typeof(template) ~= "string" then
+        return template
+    end
+
+    local result = template
+    for key, value in pairs(replacements or {}) do
+        result = result:gsub("{" .. key .. "}", tostring(value))
+    end
+
+    return result
+end
 
 local function createGUI()
     local playerGui = LOCAL_PLAYER:WaitForChild("PlayerGui")
@@ -482,22 +504,22 @@ local function createInventoryContent()
                 icon.ImageRectSize = Vector2.new()
             end
 
-            -- Item count
-            if itemData.count > 1 then
+            -- Item count (top-right, always visible black text)
+            if itemData.count and itemData.count > 0 then
                 local countLabel = Instance.new("TextLabel")
-                countLabel.Size = UDim2.new(0, 30, 0, 20)
-                countLabel.Position = UDim2.new(1, -35, 1, -25)
-                countLabel.BackgroundColor3 = COLORS.selected
+                countLabel.Name = "ItemCount"
+                countLabel.Size = UDim2.new(0, 40, 0, 20)
+                countLabel.Position = UDim2.new(1, -2, 0, 2)
+                countLabel.AnchorPoint = Vector2.new(1, 0)
+                countLabel.BackgroundTransparency = 1
                 countLabel.Text = tostring(itemData.count)
-                countLabel.Font = Enum.Font.GothamBold
+                countLabel.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
                 countLabel.TextSize = 14
-                countLabel.TextColor3 = COLORS.selectedText
-                countLabel.TextScaled = true
+                countLabel.Font = Enum.Font.GothamBold
+                countLabel.TextXAlignment = Enum.TextXAlignment.Right
+                countLabel.TextYAlignment = Enum.TextYAlignment.Top
+                countLabel.ZIndex = 15
                 countLabel.Parent = slot
-
-                local countCorner = Instance.new("UICorner")
-                countCorner.CornerRadius = UDim.new(0, 4)
-                countCorner.Parent = countLabel
             end
 
             -- Item name tooltip
@@ -562,6 +584,249 @@ local function createInventoryContent()
         label.TextYAlignment = Enum.TextYAlignment.Top
         label.LayoutOrder = 2
         label.Parent = _contentFrame
+    end
+end
+
+local function createUpgradesContent()
+    if not _contentFrame then
+        return
+    end
+
+    _contentFrame:ClearAllChildren()
+    _contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.Parent = _contentFrame
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 12)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.Parent = _contentFrame
+
+    local copy = (GUIContentManager.Inventory and GUIContentManager.Inventory.upgrades) or {}
+    local state = _upgradeState or {}
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 36)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.LayoutOrder = 1
+    GUIStyleUtil.applyTextStyle(titleLabel, "title")
+    GUIStyleUtil.setTextContent(titleLabel, copy.title or "Pocket Upgrades")
+    titleLabel.Parent = _contentFrame
+
+    local summaryLabel = Instance.new("TextLabel")
+    summaryLabel.Size = UDim2.new(1, 0, 0, 40)
+    summaryLabel.AutomaticSize = Enum.AutomaticSize.Y
+    summaryLabel.BackgroundTransparency = 1
+    summaryLabel.TextWrapped = true
+    summaryLabel.TextXAlignment = Enum.TextXAlignment.Left
+    summaryLabel.LayoutOrder = 2
+    GUIStyleUtil.applyTextStyle(summaryLabel, "body")
+    summaryLabel.Text = formatCopy(copy.summary or "Level {level} • {slots} slots", {
+        level = state.level or 1,
+        slots = state.maxSlots or 10,
+    })
+    summaryLabel.Parent = _contentFrame
+
+    local descriptionLabel = Instance.new("TextLabel")
+    descriptionLabel.Size = UDim2.new(1, 0, 0, 60)
+    descriptionLabel.AutomaticSize = Enum.AutomaticSize.Y
+    descriptionLabel.BackgroundTransparency = 1
+    descriptionLabel.TextWrapped = true
+    descriptionLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descriptionLabel.LayoutOrder = 3
+    GUIStyleUtil.applyTextStyle(descriptionLabel, "body")
+    descriptionLabel.Text = state.description or copy.description or ""
+    descriptionLabel.Parent = _contentFrame
+
+    local canUpgrade = not state.reachedMax and (state.canUpgrade ~= false)
+    local upgradeButton = Instance.new("TextButton")
+    upgradeButton.Size = UDim2.new(0, 280, 0, 44)
+    upgradeButton.AutoButtonColor = canUpgrade
+    upgradeButton.Active = canUpgrade
+    upgradeButton.LayoutOrder = 4
+    upgradeButton.Text = formatCopy(
+        (state.reachedMax and copy.maxButton) or copy.button or "Upgrade ({cost} Bells)",
+        { cost = state.cost or 0 }
+    )
+    if not canUpgrade then
+        upgradeButton.BackgroundTransparency = 0.3
+    end
+    GUIStyleUtil.applyButtonStyle(upgradeButton, canUpgrade and "primary" or "secondary")
+    upgradeButton.Parent = _contentFrame
+
+    if canUpgrade and _inventoryClient and _inventoryClient.inventoryRemote then
+        upgradeButton.MouseButton1Click:Connect(function()
+            _inventoryClient.inventoryRemote:FireServer("UpgradeInventory")
+        end)
+    end
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, 0, 0, 32)
+    statusLabel.AutomaticSize = Enum.AutomaticSize.Y
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.TextWrapped = true
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    statusLabel.LayoutOrder = 5
+    GUIStyleUtil.applyTextStyle(statusLabel, "body")
+
+    local statusText = ""
+    if _lastUpgradeResult then
+        if _lastUpgradeResult.success then
+            statusText = copy.successMessage or "Inventory upgraded!"
+        else
+            local reasonKey = _lastUpgradeResult.error or _lastUpgradeResult.reason or "FAILED"
+            statusText = (copy.errors and copy.errors[reasonKey]) or reasonKey
+        end
+    elseif state.reachedMax and copy.maxDescription then
+        statusText = copy.maxDescription
+    end
+    statusLabel.Text = formatCopy(statusText, {
+        level = state.level or 1,
+        cost = state.cost or 0,
+    })
+    statusLabel.Parent = _contentFrame
+
+    local stationCopy = copy.stations or {}
+    local stationHeader = Instance.new("TextLabel")
+    stationHeader.Size = UDim2.new(1, 0, 0, 30)
+    stationHeader.BackgroundTransparency = 1
+    stationHeader.TextXAlignment = Enum.TextXAlignment.Left
+    stationHeader.LayoutOrder = 6
+    GUIStyleUtil.applyTextStyle(stationHeader, "subtitle")
+    GUIStyleUtil.setTextContent(stationHeader, stationCopy.title or "Crafting Stations")
+    stationHeader.Parent = _contentFrame
+
+    local stationList = Instance.new("Frame")
+    stationList.Name = "StationList"
+    stationList.Size = UDim2.new(1, 0, 0, 0)
+    stationList.AutomaticSize = Enum.AutomaticSize.Y
+    stationList.BackgroundTransparency = 1
+    stationList.LayoutOrder = 7
+    stationList.Parent = _contentFrame
+
+    local stationLayout = Instance.new("UIListLayout")
+    stationLayout.Padding = UDim.new(0, 10)
+    stationLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    stationLayout.Parent = stationList
+
+    local unlockedSet = {}
+    for _, stationId in ipairs(_stationStatus.unlocked or {}) do
+        unlockedSet[stationId] = true
+    end
+
+    local stationCatalog = _stationStatus.catalog or CraftingStationsConfig.getAll()
+    for _, config in ipairs(stationCatalog) do
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, 0)
+        card.AutomaticSize = Enum.AutomaticSize.Y
+        card.LayoutOrder = 8
+        card.Parent = stationList
+        GUIStyleUtil.applyWindowStyle(card, "popup")
+
+        local cardPadding = Instance.new("UIPadding")
+        cardPadding.PaddingTop = UDim.new(0, 10)
+        cardPadding.PaddingBottom = UDim.new(0, 10)
+        cardPadding.PaddingLeft = UDim.new(0, 12)
+        cardPadding.PaddingRight = UDim.new(0, 12)
+        cardPadding.Parent = card
+
+        local cardLayout = Instance.new("UIListLayout")
+        cardLayout.FillDirection = Enum.FillDirection.Vertical
+        cardLayout.Padding = UDim.new(0, 6)
+        cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        cardLayout.Parent = card
+
+        local stationTitle = Instance.new("TextLabel")
+        stationTitle.BackgroundTransparency = 1
+        stationTitle.TextXAlignment = Enum.TextXAlignment.Left
+        stationTitle.Text = string.format("%s %s", config.icon or "", config.name or config.id)
+        GUIStyleUtil.applyTextStyle(stationTitle, "subtitle")
+        stationTitle.Parent = card
+
+        local stationDesc = Instance.new("TextLabel")
+        stationDesc.BackgroundTransparency = 1
+        stationDesc.TextWrapped = true
+        stationDesc.TextXAlignment = Enum.TextXAlignment.Left
+        stationDesc.Text = config.description or ""
+        GUIStyleUtil.applyTextStyle(stationDesc, "body")
+        stationDesc.Parent = card
+
+        local statusRow = Instance.new("Frame")
+        statusRow.Size = UDim2.new(1, 0, 0, 0)
+        statusRow.AutomaticSize = Enum.AutomaticSize.Y
+        statusRow.BackgroundTransparency = 1
+        statusRow.Parent = card
+
+        local statusLayout = Instance.new("UIListLayout")
+        statusLayout.FillDirection = Enum.FillDirection.Horizontal
+        statusLayout.Padding = UDim.new(0, 8)
+        statusLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+        statusLayout.Parent = statusRow
+
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Size = UDim2.new(1, -140, 0, 24)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        GUIStyleUtil.applyTextStyle(statusLabel, "body")
+
+        local isUnlocked = unlockedSet[config.id] == true
+        if isUnlocked then
+            statusLabel.Text = stationCopy.unlocked or "Unlocked"
+        else
+            statusLabel.Text = formatCopy(stationCopy.locked or "Locked - {cost} Bells", {
+                cost = config.cost or 0,
+            })
+        end
+        statusLabel.Parent = statusRow
+
+        if not isUnlocked then
+            local unlockButton = Instance.new("TextButton")
+            unlockButton.Size = UDim2.new(0, 120, 0, 32)
+            unlockButton.AutoButtonColor = true
+            unlockButton.Text = formatCopy(stationCopy.unlockButton or "Unlock", {
+                cost = config.cost or 0,
+            })
+            GUIStyleUtil.applyButtonStyle(unlockButton, "secondary")
+            unlockButton.Parent = statusRow
+
+            unlockButton.MouseButton1Click:Connect(function()
+                if _craftingRemote then
+                    _craftingRemote:FireServer("UnlockStation", {
+                        stationType = config.id,
+                    })
+                end
+            end)
+        end
+    end
+end
+
+local function handleUpgradeInfo(payload, metadata)
+    if payload then
+        _upgradeState = payload
+    end
+    if metadata then
+        _lastUpgradeResult = metadata
+    end
+
+    if _currentTab == "upgrades" then
+        createUpgradesContent()
+    end
+end
+
+local function handleStationStatus(payload)
+    if payload then
+        _stationStatus = payload
+    end
+
+    if _currentTab == "upgrades" then
+        createUpgradesContent()
     end
 end
 
@@ -1004,9 +1269,20 @@ function GameMenu.switchTab(tabId)
         _inventoryClient:requestInventory()
     end
 
+    if tabId == "upgrades" then
+        if _inventoryClient and _inventoryClient.requestUpgradeInfo then
+            _inventoryClient:requestUpgradeInfo()
+        end
+        if _craftingRemote then
+            _craftingRemote:FireServer("GetStationsStatus")
+        end
+    end
+
     -- Load content for selected tab
     if tabId == "inventory" then
         createInventoryContent()
+    elseif tabId == "upgrades" then
+        createUpgradesContent()
     elseif tabId == "settings" then
         createSettingsContent()
     elseif tabId == "graphics" then
@@ -1104,6 +1380,28 @@ function GameMenu.init(guiManager, settingsController, inventoryClient)
     _guiManager = guiManager
     _settingsController = settingsController
     _inventoryClient = inventoryClient
+
+    if _inventoryClient and _inventoryClient.onUpgradeInfoChanged then
+        _inventoryClient:onUpgradeInfoChanged(function(payload, metadata)
+            handleUpgradeInfo(payload, metadata)
+        end)
+    end
+
+    if _craftingRemote then
+        _craftingRemote.OnClientEvent:Connect(function(action, data)
+            if action == "StationStatus" then
+                handleStationStatus(data)
+            elseif action == "StationUnlocked" then
+                _lastUpgradeResult = data
+                _craftingRemote:FireServer("GetStationsStatus")
+                if _currentTab == "upgrades" then
+                    createUpgradesContent()
+                end
+            end
+        end)
+
+        _craftingRemote:FireServer("GetStationsStatus")
+    end
 
     print("[GameMenu] ✅ Game menu system initialized (` key to open)")
 end

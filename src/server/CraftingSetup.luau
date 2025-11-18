@@ -8,6 +8,13 @@ local Players = game:GetService("Players")
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
+local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
+
+local CurrencyManager = require(script.Parent.CurrencyManager)
+local RecipeDiscoveryService = require(script.Parent.RecipeDiscoveryService)
+
+local DEFAULT_STATION_TYPE = CraftingSystem.CRAFTING_STATIONS.WORKBENCH
+local DEFAULT_STATION_CONFIG = CraftingStationsConfig.getStationConfig(DEFAULT_STATION_TYPE)
 
 local SpreadsheetIntegration
 if script.Parent:FindFirstChild("SpreadsheetIntegration") then
@@ -116,6 +123,13 @@ local function setupCraftingRemoteEvents()
     craftingRemote.Name = "CraftingEvent"
     craftingRemote.Parent = ReplicatedStorage
 
+    local function sendStationStatus(player)
+        craftingRemote:FireClient(player, "StationStatus", {
+            unlocked = CraftingSystem.getUnlockedStations(player),
+            catalog = CraftingStationsConfig.getAll(),
+        })
+    end
+
     -- Handle crafting requests
     craftingRemote.OnServerEvent:Connect(function(player, action, data)
         if CONFIG.DEBUG_MODE then
@@ -154,14 +168,78 @@ local function setupCraftingRemoteEvents()
             craftingRemote:FireClient(player, "CraftingProgress", progress)
         elseif action == "GetAvailableRecipes" then
             local recipes = CraftingSystem.getAvailableRecipes(player)
+            recipes = RecipeDiscoveryService.filterRecipes(player, recipes)
             craftingRemote:FireClient(player, "AvailableRecipes", recipes)
+        elseif action == "GetStationsStatus" then
+            sendStationStatus(player)
         elseif action == "UnlockStation" then
             local stationType = data.stationType
+            local stationConfig = CraftingStationsConfig.getStationConfig(stationType)
+            if not stationConfig then
+                craftingRemote:FireClient(player, "StationUnlocked", {
+                    success = false,
+                    stationType = stationType,
+                    reason = "UNKNOWN_STATION",
+                })
+                return
+            end
+
+            if CraftingSystem.isStationUnlocked(player, stationType) then
+                craftingRemote:FireClient(player, "StationUnlocked", {
+                    success = false,
+                    stationType = stationType,
+                    reason = "ALREADY_UNLOCKED",
+                })
+                return
+            end
+
+            local requirements = stationConfig.requires or {}
+            if requirements.inventoryLevel then
+                local inventoryLevel = player:GetAttribute("InventoryLevel") or 1
+                if inventoryLevel < requirements.inventoryLevel then
+                    craftingRemote:FireClient(player, "StationUnlocked", {
+                        success = false,
+                        stationType = stationType,
+                        reason = "REQUIRES_LEVEL",
+                        requiredLevel = requirements.inventoryLevel,
+                    })
+                    return
+                end
+            end
+
+            if requirements.station and not CraftingSystem.isStationUnlocked(player, requirements.station) then
+                craftingRemote:FireClient(player, "StationUnlocked", {
+                    success = false,
+                    stationType = stationType,
+                    reason = "REQUIRES_STATION",
+                    requiredStation = requirements.station,
+                })
+                return
+            end
+
+            local cost = stationConfig.cost or 0
+            if cost > 0 and not CurrencyManager.removeBells(player, cost) then
+                craftingRemote:FireClient(player, "StationUnlocked", {
+                    success = false,
+                    stationType = stationType,
+                    reason = "INSUFFICIENT_FUNDS",
+                    cost = cost,
+                })
+                return
+            end
+
             local success = CraftingSystem.unlockStation(player, stationType)
+            if success then
+                RecipeDiscoveryService.unlockForTag(player, stationConfig.rewardTag)
+            end
+
             craftingRemote:FireClient(player, "StationUnlocked", {
                 success = success,
                 stationType = stationType,
+                cost = cost,
+                reason = success and nil or "FAILED",
             })
+            sendStationStatus(player)
         end
     end)
 
@@ -172,14 +250,25 @@ end
 initializeCraftingSystem()
 setupCraftingRemoteEvents()
 
+local function grantDefaultStationRewards(player)
+    if DEFAULT_STATION_CONFIG and DEFAULT_STATION_CONFIG.rewardTag then
+        RecipeDiscoveryService.unlockForTag(player, DEFAULT_STATION_CONFIG.rewardTag)
+    end
+end
+
 -- Set up player events
 Players.PlayerAdded:Connect(function(player)
     print("[CraftingSetup] Player", player.Name, "joined - crafting system ready")
+    grantDefaultStationRewards(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     print("[CraftingSetup] Player", player.Name, "left")
 end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    grantDefaultStationRewards(player)
+end
 
 print("[CraftingSetup] 🎉 Crafting system setup complete!")
 print("[CraftingSetup] 📋 To use Google Sheets:")

@@ -31,9 +31,12 @@ function RecipesInventoryGUI.new()
 
     self.inventoryRemote = ReplicatedStorage:WaitForChild("InventoryEvent")
     self.craftingRemote = ReplicatedStorage:FindFirstChild("CraftingEvent")
+    self.discoveryRemote = ReplicatedStorage:FindFirstChild("RecipeDiscoveryEvent")
 
     -- Track player inventory for material checking
     self.playerInventory = {} -- itemId -> count
+    self.discoveredRecipes = {}
+    self.discoveryLoaded = false
 
     -- GUI elements
     self.mainFrame = nil
@@ -49,6 +52,9 @@ function RecipesInventoryGUI.new()
 
     -- Listen for crafting responses
     self:setupCraftingListener()
+
+    -- Track recipe discovery progress
+    self:setupDiscoveryListener()
 
     print("[RecipesInventoryGUI] ✅ Initialized with", #self.allRecipes, "recipes")
 
@@ -106,6 +112,27 @@ function RecipesInventoryGUI:setupCraftingListener()
             end
         end)
     end
+end
+
+function RecipesInventoryGUI:setupDiscoveryListener()
+    if not self.discoveryRemote then
+        return
+    end
+
+    self.discoveryRemote.OnClientEvent:Connect(function(action, data)
+        if action == "DiscoveredRecipes" and data and data.recipes then
+            self.discoveryLoaded = true
+            table.clear(self.discoveredRecipes)
+            for _, recipeId in ipairs(data.recipes) do
+                self.discoveredRecipes[recipeId] = true
+            end
+            self:refreshRecipeCards()
+        elseif action == "RecipesUnlocked" then
+            self.discoveryRemote:FireServer("RequestDiscovered")
+        end
+    end)
+
+    self.discoveryRemote:FireServer("RequestDiscovered")
 end
 
 function RecipesInventoryGUI:createGui()
@@ -253,11 +280,28 @@ function RecipesInventoryGUI:renderRecipeCards()
     end
 
     -- Create cards for each recipe
-    for i, recipe in ipairs(self.allRecipes) do
+    local recipes = self:getVisibleRecipes()
+    for i, recipe in ipairs(recipes) do
         local card = self:createRecipeCard(recipe)
         card.LayoutOrder = i
         card.Parent = self.recipeCardsScroll
     end
+end
+
+function RecipesInventoryGUI:getVisibleRecipes()
+    if not self.discoveryLoaded or not self.discoveredRecipes or next(self.discoveredRecipes) == nil then
+        return self.allRecipes
+    end
+
+    local filtered = {}
+    for _, recipe in ipairs(self.allRecipes) do
+        local recipeId = recipe.itemId or recipe.id
+        if not recipeId or self.discoveredRecipes[recipeId] then
+            table.insert(filtered, recipe)
+        end
+    end
+
+    return filtered
 end
 
 function RecipesInventoryGUI:refreshRecipeCards()

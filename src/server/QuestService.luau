@@ -22,7 +22,7 @@ function QuestService.new()
 end
 
 function QuestService:initialize()
-    -- Create RemoteEvent for client communication
+    -- Use existing RemoteEvent (created early in server init)
     local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
     if not remoteEventsFolder then
         remoteEventsFolder = Instance.new("Folder")
@@ -32,6 +32,7 @@ function QuestService:initialize()
 
     self._remoteEvent = remoteEventsFolder:FindFirstChild("QuestEvent")
     if not self._remoteEvent then
+        -- Fallback: create if it doesn't exist (shouldn't happen if server init runs first)
         self._remoteEvent = Instance.new("RemoteEvent")
         self._remoteEvent.Name = "QuestEvent"
         self._remoteEvent.Parent = remoteEventsFolder

@@ -19,8 +19,9 @@ local CharacterAndToolFixes = {}
 -- Character scaling configuration
 local CHARACTER_CONFIG = {
 	-- Scale factors to make players bigger after chibi removal
-	SCALE_FACTOR = 2.5, -- 2.5x larger than default (increased from 2.0)
-	HEAD_SCALE = 1.5, -- Larger head for more natural proportions (applied after base scale)
+	SCALE_FACTOR = 3.0, -- 3.0x larger than default (increased from 2.5)
+	HEAD_SCALE = 2.0, -- Larger head for more natural proportions (applied after base scale, increased from 1.5)
+	HEIGHT_SCALE = 1.3, -- Additional height scaling to make character taller
 	ARM_SCALE = 1.3,
 	LEG_SCALE = 1.3,
 	
@@ -57,27 +58,54 @@ function CharacterAndToolFixes.scaleCharacter(character: Model)
 	
 	-- Scale all major body parts
 	local scaleFactor = CHARACTER_CONFIG.SCALE_FACTOR
+	local heightScale = CHARACTER_CONFIG.HEIGHT_SCALE
 	
 	for _, partName in ipairs(CHARACTER_CONFIG.SCALE_PARTS) do
 		local part = character:FindFirstChild(partName)
 		if part and part:IsA("BasePart") then
-			-- Apply scaling
-			part.Size = part.Size * scaleFactor
+			-- Apply base scaling
+			local baseSize = part.Size * scaleFactor
 			
-			-- Store original size for potential restoration
-			if not part:GetAttribute("OriginalSize") then
-				part:SetAttribute("OriginalSize", part.Size.X .. "," .. part.Size.Y .. "," .. part.Size.Z)
+			-- Apply additional height scaling to Y dimension for taller characters
+			-- Skip head as it gets special scaling below
+			if partName ~= "Head" then
+				part.Size = Vector3.new(baseSize.X, baseSize.Y * heightScale, baseSize.Z)
+				
+				-- Store original size for potential restoration (for non-head parts)
+				if not part:GetAttribute("OriginalSize") then
+					part:SetAttribute("OriginalSize", part.Size.X .. "," .. part.Size.Y .. "," .. part.Size.Z)
+				end
+				
+				print(string.format("[CharacterFix] Scaled %s by %.1fx (height: %.1fx)", partName, scaleFactor, heightScale))
+			else
+				part.Size = baseSize
+				-- Head size will be stored after additional head scaling below
 			end
-			
-			print(string.format("[CharacterFix] Scaled %s by %.1fx", partName, scaleFactor))
 		end
 	end
 	
 	-- Special handling for head (often needs different scaling)
 	local head = character:FindFirstChild("Head")
 	if head and head:IsA("BasePart") then
+		-- Apply additional head scaling (already scaled by SCALE_FACTOR above)
 		head.Size = head.Size * CHARACTER_CONFIG.HEAD_SCALE
-		print(string.format("[CharacterFix] Head scaled by %.1fx", CHARACTER_CONFIG.HEAD_SCALE))
+		
+		-- Store original size for potential restoration (after all head scaling)
+		if not head:GetAttribute("OriginalSize") then
+			head:SetAttribute("OriginalSize", head.Size.X .. "," .. head.Size.Y .. "," .. head.Size.Z)
+		end
+		
+		print(string.format("[CharacterFix] Head scaled by additional %.1fx (total: %.1fx)", CHARACTER_CONFIG.HEAD_SCALE, scaleFactor * CHARACTER_CONFIG.HEAD_SCALE))
+	end
+	
+	-- Apply Humanoid height scaling for additional tallness
+	if humanoid then
+		-- Use BodyHeightScale if available (R15 characters)
+		local heightScaleValue = humanoid:FindFirstChild("BodyHeightScale")
+		if heightScaleValue and heightScaleValue:IsA("NumberValue") then
+			heightScaleValue.Value = heightScaleValue.Value * heightScale
+			print(string.format("[CharacterFix] Applied BodyHeightScale: %.2f", heightScaleValue.Value))
+		end
 	end
 	
 	return true

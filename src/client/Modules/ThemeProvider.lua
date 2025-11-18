@@ -56,7 +56,6 @@ end
 -- Get color by name
 function ThemeProvider.getColor(colorName)
     local color = _currentTheme.colors[colorName] or _currentTheme.colors.offWhite
-    print(string.format("[ThemeProvider] 🎨 getColor('%s') -> %s", colorName, tostring(color)))
     return color
 end
 
@@ -171,8 +170,16 @@ function ThemeProvider.styleFrame(frame, styleConfig)
 
     -- Corner radius
     if styleConfig.cornerRadius then
-        local radiusType = typeof(styleConfig.cornerRadius) == "string" and styleConfig.cornerRadius or "medium"
-        _currentTheme.applyCornerRadius(frame, radiusType)
+        -- Handle both string keys and direct UDim values
+        local radiusValue = styleConfig.cornerRadius
+        if typeof(radiusValue) == "string" then
+            _currentTheme.applyCornerRadius(frame, radiusValue)
+        elseif typeof(radiusValue) == "UDim" then
+            _currentTheme.applyCornerRadius(frame, radiusValue)
+        else
+            -- Default to medium if invalid type
+            _currentTheme.applyCornerRadius(frame, "medium")
+        end
     end
 
     -- Stroke/border
@@ -193,19 +200,6 @@ end
 -- Apply theme to text labels
 function ThemeProvider.styleText(textObject, styleConfig)
     styleConfig = styleConfig or {}
-
-    -- Get config keys for logging
-    local configKeys = {}
-    for key, _ in pairs(styleConfig) do
-        table.insert(configKeys, tostring(key))
-    end
-    print(
-        string.format(
-            "[ThemeProvider] 🎨 styleText called on %s with config keys: %s",
-            textObject.Name,
-            table.concat(configKeys, ", ")
-        )
-    )
 
     -- Text color
     if styleConfig.textColor then

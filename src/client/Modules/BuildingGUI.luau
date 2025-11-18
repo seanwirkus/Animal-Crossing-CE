@@ -59,11 +59,7 @@ local function formatRequirement(requirement)
 end
 
 local function cloneDictionary(source)
-    local result = {}
-    for key, value in pairs(source) do
-        result[key] = value
-    end
-    return result
+    return table.clone(source)
 end
 
 function BuildingGUI.new()
@@ -127,11 +123,18 @@ function BuildingGUI:_buildGui()
     local container = Instance.new("Frame")
     container.Name = "Container"
     container.AnchorPoint = Vector2.new(0.5, 0.5)
-    container.Position = UDim2.new(0.5, 0, 0.5, 0)
-    container.Size = UDim2.new(0, 1000, 0, 650) -- Larger for better layout
+    container.Position = UDim2.fromScale(0.5, 0.5)
+    -- Responsive sizing using scale with constraints
+    container.Size = UDim2.fromScale(0.85, 0.85)
     container.BackgroundColor3 = COLORS.BACKGROUND
     container.BorderSizePixel = 0
     container.Parent = screenGui
+    
+    -- Size constraints for responsive behavior
+    local sizeConstraint = Instance.new("UISizeConstraint")
+    sizeConstraint.MinSize = Vector2.new(800, 500)
+    sizeConstraint.MaxSize = Vector2.new(1200, 800)
+    sizeConstraint.Parent = container
 
     local containerCorner = Instance.new("UICorner")
     containerCorner.CornerRadius = UDim.new(0, 16)
@@ -147,13 +150,13 @@ function BuildingGUI:_buildGui()
     header.Name = "Header"
     header.BackgroundTransparency = 1
     header.Size = UDim2.new(1, -40, 0, 50)
-    header.Position = UDim2.new(0, 20, 0, 20)
+    header.Position = UDim2.fromOffset(20, 20)
     header.Parent = container
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
     title.BackgroundTransparency = 1
-    title.Size = UDim2.new(0.6, 0, 1, 0)
+    title.Size = UDim2.fromScale(0.6, 1)
     title.Text = "🏝️ Island Development"
     title.Font = Enum.Font.GothamBold
     title.TextSize = 30
@@ -169,7 +172,7 @@ function BuildingGUI:_buildGui()
     closeButton.TextSize = 20
     closeButton.TextColor3 = Color3.new(1, 1, 1)
     closeButton.Text = "✕"
-    closeButton.Size = UDim2.new(0, 44, 0, 44)
+    closeButton.Size = UDim2.fromOffset(44, 44)
     closeButton.Position = UDim2.new(1, -44, 0, 3)
     closeButton.Parent = header
 
@@ -183,7 +186,7 @@ function BuildingGUI:_buildGui()
 
     local content = Instance.new("Frame")
     content.Name = "Content"
-    content.Position = UDim2.new(0, 20, 0, 80)
+    content.Position = UDim2.fromOffset(20, 80)
     content.Size = UDim2.new(1, -40, 1, -120)
     content.BackgroundTransparency = 1
     content.Parent = container
@@ -195,6 +198,11 @@ function BuildingGUI:_buildGui()
     categoryFrame.BorderSizePixel = 0
     categoryFrame.Parent = content
     self.categoryFrame = categoryFrame
+
+    local categorySizeConstraint = Instance.new("UISizeConstraint")
+    categorySizeConstraint.MinSize = Vector2.new(180, 0)
+    categorySizeConstraint.MaxSize = Vector2.new(220, math.huge)
+    categorySizeConstraint.Parent = categoryFrame
 
     local categoryCorner = Instance.new("UICorner")
     categoryCorner.CornerRadius = UDim.new(0, 12)
@@ -209,12 +217,17 @@ function BuildingGUI:_buildGui()
 
     local projectFrame = Instance.new("Frame")
     projectFrame.Name = "ProjectFrame"
-    projectFrame.Size = UDim2.new(0, 360, 1, 0) -- Wider for better text display
-    projectFrame.Position = UDim2.new(0, 220, 0, 0)
+    projectFrame.Size = UDim2.new(0, 360, 1, 0)
+    projectFrame.Position = UDim2.fromOffset(220, 0)
     projectFrame.BackgroundColor3 = COLORS.PANEL
     projectFrame.BorderSizePixel = 0
     projectFrame.Parent = content
     self.projectFrame = projectFrame
+
+    local projectSizeConstraint = Instance.new("UISizeConstraint")
+    projectSizeConstraint.MinSize = Vector2.new(300, 0)
+    projectSizeConstraint.MaxSize = Vector2.new(400, math.huge)
+    projectSizeConstraint.Parent = projectFrame
 
     local projectCorner = Instance.new("UICorner")
     projectCorner.CornerRadius = UDim.new(0, 12)
@@ -225,7 +238,7 @@ function BuildingGUI:_buildGui()
     projectList.BackgroundTransparency = 1
     projectList.BorderSizePixel = 0
     projectList.Size = UDim2.new(1, -20, 1, -20)
-    projectList.Position = UDim2.new(0, 10, 0, 10)
+    projectList.Position = UDim2.fromOffset(10, 10)
     projectList.ScrollBarThickness = 6
     projectList.CanvasSize = UDim2.new(0, 0, 0, 0)
     projectList.Parent = projectFrame
@@ -241,8 +254,8 @@ function BuildingGUI:_buildGui()
 
     local detailFrame = Instance.new("Frame")
     detailFrame.Name = "DetailFrame"
-    detailFrame.Size = UDim2.new(1, -600, 1, 0) -- Adjusted for wider project frame
-    detailFrame.Position = UDim2.new(0, 600, 0, 0) -- Adjusted position
+    detailFrame.Size = UDim2.new(1, -600, 1, 0) -- Responsive: takes remaining space
+    detailFrame.Position = UDim2.fromOffset(600, 0)
     detailFrame.BackgroundColor3 = COLORS.PANEL
     detailFrame.BorderSizePixel = 0
     detailFrame.Parent = content
@@ -281,13 +294,13 @@ function BuildingGUI:_buildGui()
     detailDescription.TextYAlignment = Enum.TextYAlignment.Top
     detailDescription.TextWrapped = true
     detailDescription.Size = UDim2.new(1, 0, 0, 80)
-    detailDescription.Position = UDim2.new(0, 0, 0, 36)
+    detailDescription.Position = UDim2.fromOffset(0, 36)
     detailDescription.Text = "Gather materials and work together to unlock island amenities."
     detailDescription.Parent = detailFrame
     self.detailDescription = detailDescription
 
     local requirementLabel = createSectionLabel("Requirements", detailFrame)
-    requirementLabel.Position = UDim2.new(0, 0, 0, 120)
+    requirementLabel.Position = UDim2.fromOffset(0, 120)
 
     local requirementsText = Instance.new("TextLabel")
     requirementsText.Name = "RequirementsText"
@@ -299,13 +312,13 @@ function BuildingGUI:_buildGui()
     requirementsText.TextYAlignment = Enum.TextYAlignment.Top
     requirementsText.TextWrapped = true
     requirementsText.Size = UDim2.new(1, 0, 0, 60)
-    requirementsText.Position = UDim2.new(0, 0, 0, 150)
+    requirementsText.Position = UDim2.fromOffset(0, 150)
     requirementsText.Text = "-"
     requirementsText.Parent = detailFrame
     self.requirementsText = requirementsText
 
     local rewardsLabel = createSectionLabel("Rewards", detailFrame)
-    rewardsLabel.Position = UDim2.new(0, 0, 0, 220)
+    rewardsLabel.Position = UDim2.fromOffset(0, 220)
 
     local rewardsText = Instance.new("TextLabel")
     rewardsText.Name = "RewardsText"
@@ -317,13 +330,13 @@ function BuildingGUI:_buildGui()
     rewardsText.TextYAlignment = Enum.TextYAlignment.Top
     rewardsText.TextWrapped = true
     rewardsText.Size = UDim2.new(1, 0, 0, 40)
-    rewardsText.Position = UDim2.new(0, 0, 0, 250)
+    rewardsText.Position = UDim2.fromOffset(0, 250)
     rewardsText.Text = "-"
     rewardsText.Parent = detailFrame
     self.rewardsText = rewardsText
 
     local progressLabel = createSectionLabel("Progress", detailFrame)
-    progressLabel.Position = UDim2.new(0, 0, 0, 300)
+    progressLabel.Position = UDim2.fromOffset(0, 300)
 
     local progressText = Instance.new("TextLabel")
     progressText.Name = "ProgressText"
@@ -335,12 +348,12 @@ function BuildingGUI:_buildGui()
     progressText.TextYAlignment = Enum.TextYAlignment.Top
     progressText.TextWrapped = true
     progressText.Size = UDim2.new(1, 0, 0, 40)
-    progressText.Position = UDim2.new(0, 0, 0, 330)
+    progressText.Position = UDim2.fromOffset(0, 330)
     progressText.Text = "-"
     progressText.Parent = detailFrame
     self.progressText = progressText
 
-    createDivider(detailFrame).Position = UDim2.new(0, 0, 0, 380)
+    createDivider(detailFrame).Position = UDim2.fromOffset(0, 380)
 
     local buildButton = Instance.new("TextButton")
     buildButton.Name = "BuildButton"
@@ -349,8 +362,8 @@ function BuildingGUI:_buildGui()
     buildButton.Font = Enum.Font.GothamBold
     buildButton.TextSize = 18
     buildButton.TextColor3 = Color3.new(1, 1, 1)
-    buildButton.Size = UDim2.new(0, 220, 0, 48)
-    buildButton.Position = UDim2.new(0, 0, 0, 400)
+    buildButton.Size = UDim2.fromOffset(220, 48)
+    buildButton.Position = UDim2.fromOffset(0, 400)
     buildButton.Text = "Contribute Materials"
     buildButton.Parent = detailFrame
     self.buildButton = buildButton
@@ -371,7 +384,7 @@ function BuildingGUI:_buildGui()
     feedbackLabel.TextColor3 = COLORS.TEXT_SUBTLE
     feedbackLabel.TextXAlignment = Enum.TextXAlignment.Left
     feedbackLabel.Text = ""
-    feedbackLabel.Position = UDim2.new(0, 0, 0, 460)
+    feedbackLabel.Position = UDim2.fromOffset(0, 460)
     feedbackLabel.Size = UDim2.new(1, 0, 0, 24)
     feedbackLabel.Parent = detailFrame
     self.feedbackLabel = feedbackLabel
@@ -450,7 +463,7 @@ function BuildingGUI:_renderProjectList()
         empty.Size = UDim2.new(1, -20, 0, 80)
         empty.Text = "No projects available in this category yet."
         empty.Parent = self.projectList
-        self.projectList.CanvasSize = UDim2.new(0, 0, 0, 80)
+        self.projectList.CanvasSize = UDim2.fromOffset(0, 80)
         return
     end
 
@@ -465,9 +478,7 @@ function BuildingGUI:_renderProjectList()
 
         local status = progressEntry.status or "available"
         local statusColor = STATUS_COLORS[status] or COLORS.TEXT_SUBTLE
-        local r = math.floor(statusColor.R * 255 + 0.5)
-        local g = math.floor(statusColor.G * 255 + 0.5)
-        local b = math.floor(statusColor.B * 255 + 0.5)
+        -- statusColor values used for stroke below, no need for manual RGB conversion
         local button = Instance.new("TextButton")
         button.Name = project.id .. "Entry"
         button.AutoButtonColor = false
@@ -482,7 +493,7 @@ function BuildingGUI:_renderProjectList()
         local nameLabel = Instance.new("TextLabel")
         nameLabel.Name = "NameLabel"
         nameLabel.Size = UDim2.new(1, -16, 0, 30)
-        nameLabel.Position = UDim2.new(0, 8, 0, 8)
+        nameLabel.Position = UDim2.fromOffset(8, 8)
         nameLabel.BackgroundTransparency = 1
         nameLabel.Text = project.name
         nameLabel.Font = Enum.Font.GothamBold
@@ -497,7 +508,7 @@ function BuildingGUI:_renderProjectList()
         local statusLabel = Instance.new("TextLabel")
         statusLabel.Name = "StatusLabel"
         statusLabel.Size = UDim2.new(1, -16, 0, 25)
-        statusLabel.Position = UDim2.new(0, 8, 0, 38)
+        statusLabel.Position = UDim2.fromOffset(8, 38)
         statusLabel.BackgroundTransparency = 1
         statusLabel.Text = statusLabelText(status, delivered, required)
         statusLabel.Font = Enum.Font.Gotham
@@ -530,7 +541,7 @@ function BuildingGUI:_renderProjectList()
         end
     end
 
-    self.projectList.CanvasSize = UDim2.new(0, 0, 0, math.max(listHeight, self.projectList.AbsoluteSize.Y))
+    self.projectList.CanvasSize = UDim2.fromOffset(0, math.max(listHeight, self.projectList.AbsoluteSize.Y))
     self:_updateSelectionHighlight()
     self:_updateDetailPanel()
 end
