@@ -13,6 +13,9 @@ local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):Wai
 local CurrencyManager = require(script.Parent.CurrencyManager)
 local RecipeDiscoveryService = require(script.Parent.RecipeDiscoveryService)
 
+local DEFAULT_STATION_TYPE = CraftingSystem.CRAFTING_STATIONS.WORKBENCH
+local DEFAULT_STATION_CONFIG = CraftingStationsConfig.getStationConfig(DEFAULT_STATION_TYPE)
+
 local SpreadsheetIntegration
 if script.Parent:FindFirstChild("SpreadsheetIntegration") then
     SpreadsheetIntegration = require(script.Parent.SpreadsheetIntegration)
@@ -247,14 +250,25 @@ end
 initializeCraftingSystem()
 setupCraftingRemoteEvents()
 
+local function grantDefaultStationRewards(player)
+    if DEFAULT_STATION_CONFIG and DEFAULT_STATION_CONFIG.rewardTag then
+        RecipeDiscoveryService.unlockForTag(player, DEFAULT_STATION_CONFIG.rewardTag)
+    end
+end
+
 -- Set up player events
 Players.PlayerAdded:Connect(function(player)
     print("[CraftingSetup] Player", player.Name, "joined - crafting system ready")
+    grantDefaultStationRewards(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     print("[CraftingSetup] Player", player.Name, "left")
 end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    grantDefaultStationRewards(player)
+end
 
 print("[CraftingSetup] 🎉 Crafting system setup complete!")
 print("[CraftingSetup] 📋 To use Google Sheets:")
