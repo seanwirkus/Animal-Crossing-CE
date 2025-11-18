@@ -171,8 +171,16 @@ function ThemeProvider.styleFrame(frame, styleConfig)
 
     -- Corner radius
     if styleConfig.cornerRadius then
-        local radiusType = typeof(styleConfig.cornerRadius) == "string" and styleConfig.cornerRadius or "medium"
-        _currentTheme.applyCornerRadius(frame, radiusType)
+        -- Handle both string keys and direct UDim values
+        local radiusValue = styleConfig.cornerRadius
+        if typeof(radiusValue) == "string" then
+            _currentTheme.applyCornerRadius(frame, radiusValue)
+        elseif typeof(radiusValue) == "UDim" then
+            _currentTheme.applyCornerRadius(frame, radiusValue)
+        else
+            -- Default to medium if invalid type
+            _currentTheme.applyCornerRadius(frame, "medium")
+        end
     end
 
     -- Stroke/border

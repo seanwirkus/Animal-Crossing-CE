@@ -239,10 +239,20 @@ Theme.components = components
 -- INTERNAL HELPERS
 -- =============================================================================
 
-local function ensureUICorner(instance: GuiObject, radiusKey: string)
-    local key = radius[radiusKey]
-    if not key then
-        warn(string.format("[Theme] Unknown radius '%s'", radiusKey))
+local function ensureUICorner(instance: GuiObject, radiusKey: string | UDim)
+    local key: UDim
+    
+    -- Handle both string keys and direct UDim values
+    if typeof(radiusKey) == "UDim" then
+        key = radiusKey
+    elseif typeof(radiusKey) == "string" then
+        key = radius[radiusKey]
+        if not key then
+            warn(string.format("[Theme] Unknown radius '%s'", radiusKey))
+            return
+        end
+    else
+        warn(string.format("[Theme] Invalid radius type: %s (expected string or UDim)", typeof(radiusKey)))
         return
     end
 
@@ -370,7 +380,7 @@ function Theme.applyStroke(instance: GuiObject, color: Color3, thickness: number
     return ensureUIStroke(instance, color, thickness)
 end
 
-function Theme.applyCornerRadius(instance: GuiObject, radiusKey: string)
+function Theme.applyCornerRadius(instance: GuiObject, radiusKey: string | UDim)
     ensureUICorner(instance, radiusKey)
 end
 

@@ -145,26 +145,42 @@ function UniversalGUIPreset.applyToGUI(guiObject)
         return
     end
 
-    print(string.format("[UniversalGUIPreset] 🎨 Applying universal presets to %s", guiObject.Name or "Unknown"))
+    -- Handle module objects that have a .gui property (like EmoteWheel)
+    local actualGUI = guiObject
+    if typeof(guiObject) ~= "Instance" then
+        if typeof(guiObject) == "table" and guiObject.gui then
+            actualGUI = guiObject.gui
+        else
+            warn(string.format("[UniversalGUIPreset] ⚠️ guiObject is not an Instance and has no .gui property (type: %s)", typeof(guiObject)))
+            return
+        end
+    end
+
+    if not actualGUI or not actualGUI:IsA("Instance") then
+        warn("[UniversalGUIPreset] ⚠️ actualGUI is not a valid Instance")
+        return
+    end
+
+    print(string.format("[UniversalGUIPreset] 🎨 Applying universal presets to %s", actualGUI.Name or "Unknown"))
 
     -- Handle different GUI object types
-    if guiObject:IsA("ScreenGui") then
+    if actualGUI:IsA("ScreenGui") then
         -- Apply ScreenGui presets
         local sgPreset = UNIVERSAL_PRESETS.ScreenGui
         if sgPreset.IgnoreGuiInset ~= nil then
-            guiObject.IgnoreGuiInset = sgPreset.IgnoreGuiInset
+            actualGUI.IgnoreGuiInset = sgPreset.IgnoreGuiInset
         end
         if sgPreset.ZIndexBehavior then
-            guiObject.ZIndexBehavior = sgPreset.ZIndexBehavior
+            actualGUI.ZIndexBehavior = sgPreset.ZIndexBehavior
         end
 
         -- Apply to all descendants
-        for _, child in ipairs(guiObject:GetChildren()) do
+        for _, child in ipairs(actualGUI:GetChildren()) do
             applyPresetsRecursive(child)
         end
     else
         -- Apply to the object and its descendants
-        applyPresetsRecursive(guiObject)
+        applyPresetsRecursive(actualGUI)
     end
 
     local duration = os.clock() - startTime
