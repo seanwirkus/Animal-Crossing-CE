@@ -27,6 +27,22 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 
+-- Create RemoteEvents folder and QuestEvent early (before client loads)
+local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+if not remoteEventsFolder then
+    remoteEventsFolder = Instance.new("Folder")
+    remoteEventsFolder.Name = "RemoteEvents"
+    remoteEventsFolder.Parent = ReplicatedStorage
+end
+
+-- Create QuestEvent early so client can find it
+local questEvent = remoteEventsFolder:FindFirstChild("QuestEvent")
+if not questEvent then
+    questEvent = Instance.new("RemoteEvent")
+    questEvent.Name = "QuestEvent"
+    questEvent.Parent = remoteEventsFolder
+end
+
 local AvatarKitFolder = ReplicatedStorage:FindFirstChild("AvatarKit")
 if not AvatarKitFolder then
     AvatarKitFolder = Instance.new("Folder")
@@ -501,7 +517,7 @@ local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
 local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
 local InventoryUpgrades = require(sharedFolder:WaitForChild("inventory"):WaitForChild("InventoryUpgrades"))
-local RecipeDiscoveryService = require(script.Parent:WaitForChild("RecipeDiscoveryService"))
+local RecipeDiscoveryService = require(script.Parent.RecipeDiscoveryService)
 local ToolObjects = require(sharedFolder:WaitForChild("ToolObjects"))
 
 local InventoryConstants = InventoryDomain.Constants

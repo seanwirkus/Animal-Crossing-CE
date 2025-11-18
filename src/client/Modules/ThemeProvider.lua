@@ -56,7 +56,6 @@ end
 -- Get color by name
 function ThemeProvider.getColor(colorName)
     local color = _currentTheme.colors[colorName] or _currentTheme.colors.offWhite
-    print(string.format("[ThemeProvider] 🎨 getColor('%s') -> %s", colorName, tostring(color)))
     return color
 end
 
@@ -201,19 +200,6 @@ end
 -- Apply theme to text labels
 function ThemeProvider.styleText(textObject, styleConfig)
     styleConfig = styleConfig or {}
-
-    -- Get config keys for logging
-    local configKeys = {}
-    for key, _ in pairs(styleConfig) do
-        table.insert(configKeys, tostring(key))
-    end
-    print(
-        string.format(
-            "[ThemeProvider] 🎨 styleText called on %s with config keys: %s",
-            textObject.Name,
-            table.concat(configKeys, ", ")
-        )
-    )
 
     -- Text color
     if styleConfig.textColor then

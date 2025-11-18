@@ -78,6 +78,11 @@ local UNIVERSAL_PRESETS = {
 
 -- Check if an element should be styled (skip certain containers)
 local function shouldStyleElement(element)
+    -- Skip elements that are already styled (performance optimization)
+    if element:GetAttribute("UniversalStyled") then
+        return false
+    end
+
     -- Skip elements that are part of theme shadows or special effects
     if element.Name:find("ThemeShadow") or element.Name:find("LS_") then
         return false
@@ -88,43 +93,69 @@ local function shouldStyleElement(element)
         return false
     end
 
+    -- Skip inventory slots to prevent overriding item display
+    -- Check if element is part of inventory system
+    local parent = element.Parent
+    while parent do
+        if parent.Name == "InventoryItems" or parent.Name == "InventoryFrame" then
+            return false
+        end
+        parent = parent.Parent
+    end
+    if element.Name:find("Slot_") or element.Name == "ItemSlotTemplate" or element.Name == "ItemIcon" then
+        return false
+    end
+
     return true
 end
 
 -- Apply preset to a single element
 local function applyPresetToElement(element)
     if not shouldStyleElement(element) then
-        return
+        return false
     end
 
     local preset = UNIVERSAL_PRESETS[element.ClassName]
     if not preset then
-        return
+        return false
     end
 
-    print(string.format("[UniversalGUIPreset] 🎨 Applying preset to %s (%s)", element.Name, element.ClassName))
+    -- Removed excessive logging for performance (was logging every element)
 
     -- Apply styling based on element type
-    if element:IsA("Frame") then
-        ThemeProvider.styleFrame(element, preset)
-    elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
-        ThemeProvider.styleText(element, preset)
-    elseif element:IsA("ScrollingFrame") then
-        ThemeProvider.styleFrame(element, preset)
-        -- Ensure scroll bars are themed
-        element.ScrollBarImageColor3 = ThemeProvider.getColor("darkBrown")
-    elseif element:IsA("ImageLabel") or element:IsA("ImageButton") then
-        if preset.backgroundTransparency then
-            element.BackgroundTransparency = preset.backgroundTransparency
+    local success, err = pcall(function()
+        if element:IsA("Frame") then
+            ThemeProvider.styleFrame(element, preset)
+        elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
+            ThemeProvider.styleText(element, preset)
+        elseif element:IsA("ScrollingFrame") then
+            ThemeProvider.styleFrame(element, preset)
+            -- Ensure scroll bars are themed
+            element.ScrollBarImageColor3 = ThemeProvider.getColor("darkBrown")
+        elseif element:IsA("ImageLabel") or element:IsA("ImageButton") then
+            if preset.backgroundTransparency then
+                element.BackgroundTransparency = preset.backgroundTransparency
+            end
         end
+    end)
+
+    if not success then
+        warn("[UniversalGUIPreset] Failed to style", element.Name, ":", err)
+        return false
     end
 
     -- Mark as styled to prevent re-styling
     element:SetAttribute("UniversalStyled", true)
+    return true
 end
 
 -- Recursively apply presets to all descendants
 local function applyPresetsRecursive(parent)
+    -- Check if parent is already styled before processing
+    if parent:GetAttribute("UniversalStyled") then
+        return -- Skip entire subtree if already styled
+    end
+
     applyPresetToElement(parent)
 
     for _, child in ipairs(parent:GetChildren()) do
@@ -161,7 +192,7 @@ function UniversalGUIPreset.applyToGUI(guiObject)
         return
     end
 
-    print(string.format("[UniversalGUIPreset] 🎨 Applying universal presets to %s", actualGUI.Name or "Unknown"))
+    -- Reduced logging for performance (only log once per GUI, not per element)
 
     -- Handle different GUI object types
     if actualGUI:IsA("ScreenGui") then
@@ -184,14 +215,17 @@ function UniversalGUIPreset.applyToGUI(guiObject)
     end
 
     local duration = os.clock() - startTime
-    print(string.format("[UniversalGUIPreset] ✅ Universal presets applied in %.3fs", duration))
+    -- Only log if it takes significant time (>0.1s) to reduce console spam
+    if duration > 0.1 then
+        print(string.format("[UniversalGUIPreset] ✅ Applied to %s in %.3fs", actualGUI.Name or "Unknown", duration))
+    end
 end
 
 -- Apply presets to all registered GUIs (called by GUIManager to avoid circular dependency)
 function UniversalGUIPreset.applyToRegisteredGUIs(registry)
     local startTime = os.clock()
 
-    print("[UniversalGUIPreset] 🎨 Applying universal presets to all registered GUIs")
+    -- Reduced logging for performance
 
     local appliedCount = 0
     for name, guiData in pairs(registry) do
@@ -202,7 +236,10 @@ function UniversalGUIPreset.applyToRegisteredGUIs(registry)
     end
 
     local duration = os.clock() - startTime
-    print(string.format("[UniversalGUIPreset] ✅ Applied to %d GUIs in %.3fs", appliedCount, duration))
+    -- Only log if it takes significant time or if many GUIs were processed
+    if duration > 0.1 or appliedCount > 5 then
+        print(string.format("[UniversalGUIPreset] ✅ Applied to %d GUIs in %.3fs", appliedCount, duration))
+    end
 end
 
 -- Refresh presets on a GUI (useful for dynamic content)
@@ -227,7 +264,7 @@ end
 -- Add or modify a preset
 function UniversalGUIPreset.setPreset(className, preset)
     UNIVERSAL_PRESETS[className] = preset
-    print(string.format("[UniversalGUIPreset] 📝 Updated preset for %s", className))
+    -- Reduced logging for performance
 end
 
 return UniversalGUIPreset
