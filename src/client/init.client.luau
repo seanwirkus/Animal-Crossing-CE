@@ -114,6 +114,9 @@ print("[Client] ✅ ToolRingGUI module loaded")
 local ShopGUIModule = require(script.Modules.ShopGUI)
 print("[Client] ✅ ShopGUI module loaded")
 
+local EmoteWheelModule = require(script.Modules.EmoteWheel)
+print("[Client] ✅ EmoteWheel module loaded")
+
 local BuildingGUIModule = require(script.Modules.BuildingGUI)
 print("[Client] ✅ BuildingGUI module loaded")
 
@@ -249,6 +252,9 @@ print("[Client] ✅ ToolController initialized")
 local GUIManager = require(script.Modules.GUIManager)
 local guiManager = GUIManager.new()
 print("[Client] ✅ GUIManager loaded successfully")
+
+local emoteWheel = EmoteWheelModule.new()
+guiManager:registerGUI("emoteWheel", emoteWheel)
 
 -- Initialize Quest GUI
 local questGUI = QuestGUIModule.new()
@@ -753,8 +759,7 @@ print("[Client] ✅ Minimap keybind registered (M key)")
 
 keybindManager:registerBind("EMOTE", function(inputState)
     if inputState == "began" then
-        print("[Keybind] V key pressed - Emote feature coming soon!")
-        -- TODO: Implement emote system
+        guiManager:toggleGUI("emoteWheel")
     end
 end)
 

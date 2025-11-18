@@ -1,288 +1,133 @@
-# Animal Crossing CE - Roblox Game
+# Animal Crossing CE
 
-A complete Animal Crossing: New Horizons-inspired game built in Roblox, featuring inventory management, crafting, item browsing, and more.
+A polished Roblox recreation of Animal Crossing: New Horizons featuring inventory management, crafting, onboarding flows, island generation, and a unified GUI theme. This README consolidates every workflow, guide, and checklist that previously lived in `PROJECT_PLAN.md`, `QUICK_REFERENCE.md`, `STARTUP_GUIDE.md`, and the `gold mine of info/` folder—this file is now the canonical source of truth.
 
-## 🚀 Getting Started
+## 📚 Table of Contents
+1. [Project Overview](#project-overview)
+2. [Quick Start](#quick-start)
+3. [Controls & Keybinds](#controls--keybinds)
+4. [GUI & UX Architecture](#gui--ux-architecture)
+5. [Core Gameplay Systems](#core-gameplay-systems)
+6. [Onboarding & Roadmap](#onboarding--roadmap)
+7. [Troubleshooting & References](#troubleshooting--references)
 
-### Building the Project
+## Project Overview
+* **Tech stack:** Roblox + Luau, Rojo project structure, Stylua + Selene linting, Luau-LSP analysis, and GitHub Actions CI.
+* **Major pillars:**
+  * **Inventory & Upgrades** – persistent drag-and-drop inventory backed by DataStore, now with purchasable pocket expansions.
+  * **Crafting & Stations** – DIY workbench plus unlockable Forge/Cooking/Sewing/Alchemy stations with their own recipe sets.
+  * **Discovery Layer** – server-driven recipe discovery system tied to milestones (inventory level, station unlocks, onboarding beats).
+  * **Unified UI** – `GUIManager`, `GUIContentManager`, `GUIStyleUtil`, and `UniversalGUIPreset` guarantee the cream/beige ACNH aesthetic everywhere, including the new Emote Wheel and upgrades dashboard.
+  * **Player Experience** – Minimap, Tool Ring, NookPhone, dialogue/cutscene loaders, and an onboarding flow ready for new villagers.
 
-To build the place from scratch, use:
+## Quick Start
+### Requirements
+* Roblox Studio + Rojo plugin
+* Git + Ruby (for Rojo CLI), Bash, and optionally `aftman`
 
-```bash
-rojo build -o "Animal Crossing CE.rbxlx"
-```
-
-Next, open `Animal Crossing CE.rbxlx` in Roblox Studio and start the Rojo server:
-
-```bash
-rojo serve
-```
-
-For more help, check out [the Rojo documentation](https://rojo.space/docs).
-
-### Static Checks & Continuous Integration
-
-Install the shared toolchain once per machine, then run the bundled script before every commit:
-
+### Install & Build
 ```bash
 aftman install
+rojo build -o "Animal Crossing CE.rbxlx"
+```
+Open the place file in Roblox Studio and run `rojo serve` for hot reloading.
+
+### Static Checks (run before every commit)
+```bash
 bash tools/run_static_checks.sh
 ```
+This executes Stylua (format), Selene (lint), Luau-LSP (analyze), RemoteEvent validation, and a Rojo build. A lightweight lint-only pass is available via `scripts/check-lint.sh`.
 
-`tools/run_static_checks.sh` runs Stylua formatting (in check mode), Selene linting, Luau-LSP static analysis, RemoteEvent manifest validation, and a full `rojo build`. The same sequence executes automatically in GitHub Actions (`.github/workflows/luau-ci.yml`) on every push and pull request.
+### High-level workflow
+1. **Sync & build** – `git pull`, `rojo build`.
+2. **Iterate** – work inside `src/client`, `src/server`, or `src/shared`. GUI work happens in `src/client/Modules/*`.
+3. **Run the game** – open the built place, press Play, and use the keybinds below to open GUIs.
+4. **Validate** – `bash tools/run_static_checks.sh` and manual playtest.
+5. **Commit** – include a descriptive message, push, and open/merge a PR.
 
-#### Quick Luau lint pass
+## Controls & Keybinds
+| Key | Action | Module |
+|-----|--------|--------|
+| **E** | Inventory toggle | `InventoryClient`, registered via `GUIManager`
+| **R** | Recipe browser | `RecipesInventoryGUI` (filtered by discovery state)
+| **C** | Crafting menu | `DebugCraftingMenu`/`CraftingGUI`
+| **B** | Item browser (debug) | `DebugInventoryGrid`
+| **T** | Tool Ring | `ToolRingGUI`
+| **M** | Minimap | `Minimap`
+| **P** | NookPhone (apps include map + shopping) | `NookPhoneGUI`
+| **H** | Building/Construction UI | `BuildingGUI`
+| **F2** | Premium Shop | `PremiumShopGUI`
+| **\`** | Game Menu (inventory/settings/upgrades hub) | `GameMenu`
+| **ESC** | Settings dialog | `SettingsController`
+| **V** | Emote Wheel (new) | `EmoteWheel`
+| **U** | Upgrades tab (inside Game Menu) | `GameMenu`
+| **G** | Debug menu | `DebugManager`
 
-During day-to-day scripting you can run the lightweight wrapper around the Luau analyzer:
+## GUI & UX Architecture
+### Core Components
+* **`GUIManager`** – ensures only one major GUI is visible and pipes everything through `UniversalGUIPreset`.
+* **`GUIContentManager`** – centralized copy/styling for Loading Screen, Inventory, Crafting, Shop, Dialogue, Notifications, Tutorials, Map, and the new Upgrades/Emote content blocks.
+* **`GUIStyleUtil`** – helper introduced in this update to apply button/window/text presets and format copy placeholders (`{cost}`, `{level}`, etc.) consistently.
+* **`UniversalGUIPreset`** – auto-injects cream/beige colors, rounded corners, and drop shadows into all ScreenGuis and children.
 
-```bash
-scripts/check-lint.sh
-```
+### Bringing a GUI online
+1. Create the ScreenGui/Frame in `src/client/Modules/*`.
+2. Require `GUIContentManager` + `GUIStyleUtil` and set attributes (`GUIStyleUtil.setTextContent(...)`, `applyButtonStyle`).
+3. Register the object with `GUIManager` so it respects global exclusivity and ESC closing.
+4. Add a keybind in `src/client/init.client.luau` via `KeybindManager`.
 
-It ensures `luau-lsp`/`rojo` are available, refreshes `sourcemap.json` if needed, then runs `luau-lsp analyze --sourcemap sourcemap.json` for every Luau file under `src/` and `ReplicatedStorage/` using the shared `.luaurc` configuration. Run it locally before commits to catch missing globals, unused locals, and unreachable code without waiting for the full static check suite.
+This update adopts the new pipeline in `GameMenu`, `RecipesInventoryGUI`, `EmoteWheel`, `Minimap`, and the upgrades dashboard so all copy/colors live in one file.
 
-## 📋 Key Features
+## Core Gameplay Systems
+### Inventory & Pocket Upgrades
+* Server `InventoryEvent` now exposes `GetInventoryUpgradeInfo` and `UpgradeInventory` actions.
+* Shared `InventoryUpgrades` config defines four tiers (Starter → Pro Organizer) with bell costs and slot counts.
+* `GameMenu`’s **Upgrades** tab shows current capacity, lets players buy the next upgrade, and surfaces error copy (max level, insufficient bells) straight from `GUIContentManager.Inventory.upgrades`.
+* Server updates `player:SetAttribute("InventoryLevel")` and notifies the recipe discovery service whenever a new tier unlocks.
 
-### ✅ Inventory System
-- **Persistent Inventory**: Player inventories are saved to DataStore and persist across sessions
-- **Multi-level Inventory**: Starts with 10 slots, can be upgraded
-- **Drag-and-Drop**: Click-to-pick, click-to-drop system similar to Minecraft
-- **Item Sprites**: High-resolution sprite sheet with 250px sprites and 10px padding
-- **Visual Feedback**: Ghost item follows cursor while dragging
+### Recipe Discovery
+* New `RecipeDiscoveryService` tracks which DIY recipes each player has discovered (starter set + milestone unlocks).
+* Client `RecipesInventoryGUI` subscribes to `RecipeDiscoveryEvent` so the recipe grid only shows unlocked entries while requesting more data via `RequestDiscovered`.
+* Unlock triggers:
+  * Pocket upgrades (levels 2–4) unlock additional furniture/tool DIYs.
+  * Crafting station unlocks grant themed recipes (e.g., Forge → Ironwood set).
+  * Server broadcasts toast data via `RecipesUnlocked`, prompting the client to refresh.
 
-### ✅ Crafting System
-- **80+ Recipes**: Full crafting system with recipes and materials
-- **Recipe Browser**: Beautiful GUI to browse all available recipes (R key)
-- **Crafting Menu**: Debug crafting menu with instant crafting (C key)
-- **Material Checking**: Automatic validation of required materials
-- **Result Sprites**: DIY recipe icons with 300px sprites
+### Crafting Stations
+* Shared `CraftingStationsConfig` enumerates Workbench (default), Forge, Cooking Stove, Sewing Table, and Potion Bench with bell costs + requirements.
+* `CraftingEvent` gained `GetStationsStatus` and improved `UnlockStation` handling (inventory-level and prerequisite validation, bell deductions, recipe rewards via discovery service).
+* `GameMenu` Upgrades tab displays each station card, lock status, and an Unlock button wired to the RemoteEvent.
 
-### ✅ Item Browser
-- **494 Items**: Browse all items in a scrollable grid (B key)
-- **Sprite Display**: Shows all items with their sprites from the sprite sheet
-- **Add to Inventory**: Click any item to add it directly to your inventory
-- **Visual Styling**: Matches the cream/beige theme of other GUIs
+### Emote Wheel & Social UX
+* Press **V** to open the new Emote Wheel. Buttons play Roblox’s default R15 animations (wave, cheer, laugh, tilt, dance, clap) and immediately close the wheel.
+* `GUIContentManager.Emotes` controls the title/hint copy while `GUIStyleUtil` keeps styling consistent with the ACNH palette.
 
-### ✅ GUI Management System
-- **Exclusive Visibility**: Only one GUI can be visible at a time
-- **Automatic Switching**: Opening a new GUI automatically hides the current one
-- **ESC to Close**: Press ESC to close any open GUI
-- **Unified Styling**: All GUIs use consistent cream/beige color scheme
+### Map & Navigation
+* The Minimap GUI now reads copy from `GUIContentManager` and stays in sync with island generation. Toggling (M key) refreshes the viewport and uses Tween animations for entrance/exit.
 
-### 🤖 AI Procedural Generation System
-- **Self-Improving AI**: Generator learns from rejections, improving over time (50%→78% approval)
-- **ACNH-Accurate Rules**: Follows real Animal Crossing placement rules (spacing, clustering, slopes)
-- **Terrain Analysis**: Scans existing terrain with spatial grid for fast queries
-- **AI Auditor**: Validates placements with 0-100 scoring system
-- **Iterative Learning**: Tracks rejection reasons and adjusts future proposals
-- **Test Interface**: 8 ready-to-use test functions via Server Command Bar
-- **See**: `docs/AI_ISLAND_GENERATION_GUIDE.md` and `docs/TESTING_AI_GENERATION.md`
+## Onboarding & Roadmap
+### Current Flow
+1. **Loading screen** – tips/assets pulled from `GUIContentManager.LoadingScreen`.
+2. **Cutscene + Dialogue** – `DialogueGUI` handles Nook/Isabelle conversation before island selection.
+3. **First steps** – Keybind Guide (disabled by default) and the Game Menu highlight the upgrades tab so players learn about pockets/stations before onboarding quests begin.
 
-### 🎬 Cutscene & Loading Systems
-- **Cutscene Manager**: Camera control, fade transitions, sequence orchestration
-- **Loading Screen**: ACNH-style with rotating Nook Leaf, random tips, progress bar
-- **Onboarding Flow**: Complete dialogue → island selection → loading → cutscene → spawn
-- **See**: `docs/CUTSCENES_AND_LOADING_GUIDE.md`
+### Next Steps
+* **Quest-driven discovery** – tie recipe unlock tags to quest completion handlers.
+* **Crafting station props** – spawn actual station models when a player purchases them and auto-open the relevant GUI when interacting.
+* **Controller/mobile UX** – extend `KeybindManager` to map to touch buttons for Minimap, Tool Ring, Emotes, and Upgrades.
+* **Testing automation** – add Playtest scripts for upgrade purchase edge cases (insufficient bells, duplicate unlocks) and recipe filtering.
 
-## 🎮 Controls & Keybinds
+## Troubleshooting & References
+* **Need a quick command?** Everything that used to live in `QUICK_REFERENCE.md`, `QUICK_START_GUIDE.md`, `SETUP_CHECKLIST.md`, and the `gold mine of info` folder is now represented above. The legacy files now simply link back here.
+* **Static checks failing?** Run `aftman install` once, then re-run `bash tools/run_static_checks.sh`. Most issues are Stylua formatting or Selene lint errors.
+* **Inventory or crafting remotes missing?** Verify `ReplicatedStorage.InventoryEvent`, `CraftingEvent`, and `RecipeDiscoveryEvent` exist; `init.server.luau` now creates all three during boot.
+* **Where is feature X?**
+  * `src/client/Modules/GameMenu.luau` – upgrades UI + station unlocks.
+  * `src/server/init.server.luau` – inventory upgrade handling, recipe discovery hooks.
+  * `src/server/RecipeDiscoveryService.luau` – authoritative recipe tracking.
+  * `src/shared/inventory/InventoryUpgrades.luau` – slot/cost definitions.
+  * `src/shared/crafting/CraftingStationsConfig.luau` – station metadata + requirements.
+  * `src/shared/recipes/RecipeDiscoveryConfig.luau` – milestone → recipe mapping.
+  * `src/client/Modules/EmoteWheel.luau` – emote GUI logic.
 
-| Key | Action | Description |
-|-----|--------|-------------|
-| **E** | Inventory | Open/close inventory |
-| **R** | Recipes | Open recipe browser |
-| **C** | Crafting | Open crafting menu |
-| **B** | Item Browser | Open item browser (debug) |
-| **G** | Debug GUI | Open debug manager |
-| **ESC** | Close GUI | Close currently open GUI |
-
-## 🧪 Testing AI Island Generation
-
-**⚠️ IMPORTANT**: The Command Bar must be in **Server** context!
-
-```lua
--- In Server Command Bar (change dropdown from "Client" to "Server"):
-_G.testSystem.quickTest()           -- Generate 10 trees (quick test)
-_G.testSystem.fullGeneration()      -- Full island generation (10 cycles)
-_G.testSystem.watchLearning()       -- Watch AI improve (20 cycles)
-_G.testSystem.clearAll()            -- Delete generated objects
-```
-
-**Alternative**: Edit `src/server/QuickTestRunner.server.luau` and press F5 to reload.
-
-**Full Guide**: See `docs/TESTING_AI_GENERATION.md`
-
-## 🏗️ Project Structure
-
-```
-src/
-├── client/
-│   ├── init.client.luau          # Client entry point
-│   ├── InventoryClient.lua        # Main inventory logic
-│   ├── KeybindManager.lua        # Centralized keybind system
-│   └── Modules/
-│       ├── GUIManager.luau       # Exclusive GUI visibility manager
-│       ├── DebugInventoryGrid.lua # Item browser GUI
-│       ├── DebugCraftingMenu.lua  # Crafting menu GUI
-│       ├── RecipesInventoryGUI.luau # Recipe browser GUI
-│       └── InventoryGuiSetup.lua  # GUI creation helpers
-├── server/
-│   ├── init.server.luau          # Server entry point
-│   └── CraftingSetup.luau        # Crafting system setup
-└── shared/
-    ├── SpriteConfig.luau          # Sprite sheet configuration
-    ├── SpriteManifest.luau        # Item-to-sprite mapping
-    ├── ItemDataFetcher.luau      # Item and recipe data fetcher
-    └── CraftingSystem.luau        # Core crafting logic
-```
-
-## 🎨 Sprite System
-
-### Main Item Spritesheet
-- **Asset ID**: `rbxassetid://79857338226248`
-- **Grid**: 21 columns × 24 rows = 504 slots
-- **Sprite Size**: 250px × 250px
-- **Padding**: 10px between sprites and around edges
-- **Outer Padding**: 10px
-
-### DIY Recipe Icons Spritesheet
-- **Asset ID**: `rbxassetid://97942095241212`
-- **Grid**: 26 columns × 23 rows = 598 icons
-- **Icon Size**: 300px × 300px
-- **Padding**: 10px between icons
-
-### Configuration
-The sprite system uses fixed dimensions for accuracy:
-```lua
-SPRITE_SIZE = 250      -- Each sprite is 250px × 250px
-PADDING = 10           -- Padding between sprites
-OUTER_PADDING = 10     -- Padding around edges
-```
-
-## 🔧 Systems Overview
-
-### GUIManager
-Manages exclusive GUI visibility so only one GUI can be open at a time:
-- Automatically hides current GUI when opening a new one
-- Supports different GUI object types (Show/Hide, setInventoryVisible, etc.)
-- Tracks currently visible GUI
-- Provides unified toggle/show/hide methods
-
-### KeybindManager
-Centralized keybind system:
-- All keybinds defined in one place
-- Handles InputBegan and InputEnded events
-- Error handling with pcall and stack traces
-- Debug logging for key presses
-
-### Inventory System
-Client-server inventory management:
-- Drag-and-drop with click-to-pick system
-- Server-side validation and persistence
-- Auto-saves every 30 seconds
-- Saves on player leave and inventory changes
-- Level-based slot limits
-
-### Crafting System
-Complete crafting implementation:
-- Recipe validation
-- Material consumption
-- Item creation
-- Instant crafting (debug mode)
-- Material availability checking
-
-## 🐛 Debug Features
-
-### Item Browser (B key)
-- Browse all 494 items from the sprite sheet
-- See sprite indices and item names
-- Click to add items directly to inventory
-- Shows mapped and unmapped items
-
-### Crafting Menu (C key)
-- View all recipes in a grid
-- See required materials and quantities
-- Instant crafting (no wait time)
-- Material icons with counts
-
-### Debug Manager (G key)
-- Tabbed interface for debug tools
-- Centralized debug UI
-
-## 💾 Data Persistence
-
-### Player Inventory
-- Saved to DataStore: `PlayerInventories`
-- Auto-saves every 30 seconds
-- Saves on player leave
-- Saves after inventory modifications
-
-### Data Structure
-```lua
-{
-    level = 1,           -- Inventory level (determines slot count)
-    slots = {            -- Array of slot states
-        {itemId = "leaf", count = 5},
-        -- ...
-    }
-}
-```
-
-## 🎨 Styling
-
-All GUIs use a consistent cream/beige theme:
-- **Main Background**: `Color3.fromRGB(255, 251, 231)` (Cream)
-- **Title Bar**: `Color3.fromRGB(120, 100, 80)` (Brown)
-- **Details Panel**: `Color3.fromRGB(231, 221, 185)` (Beige)
-- **Accent Color**: `Color3.fromRGB(4, 175, 166)` (Teal/Green)
-
-Rounded corners (8px radius) and consistent spacing throughout.
-
-## 📝 Recent Updates
-
-### GUI Management System
-- Implemented GUIManager for exclusive GUI visibility
-- All keybinds now properly switch between GUIs
-- ESC key closes current GUI
-
-### Sprite Configuration
-- Updated to fixed dimensions approach
-- Direct pixel values (250px sprites, 10px padding)
-- Removed complex scaling calculations
-
-### Debug Inventory
-- Fixed visibility issues
-- Enhanced Show/Toggle methods
-- Proper ScreenGui enabling
-
-### Keybind System
-- Improved error handling
-- Better debugging output
-- Connection verification
-
-## 🔮 Future Enhancements
-
-- [ ] Tool wheel system (T key)
-- [ ] Map/Navigation system (M key)
-- [ ] Emote system (V key)
-- [ ] Settings menu
-- [ ] Inventory upgrades system
-- [ ] Recipe discovery system
-- [ ] Crafting stations
-
-## 📚 Additional Documentation
-
-- See `PROJECT_PLAN.md` for detailed project plans
-- See `QUICK_REFERENCE.md` for quick command reference
-- Check `gold mine of info/docs/` for comprehensive documentation
-
-## 🤝 Contributing
-
-This is a personal project, but feel free to fork and modify for your own use!
-
-## 📄 License
-
-This project is for educational purposes. Animal Crossing is a trademark of Nintendo Co., Ltd.
-
----
-
-**Last Updated**: December 2024
+Happy building! 🌱

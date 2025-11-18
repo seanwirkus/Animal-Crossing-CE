@@ -112,6 +112,9 @@ function InventoryClient.new()
 
     self.connections = {}
     self.inventoryChanged = Instance.new("BindableEvent")
+    self.upgradeInfoChanged = Instance.new("BindableEvent")
+    self.upgradeInfo = nil
+    self.lastUpgradeResult = nil
 
     return self
 end
@@ -139,6 +142,21 @@ function InventoryClient:onInventoryChanged(callback)
     return self.inventoryChanged.Event:Connect(callback)
 end
 
+function InventoryClient:onUpgradeInfoChanged(callback)
+    if not self.upgradeInfoChanged then
+        return { Disconnect = function() end }
+    end
+    return self.upgradeInfoChanged.Event:Connect(callback)
+end
+
+function InventoryClient:getUpgradeInfo()
+    return self.upgradeInfo
+end
+
+function InventoryClient:getLastUpgradeResult()
+    return self.lastUpgradeResult
+end
+
 function InventoryClient:getInventorySnapshot()
     local slots = {}
     for index, state in pairs(self.slotState) do
@@ -155,6 +173,17 @@ end
 function InventoryClient:_emitInventoryChanged()
     if self.inventoryChanged then
         self.inventoryChanged:Fire(self:getInventorySnapshot())
+    end
+end
+
+function InventoryClient:_applyUpgradePayload(payload, metadata)
+    if not payload then
+        return
+    end
+
+    self.upgradeInfo = payload
+    if self.upgradeInfoChanged then
+        self.upgradeInfoChanged:Fire(payload, metadata)
     end
 end
 
@@ -1036,10 +1065,23 @@ function InventoryClient:requestInventory()
     end
 end
 
+function InventoryClient:requestUpgradeInfo()
+    if self.inventoryRemote then
+        self.inventoryRemote:FireServer("GetInventoryUpgradeInfo")
+    end
+end
+
 function InventoryClient:setupRemoteHandling()
     self:trackConnection(self.inventoryRemote.OnClientEvent:Connect(function(action, data)
         if action == "SyncInventory" then
             self:populateFromServer(data)
+        elseif action == "InventoryUpgradeInfo" then
+            self:_applyUpgradePayload(data)
+        elseif action == "InventoryUpgradeResult" then
+            self.lastUpgradeResult = data
+            if data and data.state then
+                self:_applyUpgradePayload(data.state, data)
+            end
         end
     end))
 
@@ -1198,6 +1240,7 @@ function InventoryClient:start()
 
     -- Request inventory even if GUI isn't attached yet
     self:requestInventory()
+    self:requestUpgradeInfo()
 
     -- Initialize global right-click handler
     self:setupGlobalRightClick()
