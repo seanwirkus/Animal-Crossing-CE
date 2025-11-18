@@ -16,6 +16,10 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 
+local GUIContentManager = require(script.Parent.GUIContentManager)
+local ThemeProvider = require(script.Parent.ThemeProvider)
+local LayoutLint = require(script.Parent.LayoutLint)
+
 local sharedFolder = ReplicatedStorage:FindFirstChild("Shared")
 local ItemDataFetcher = nil
 local ok, fetcher = pcall(function()
@@ -26,6 +30,25 @@ end)
 if ok and fetcher then
     ItemDataFetcher = fetcher
 end
+
+local DEFAULT_PHONE_LAYOUT = {
+    anchorPoint = Vector2.new(0.5, 1),
+    position = UDim2.new(0.5, 0, 1, -20),
+    size = UDim2.new(0, 360, 0, 640),
+    padding = {
+        horizontal = 16,
+        vertical = 18,
+    },
+    grid = {
+        columns = 3,
+        iconSize = 90,
+        spacing = 12,
+    },
+    aspectRatio = 9 / 16,
+    notchHeight = 48,
+    statusRowHeight = 60,
+    closeButtonOffset = Vector2.new(0, -55),
+}
 
 local function formatNumber(num: number): string
     local formatted = tostring(math.floor(num or 0))
@@ -233,6 +256,14 @@ function NookPhoneGUI.new()
         },
     }
     self.statusChips = {}
+    self.phoneLayout = LayoutLint.extendWithDefaults(
+        LayoutLint.validate("NookPhone", GUIContentManager.getLayoutConfig("NookPhone"), {
+            "anchorPoint",
+            "position",
+            "size",
+        }),
+        DEFAULT_PHONE_LAYOUT
+    )
 
     self:createGUI()
     self:setupConnections()
@@ -261,17 +292,28 @@ function NookPhoneGUI:createGUI()
 
     -- Get responsive size
     local size = self.phoneSize
+    local layout = self.phoneLayout
+    local horizontalPadding = layout.padding and layout.padding.horizontal or 12
+    local verticalPadding = layout.padding and layout.padding.vertical or 12
 
     -- Phone Container (slides in from bottom) - Responsive using scale
     local phoneContainer = Instance.new("Frame")
     phoneContainer.Name = "PhoneContainer"
     phoneContainer.Size = UDim2.new(size.widthScale, 0, size.heightScale, 0)
-    phoneContainer.Position = UDim2.new(0.5, 0, 1, 0) -- Start off-screen bottom (centered)
-    phoneContainer.AnchorPoint = Vector2.new(0.5, 1)
+    phoneContainer.AnchorPoint = layout.anchorPoint or Vector2.new(0.5, 1)
     phoneContainer.BackgroundColor3 = COLORS.PHONE_BG
     phoneContainer.BorderSizePixel = 0
     phoneContainer.ClipsDescendants = true
     phoneContainer.Parent = screenGui
+    local baseWidth = layout.size and layout.size.X.Offset or 360
+    local baseHeight = layout.size and layout.size.Y.Offset or 640
+    local sizeConstraint = Instance.new("UISizeConstraint")
+    sizeConstraint.MinSize = Vector2.new(math.floor(baseWidth * 0.85), math.floor(baseHeight * 0.85))
+    sizeConstraint.MaxSize = Vector2.new(math.floor(baseWidth * 1.15), math.floor(baseHeight * 1.15))
+    sizeConstraint.Parent = phoneContainer
+    local aspectConstraint = Instance.new("UIAspectRatioConstraint")
+    aspectConstraint.AspectRatio = layout.aspectRatio or 9 / 16
+    aspectConstraint.Parent = phoneContainer
     self.phoneContainer = phoneContainer
 
     local phoneCorner = Instance.new("UICorner")
@@ -322,7 +364,7 @@ function NookPhoneGUI:createGUI()
     screen.Name = "Screen"
     screen.Size = UDim2.new(1, -24, 1, -70) -- Further reduced padding
     screen.Position = UDim2.new(0, 12, 0, 50) -- Less top padding
-    screen.BackgroundColor3 = COLORS.SCREEN_BG
+    screen.BackgroundColor3 = ThemeProvider.getColor("cream")
     screen.BorderSizePixel = 0
     screen.Parent = phoneContainer
 
@@ -330,10 +372,16 @@ function NookPhoneGUI:createGUI()
     screenCorner.CornerRadius = UDim.new(0, 25)
     screenCorner.Parent = screen
 
+    local screenStroke = Instance.new("UIStroke")
+    screenStroke.Color = ThemeProvider.getColor("lightBrown")
+    screenStroke.Thickness = 1
+    screenStroke.Transparency = 0.3
+    screenStroke.Parent = screen
+
     local statusRow = Instance.new("Frame")
     statusRow.Name = "StatusRow"
-    statusRow.Size = UDim2.new(1, -20, 0, 60) -- Reduced size and padding
-    statusRow.Position = UDim2.new(0, 10, 0, 8) -- Less top padding
+    statusRow.Size = UDim2.new(1, -(horizontalPadding * 2), 0, layout.statusRowHeight or 60)
+    statusRow.Position = UDim2.new(0, horizontalPadding, 0, verticalPadding)
     statusRow.BackgroundColor3 = Color3.fromRGB(248, 244, 232)
     statusRow.BorderSizePixel = 0
     statusRow.Parent = screen
@@ -356,8 +404,8 @@ function NookPhoneGUI:createGUI()
     statusLayout.Parent = statusRow
 
     local statusPadding = Instance.new("UIPadding")
-    statusPadding.PaddingLeft = UDim.new(0, 10) -- Reduced padding
-    statusPadding.PaddingRight = UDim.new(0, 10) -- Reduced padding
+    statusPadding.PaddingLeft = UDim.new(0, horizontalPadding)
+    statusPadding.PaddingRight = UDim.new(0, horizontalPadding)
     statusPadding.Parent = statusRow
 
     -- Top bar (notch area)
@@ -398,8 +446,10 @@ function NookPhoneGUI:createGUI()
     -- App Grid Container - maximized for more app visibility
     local appGridContainer = Instance.new("ScrollingFrame")
     appGridContainer.Name = "AppGrid"
-    appGridContainer.Size = UDim2.new(1, -12, 1, -120) -- Reduced padding
-    appGridContainer.Position = UDim2.new(0, 6, 0, 75) -- Closer to status row
+    local gridTopOffset = (layout.statusRowHeight or 60) + verticalPadding + 20
+    local gridBottomPadding = math.abs(layout.closeButtonOffset and layout.closeButtonOffset.Y or -50) + 60
+    appGridContainer.Size = UDim2.new(1, -(horizontalPadding * 2), 1, -(gridTopOffset + gridBottomPadding))
+    appGridContainer.Position = UDim2.new(0, horizontalPadding, 0, gridTopOffset)
     appGridContainer.BackgroundTransparency = 1
     appGridContainer.BorderSizePixel = 0
     appGridContainer.ScrollBarThickness = 6
@@ -408,8 +458,14 @@ function NookPhoneGUI:createGUI()
     appGridContainer.Parent = screen
 
     local gridLayout = Instance.new("UIGridLayout")
-    gridLayout.CellSize = UDim2.new(0, size.iconSize, 0, size.iconSize + 20) -- Further reduced spacing
-    gridLayout.CellPadding = UDim2.new(0, size.iconSpacing, 0, size.iconSpacing)
+    local gridSettings = layout.grid or {}
+    local sizeScale = size.iconSize / 75
+    local spacingScale = size.iconSpacing / 8
+    local iconSize = math.floor((gridSettings.iconSize or size.iconSize) * sizeScale)
+    local spacing = math.max(4, math.floor((gridSettings.spacing or size.iconSpacing) * spacingScale))
+    local columns = gridSettings.columns or size.cols
+    gridLayout.CellSize = UDim2.new(0, iconSize, 0, iconSize + 24)
+    gridLayout.CellPadding = UDim2.new(0, spacing, 0, spacing)
     gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -417,10 +473,10 @@ function NookPhoneGUI:createGUI()
     gridLayout.Parent = appGridContainer
 
     local gridPadding = Instance.new("UIPadding")
-    gridPadding.PaddingTop = UDim.new(0, 10) -- Reduced padding
-    gridPadding.PaddingBottom = UDim.new(0, 10) -- Reduced padding
-    gridPadding.PaddingLeft = UDim.new(0, 10) -- Reduced padding
-    gridPadding.PaddingRight = UDim.new(0, 10) -- Reduced padding
+    gridPadding.PaddingTop = UDim.new(0, spacing)
+    gridPadding.PaddingBottom = UDim.new(0, spacing)
+    gridPadding.PaddingLeft = UDim.new(0, spacing)
+    gridPadding.PaddingRight = UDim.new(0, spacing)
     gridPadding.Parent = appGridContainer
 
     -- Create app icons
@@ -445,15 +501,16 @@ function NookPhoneGUI:createGUI()
     end
 
     -- Update canvas size (responsive) - adjusted for reduced spacing
-    local numRows = math.ceil(#APPS / size.cols)
-    local rowHeight = size.iconSize + 20 + size.iconSpacing -- Reduced from +30
-    appGridContainer.CanvasSize = UDim2.new(0, 0, 0, (numRows * rowHeight) + 30) -- Reduced from +40
+    local numRows = math.ceil(#APPS / math.max(1, columns))
+    local rowHeight = iconSize + 24 + spacing
+    appGridContainer.CanvasSize = UDim2.new(0, 0, 0, (numRows * rowHeight) + spacing)
 
     -- Close button (swipe down or X button)
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Size = UDim2.new(0, 50, 0, 50)
-    closeButton.Position = UDim2.new(0.5, -25, 1, -60)
+    local closeOffset = layout.closeButtonOffset or Vector2.new(0, -60)
+    closeButton.Position = UDim2.new(0.5, -25, 1, closeOffset.Y)
     closeButton.BackgroundColor3 = COLORS.ACCENT
     closeButton.Text = "✕"
     closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -545,8 +602,11 @@ function NookPhoneGUI:createGUI()
     self.timeLabel = timeLabel
 
     -- Store references for animations (responsive - using scale)
-    self.phoneStartPos = UDim2.new(0.5, 0, 1, 0) -- Off-screen bottom
-    self.phoneVisiblePos = UDim2.new(0.5, 0, 1, -20) -- 20px from bottom when visible (centered)
+    local visiblePos = layout.position or UDim2.new(0.5, 0, 1, -20)
+    local startOffset = layout.size and layout.size.Y.Offset or 0
+    self.phoneStartPos = UDim2.new(visiblePos.X.Scale, visiblePos.X.Offset, 1, startOffset)
+    self.phoneVisiblePos = visiblePos
+    phoneContainer.Position = self.phoneStartPos
 
     -- Listen for screen size changes (mobile rotation, etc.)
     workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()

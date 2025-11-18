@@ -5,11 +5,12 @@ A polished Roblox recreation of Animal Crossing: New Horizons featuring inventor
 ## 📚 Table of Contents
 1. [Project Overview](#project-overview)
 2. [Quick Start](#quick-start)
-3. [Controls & Keybinds](#controls--keybinds)
-4. [GUI & UX Architecture](#gui--ux-architecture)
-5. [Core Gameplay Systems](#core-gameplay-systems)
-6. [Onboarding & Roadmap](#onboarding--roadmap)
-7. [Troubleshooting & References](#troubleshooting--references)
+3. [Documentation Portal](#documentation-portal)
+4. [Controls & Keybinds](#controls--keybinds)
+5. [GUI & UX Architecture](#gui--ux-architecture)
+6. [Core Gameplay Systems](#core-gameplay-systems)
+7. [Onboarding & Roadmap](#onboarding--roadmap)
+8. [Troubleshooting & References](#troubleshooting--references)
 
 ## Project Overview
 * **Tech stack:** Roblox + Luau, Rojo project structure, Stylua + Selene linting, Luau-LSP analysis, and GitHub Actions CI.
@@ -44,6 +45,15 @@ This executes Stylua (format), Selene (lint), Luau-LSP (analyze), RemoteEvent va
 3. **Run the game** – open the built place, press Play, and use the keybinds below to open GUIs.
 4. **Validate** – `bash tools/run_static_checks.sh` and manual playtest.
 5. **Commit** – include a descriptive message, push, and open/merge a PR.
+
+## Documentation Portal
+All of the legacy guides and feature-specific briefs now live behind one hub so you no longer need to guess which Markdown file contains the information you need. Review `docs/DOCUMENTATION_PORTAL.md` whenever you need:
+
+* A categorized list of gameplay/system docs (inventory, crafting, onboarding, monetization, etc.).
+* Links back to the setup checklists, production plans, GUI audits, and tooling references.
+* A TODO section that tracks which legacy docs still need to be merged or refreshed.
+
+Updating that single file keeps the rest of the documentation footprint maintainable.
 
 ## Controls & Keybinds
 | Key | Action | Module |
