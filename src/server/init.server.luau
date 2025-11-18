@@ -498,6 +498,7 @@ local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
+local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
 local InventoryUpgrades = require(sharedFolder:WaitForChild("inventory"):WaitForChild("InventoryUpgrades"))
 local RecipeDiscoveryService = require(script.Parent:WaitForChild("RecipeDiscoveryService"))
@@ -627,6 +628,11 @@ CurrencyManager.configure({
 -- Start with level 1 inventory (10 slots)
 local STARTING_INVENTORY_LEVEL = InventoryConstants.STARTING_INVENTORY_LEVEL
 local MAX_SLOTS = InventoryConstants.getMaxSlotsFromLevel(STARTING_INVENTORY_LEVEL)
+local DEFAULT_STATION_TYPE = CraftingSystem.CRAFTING_STATIONS.WORKBENCH
+local DEFAULT_STATION_REWARD_TAG = (function()
+    local config = CraftingStationsConfig.getStationConfig(DEFAULT_STATION_TYPE)
+    return config and config.rewardTag or nil
+end)()
 
 -- World item storage - tracks all dropped items
 local worldItems = {}
@@ -1237,6 +1243,48 @@ local function buildUpgradePayload(player: Player, inventory)
     local level = inventory.inventoryLevel or STARTING_INVENTORY_LEVEL
     local bells = CurrencyManager.getBells(player)
     return InventoryUpgrades.buildUpgradePayload(level, bells)
+end
+
+local function replayRecipeDiscoveries(player: Player, inventory, savedData)
+    if not player or not inventory then
+        return
+    end
+
+    local currentLevel = math.max(STARTING_INVENTORY_LEVEL, inventory.inventoryLevel or STARTING_INVENTORY_LEVEL)
+    local maxConfigLevel = InventoryUpgrades.getMaxLevel()
+    local levelCap = math.min(currentLevel, maxConfigLevel)
+    for level = STARTING_INVENTORY_LEVEL + 1, levelCap do
+        RecipeDiscoveryService.unlockForInventoryLevel(player, level)
+    end
+
+    if DEFAULT_STATION_REWARD_TAG then
+        RecipeDiscoveryService.unlockForTag(player, DEFAULT_STATION_REWARD_TAG)
+    end
+
+    if savedData then
+        local tags = nil
+        if typeof(savedData.unlockedStationTags) == "table" then
+            tags = savedData.unlockedStationTags
+        elseif typeof(savedData.unlockedStations) == "table" then
+            tags = {}
+            for _, stationId in ipairs(savedData.unlockedStations) do
+                if typeof(stationId) == "string" then
+                    local config = CraftingStationsConfig.getStationConfig(stationId)
+                    if config and config.rewardTag then
+                        table.insert(tags, config.rewardTag)
+                    end
+                end
+            end
+        end
+
+        if typeof(tags) == "table" then
+            for _, tag in ipairs(tags) do
+                if typeof(tag) == "string" then
+                    RecipeDiscoveryService.unlockForTag(player, tag)
+                end
+            end
+        end
+    end
 end
 
 local function attemptInventoryUpgrade(player: Player, inventory)
@@ -2636,6 +2684,7 @@ Players.PlayerAdded:Connect(function(player)
     end
 
     local inventory = playerInventories[player.UserId]
+    replayRecipeDiscoveries(player, inventory, savedData)
     local legacyAttribute = player:GetAttribute("LegacyInventoryPayload")
     if legacyAttribute then
         logInfo("Found legacy payload attribute", { player = player.Name })
