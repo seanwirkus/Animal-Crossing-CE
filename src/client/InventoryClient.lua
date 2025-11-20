@@ -278,6 +278,10 @@ function InventoryClient:updateItemIcon(icon, itemDefinition)
 end
 
 function InventoryClient:updateSlotAppearance(slot, state)
+    if not slot then
+        return
+    end
+
     local icon = slot:FindFirstChild("ItemIcon")
     local countLabel = slot:FindFirstChild("ItemCount")
     local nameLabel = slot:FindFirstChild("ItemName")
@@ -291,18 +295,19 @@ function InventoryClient:updateSlotAppearance(slot, state)
         icon.AnchorPoint = Vector2.new(0, 0)
         icon.BackgroundTransparency = 1
         icon.Image = ""
-        icon.ImageTransparency = 0 -- Ensure icon is fully visible
+        icon.ImageTransparency = 0
         icon.ScaleType = Enum.ScaleType.Fit
-        icon.ZIndex = slot.ZIndex + 1
+        icon.ZIndex = (slot.ZIndex or 10) + 1
         icon.Visible = true
         -- Mark as custom styled to prevent UniversalGUIPreset from interfering
         icon:SetAttribute("CustomStyled", true)
+        icon:SetAttribute("UniversalStyled", true) -- Also mark to skip universal styling
         icon.Parent = slot
     end
 
     -- Ensure icon is visible and has correct properties
     icon.Visible = true
-    icon.ImageTransparency = 0 -- Ensure icon is fully visible
+    icon.ImageTransparency = 0
 
     -- Ensure ItemCount label exists (create if missing)
     if not countLabel then
@@ -313,33 +318,38 @@ function InventoryClient:updateSlotAppearance(slot, state)
         countLabel.AnchorPoint = Vector2.new(1, 0)
         countLabel.BackgroundTransparency = 1
         countLabel.Text = ""
-        countLabel.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
+        countLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
         countLabel.TextSize = 14
         countLabel.Font = Enum.Font.GothamBold
         countLabel.TextXAlignment = Enum.TextXAlignment.Right
         countLabel.TextYAlignment = Enum.TextYAlignment.Top
         countLabel.TextWrapped = false
-        countLabel.ZIndex = 15 -- Higher z-index to ensure it's on top
+        countLabel.ZIndex = 15
         countLabel.Parent = slot
         
-        -- Add text stroke for visibility on any background
+        -- Add text stroke for visibility
         local textStroke = Instance.new("UIStroke")
-        textStroke.Color = Color3.fromRGB(255, 255, 255) -- White outline
+        textStroke.Color = Color3.fromRGB(255, 255, 255)
         textStroke.Thickness = 2
         textStroke.Transparency = 0.3
         textStroke.Parent = countLabel
     end
 
-    if state and state.itemId then
+    -- Check if slot has an item
+    local hasItem = state ~= nil and state.itemId and state.itemId ~= "" and state.count and state.count > 0
+
+    if hasItem then
+        -- Slot has an item - display it
         local definition = self:getItemDefinition(state.itemId)
         if not definition then
-            -- Log warning for missing definitions to help debug
             warn("[InventoryClient] Item definition not found for:", state.itemId)
         end
+        
+        -- Update icon with sprite
         self:updateItemIcon(icon, definition)
 
         -- Update count label
-        if state.count and state.count > 0 then
+        if state.count and state.count > 1 then
             countLabel.Text = tostring(state.count)
             countLabel.Visible = true
         else
@@ -349,37 +359,30 @@ function InventoryClient:updateSlotAppearance(slot, state)
 
         if nameLabel then
             nameLabel.Text = definition and definition.name or state.itemId
-            nameLabel.Visible = false -- Start hidden, will show on hover
+            nameLabel.Visible = false
         end
 
-        -- Ensure slot has proper background for items (not the empty slot background)
-        if slot then
-            slot.BackgroundTransparency = 0 -- Opaque background for items
-            slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204) -- Default slot color
-        end
+        -- Set slot background for items
+        slot.BackgroundTransparency = 0
+        slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
     else
-        -- Empty slot - show placeholder
-        if icon then
-            icon.Image = ""
-            icon.ImageRectOffset = Vector2.new(0, 0)
-            icon.ImageRectSize = Vector2.new(0, 0)
-        end
+        -- Empty slot - clear everything
+        icon.Image = ""
+        icon.ImageRectOffset = Vector2.new(0, 0)
+        icon.ImageRectSize = Vector2.new(0, 0)
+        icon.Visible = true -- Keep visible but empty
 
-        -- Hide count label for empty slots
-        if countLabel then
-            countLabel.Text = ""
-            countLabel.Visible = false
-        end
+        countLabel.Text = ""
+        countLabel.Visible = false
 
-        -- Make empty slot visible with light background
-        if slot then
-            slot.BackgroundTransparency = 0.3 -- Semi-transparent to show it's empty
-            slot.BackgroundColor3 = Color3.fromRGB(240, 240, 240) -- Light gray
-        end
         if nameLabel then
             nameLabel.Text = ""
             nameLabel.Visible = false
         end
+
+        -- Set slot background for empty slots
+        slot.BackgroundTransparency = 0.3
+        slot.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
     end
 end
 
@@ -673,18 +676,25 @@ function InventoryClient:refreshSlot(slotIndex)
         local templateSize = self.slotTemplate and self.slotTemplate.Size
         if templateSize then
             slot.Size = templateSize
+        else
+            -- Ultimate fallback: set a default size
+            slot.Size = UDim2.new(0, 72, 0, 72)
         end
     end
 
+    -- Get current slot state
+    local state = self.slotState[slotIndex]
+    local hasItem = state ~= nil and state.itemId and state.itemId ~= ""
+    
     -- Update Selectable state for empty slots (prevents cursor but allows drops)
-    local hasItem = self.slotState[slotIndex] ~= nil and self.slotState[slotIndex].itemId and self.slotState[slotIndex].itemId ~= ""
     local clickRegion = slot:FindFirstChild("ClickRegion")
     if clickRegion then
         clickRegion.Active = true -- Always active so empty slots can receive drops
         clickRegion.Selectable = hasItem -- Only selectable if it has an item (prevents cursor)
     end
 
-    self:updateSlotAppearance(slot, self.slotState[slotIndex])
+    -- Update slot appearance with current state
+    self:updateSlotAppearance(slot, state)
 end
 
 function InventoryClient:setInventoryVisible(shouldShow)
@@ -953,14 +963,18 @@ function InventoryClient:populateFromServer(payload)
     end
 
     if not self.inventoryItems or not self.slotTemplate then
-        print("[POPULATE DEBUG] Not ready yet, storing as pendingData")
+        print("[InventoryClient] ⚠️ GUI not ready yet, storing as pendingData")
         self.pendingData = payload
+        -- Try to attach GUI if it's not attached yet
+        task.spawn(function()
+            task.wait(0.5)
+            if self:attachGui() and self.pendingData then
+                self:populateFromServer(self.pendingData)
+                self.pendingData = nil
+            end
+        end)
         return
     end
-
-    -- Don't cancel drag during sync - just update the state
-    -- The drag will complete naturally when user releases mouse
-    local wasDragging = self.drag ~= nil
 
     local maxSlots = (payload and payload.maxSlots) or self.maxSlots or 10
     local inventoryLevel = (payload and payload.inventoryLevel) or 1
@@ -971,60 +985,42 @@ function InventoryClient:populateFromServer(payload)
 
     -- Create a fresh state table
     local newState = {}
-    local itemCountChanged = false
 
-    -- Track which slots actually changed to minimize refreshes
-    local slotsToRefresh = {}
-
+    -- Process all incoming slots
     for i = 1, self.maxSlots do
         local slotData = incomingSlots[tostring(i)] or incomingSlots[i]
-        -- Fix: Check for itemId being empty string (server sends "" for empty slots)
+        -- Check for itemId being non-empty string (server sends "" for empty slots)
         if slotData and slotData.itemId and slotData.itemId ~= "" and slotData.count and slotData.count > 0 then
             newState[i] = {
                 itemId = slotData.itemId,
                 count = slotData.count,
             }
-            -- Reduced logging for performance
-
-            -- Check if item changed in this slot
-            local oldSlot = self.slotState[i]
-            if not oldSlot or oldSlot.itemId ~= slotData.itemId or oldSlot.count ~= slotData.count then
-                itemCountChanged = true
-                slotsToRefresh[i] = true
-            end
         else
-            -- Slot is empty - check if it had an item before
-            if self.slotState[i] then
-                itemCountChanged = true
-                slotsToRefresh[i] = true
-            end
+            -- Empty slot - ensure it's in state as nil
+            newState[i] = nil
         end
     end
 
     self.slotState = newState
 
-    -- ALWAYS ensure we have 10 slots visible (even if empty!)
+    -- ALWAYS ensure we have at least 10 slots visible (even if empty!)
     local MINIMUM_SLOTS = 10
     local slotsToShow = math.max(self.maxSlots or 10, MINIMUM_SLOTS)
 
     -- Ensure all slots exist and are visible BEFORE refreshing
-    -- Use batch update to reduce lag
-    local slotsToUpdate = {}
     for i = 1, slotsToShow do
         local slot = self:ensureSlot(i)
         if slot then
-            slot.Visible = true -- Always show first 10 slots
-            slot.LayoutOrder = i -- Ensure proper ordering
-            table.insert(slotsToUpdate, i)
+            slot.Visible = true
+            slot.LayoutOrder = i
         end
     end
 
-    -- Batch refresh slots to reduce lag
-    -- Always refresh all slots to ensure items display correctly
+    -- Refresh ALL slots to ensure items display correctly
     local refreshedCount = 0
-    for _, slotIndex in ipairs(slotsToUpdate) do
-        self:refreshSlot(slotIndex)
-        if self.slotState[slotIndex] and self.slotState[slotIndex].itemId then
+    for i = 1, slotsToShow do
+        self:refreshSlot(i)
+        if self.slotState[i] and self.slotState[i].itemId then
             refreshedCount = refreshedCount + 1
         end
     end
@@ -1035,14 +1031,14 @@ function InventoryClient:populateFromServer(payload)
 
     self:_emitInventoryChanged()
 
-    -- Mark that initial load is done after first population (before sound check)
+    -- Mark that initial load is done
     local wasInitialLoad = not self._isInitialLoad
     if wasInitialLoad then
         self._isInitialLoad = true
     end
 
     -- Play sound when items change (not during initial load or drag)
-    if itemCountChanged and not wasDragging and not wasInitialLoad then
+    if not wasInitialLoad and not self.drag then
         playInventorySound()
     end
 end
@@ -1249,9 +1245,17 @@ function InventoryClient:start()
                 if slot then
                     slot.Visible = true
                     slot.LayoutOrder = i
+                    -- Refresh slot to ensure it displays correctly
+                    self:refreshSlot(i)
                 end
             end
             print("[InventoryClient] ✅ Initialized all 10 inventory slots")
+            
+            -- If we have pending data, process it now
+            if self.pendingData then
+                self:populateFromServer(self.pendingData)
+                self.pendingData = nil
+            end
         end
     end)
 

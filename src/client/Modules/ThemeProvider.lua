@@ -121,6 +121,25 @@ function ThemeProvider.createPrimaryButton(parent, text, config)
     return button
 end
 
+-- Create themed secondary button
+function ThemeProvider.createSecondaryButton(parent, text, config)
+    config = config or {}
+    local button = _currentTheme.createSecondaryButton(parent, text)
+
+    -- Apply custom config
+    if config.size then
+        button.Size = config.size
+    end
+    if config.position then
+        button.Position = config.position
+    end
+    if config.onClick and typeof(config.onClick) == "function" then
+        button.MouseButton1Click:Connect(config.onClick)
+    end
+
+    return button
+end
+
 -- Create themed close button
 function ThemeProvider.createCloseButton(parent, config)
     config = config or {}

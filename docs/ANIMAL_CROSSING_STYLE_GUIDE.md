@@ -18,34 +18,33 @@ This comprehensive style guide ensures all GUI elements in Animal Crossing CE ma
 
 ---
 
-## 🎨 Color Palette
+## 🎨 Color Palette (Updated from Reference RBXMX Files)
 
 ### Primary Backgrounds
-- **Off-White**: `#FCFAF2` - Main dialog backgrounds
-- **Eggshell**: `#F0EDE4` - Secondary backgrounds
-- **Cream**: `#FFFBE7` - Alternative warm backgrounds
+- **ACNH Cream**: `#FFFBE7` / `Color3.fromRGB(255, 251, 231)` - **PRIMARY** background (6 uses in reference)
+- **Tan Background**: `#E7DDB9` / `Color3.fromRGB(231, 221, 185)` - Content sections, secondary backgrounds
+- **Off-White**: `#FCFAF2` - Alternative dialog backgrounds
+- **White**: `#FFFFFF` / `Color3.fromRGB(255, 255, 255)` - Icons, clean accents (73 uses)
 
-### Warm Accents & Golds
-- **Warm Yellow**: `#FFDF80` - Button highlights, warm accents
-- **Bell Gold**: `#FFC14D` - Borders, important accents
+### ACNH Authentic Browns & Text
+- **ACNH Dark Brown**: `#855A25` / `Color3.fromRGB(133, 90, 37)` - **PRIMARY TEXT** (20 uses in reference files) ⭐
+- **Darker Brown**: `#4C3C33` / `Color3.fromRGB(76, 60, 51)` - Emphasis text
+- **Light Tan Text**: `#D1C699` / `Color3.fromRGB(209, 198, 153)` - Labels, secondary text (10 uses)
+- **Pure Black**: `#000000` / `Color3.fromRGB(0, 0, 0)` - Borders, strokes (78 uses)
 
-### Nature & Sky Colors
-- **Leaf Green**: `#9CCC65` - Success states, nature elements
-- **Sky Blue**: `#81D4FA` - Water, sky, progress indicators
+### ACNH Authentic Accents
+- **ACNH Orange**: `#FD9303` / `Color3.fromRGB(253, 147, 3)` - **PRIMARY ACCENT** (15 uses - buttons, highlights) ⭐
+- **ACNH Teal**: `#82D5BB` / `Color3.fromRGB(130, 213, 187)` - Selected states (4 uses)
+- **ACNH Yellow/Gold**: `#FAD12B` / `Color3.fromRGB(250, 209, 43)` - Stars, special indicators
 
-### Earth & Wood Tones
-- **Button Brown**: `#795548` - Primary buttons, strong actions
-- **Dark Brown**: `#3E2723` - Text, strong borders
-- **Light Brown**: `#8E6E63` - Secondary elements, subtle borders
+### Nature & UI Elements
+- **Leaf Green**: `#9CCC65` / `Color3.fromRGB(156, 204, 101)` - Success states
+- **Sky Blue**: `#81D4FA` - Progress indicators
+- **Notification Red**: `#F44336` - Errors, warnings
 
-### Accent Colors
-- **Teal**: `#04AFA6` - Selected states, active elements
-- **Notification Red**: `#F44336` - Errors, warnings, close buttons
-
-### Text Colors
-- **Primary Text**: `#212121` - Main readable text
-- **Secondary Text**: `#757575` - Less important information
-- **Light Text**: `#FFFFFF` - Text on dark backgrounds
+### Debug/Development Colors
+- **Dark Grey**: `#282828` / `Color3.fromRGB(40, 40, 40)` - Debug GUI backgrounds (to be replaced with ACNH cream)
+- **Medium Grey**: `#646464` / `Color3.fromRGB(100, 100, 100)` - Debug scrollbars (to be replaced with brown)
 
 ---
 
@@ -173,6 +172,15 @@ All buttons must have these states:
 - **Corner Radius**: Medium (16px)
 - **Shadow**: Medium with brown tint
 - **Animation**: Slide in/out from screen edges
+
+### Inventory Panel Reference (from `InventoryGUI.rbxmx`)
+- **Root Frame (`InventoryFrame`)**: Centered container sized at 75% width × 50% height, background `Color3.fromRGB(255, 251, 231)` with a large 25% `UICorner` for the softened silhouette; side padding handled by outer `UIPadding` (10% left/right) to keep the panel floating inside the safe area.
+- **Items Region (`InventoryItems`)**: Full-size transparent frame hosting the slot grid; inner padding is `15%` on all sides ensuring generous breathing room before the slots begin.
+- **Slot Template (`ItemSlotTemplate`)**: Square 100×100px base with background `Color3.fromRGB(238, 226, 204)` (`#EEE2CC`), zero border, full (`1, 0`) `UICorner` for circular slots, and internal `ItemIcon` image sized to fill. Item counts live in a `TextLabel` anchored bottom-right (`Position = UDim2.new(1, 0, 1, 0)`, `TextXAlignment = Right`) with white stroke for readability.
+- **Slot Layout (`UIGridLayout`)**: `CellSize = UDim2.new(0, 36, 0, 36)` and `CellPadding = UDim2.new(0, 25, 0, 25)`, `FillDirectionMaxCells = 10` to enforce a single 10-slot row. Start corner from top-left, horizontal alignment left, behavior matches the classic ACNH strip of icons.
+- **Stats Bar (`StatsBar`)**: Sits under the slot region inside the same container. Contains two angled frames: `MilesCount` (teal `Color3.fromRGB(130, 213, 187)`, rotation 3°) and `BellsCount` (golden `Color3.fromRGB(190, 167, 69)`, rotation 3°). Each frame has a white `UIStroke` (3px) plus `UICorner` (full round). Labels use SourceSansPro Bold at 36px with `TextXAlignment = Right` and white text.
+- **Currency Icons**: Each stats frame has an `ImageLabel` (Nook Miles badge `rbxassetid://102758508019146`, Bells bag `rbxassetid://95347480098172`) pinned near the left edge with transparent backgrounds. Keep the images roughly 50×49px and let them overlap the frames slightly for the playful look.
+- **Layout Manager (`UIListLayout` inside Stats)**: Horizontal alignment centered, zero padding, ensuring Miles and Bells cards sit side-by-side while respecting their rotations.
 
 ### Speaker Name Tags (Dialog)
 - **Background**: Warm Yellow

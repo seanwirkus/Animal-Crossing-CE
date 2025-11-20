@@ -517,7 +517,24 @@ local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
 local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
 local InventoryUpgrades = require(sharedFolder:WaitForChild("inventory"):WaitForChild("InventoryUpgrades"))
-local RecipeDiscoveryService = require(script.Parent.RecipeDiscoveryService)
+
+-- Safely require RecipeDiscoveryService with fallback
+local RecipeDiscoveryServiceModule = script.Parent:FindFirstChild("RecipeDiscoveryService")
+if not RecipeDiscoveryServiceModule then
+    -- Try waiting with a timeout
+    RecipeDiscoveryServiceModule = script.Parent:WaitForChild("RecipeDiscoveryService", 5)
+end
+local RecipeDiscoveryService = RecipeDiscoveryServiceModule and require(RecipeDiscoveryServiceModule) or nil
+if not RecipeDiscoveryService then
+    warn("[ServerInit] ⚠️ RecipeDiscoveryService not found - creating stub")
+    RecipeDiscoveryService = {
+        init = function() end,
+        unlockForInventoryLevel = function() end,
+        unlockForTag = function() end,
+        filterRecipes = function(player, recipes) return recipes end,
+    }
+end
+
 local ToolObjects = require(sharedFolder:WaitForChild("ToolObjects"))
 
 local InventoryConstants = InventoryDomain.Constants

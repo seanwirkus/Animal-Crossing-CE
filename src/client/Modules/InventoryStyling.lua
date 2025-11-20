@@ -11,13 +11,13 @@ local InventoryStyling = {}
 -- SLOT COLORS
 -- ============================================================================
 InventoryStyling.Slot = {
-    DefaultBackgroundColor = Color3.fromRGB(200, 200, 200),
-    DefaultBackgroundTransparency = 0.2,
-    HoverBackgroundColor = Color3.fromRGB(255, 234, 160), -- #FFEEA0 for item grabbed
-    SelectedBackgroundColor = Color3.fromRGB(3, 176, 170), -- #03B0AA for item selected
-    HoverBackgroundTransparency = 0.1,
-    BorderColor = Color3.fromRGB(100, 100, 100),
-    BorderSizePixel = 1,
+    DefaultBackgroundColor = Color3.fromRGB(238, 226, 204),
+    DefaultBackgroundTransparency = 0,
+    HoverBackgroundColor = Color3.fromRGB(130, 213, 187),
+    SelectedBackgroundColor = Color3.fromRGB(4, 175, 166),
+    HoverBackgroundTransparency = 0,
+    BorderColor = Color3.fromRGB(255, 255, 255),
+    BorderSizePixel = 0,
 }
 
 -- ============================================================================
@@ -32,11 +32,13 @@ InventoryStyling.ItemIcon = {
 -- ITEM COUNT BADGE STYLING
 -- ============================================================================
 InventoryStyling.ItemCount = {
-    TextColor = Color3.fromRGB(255, 255, 255),
+    TextColor = Color3.fromRGB(0, 0, 0),
     BackgroundColor = Color3.fromRGB(0, 0, 0),
-    BackgroundTransparency = 0.3,
+    BackgroundTransparency = 1,
+    TextStrokeColor = Color3.fromRGB(255, 255, 255),
+    TextStrokeTransparency = 0,
     TextSize = 16,
-    Font = Enum.Font.GothamBold,
+    Font = Enum.Font.GothamBlack,
     Visible = true,
 }
 
@@ -44,11 +46,11 @@ InventoryStyling.ItemCount = {
 -- ITEM NAME LABEL STYLING
 -- ============================================================================
 InventoryStyling.ItemName = {
-    TextColor = Color3.fromRGB(0, 0, 0),
-    BackgroundColor = Color3.fromRGB(255, 255, 255),
-    BackgroundTransparency = 0.5,
+    TextColor = Color3.fromRGB(255, 255, 255),
+    BackgroundColor = Color3.fromRGB(130, 213, 187),
+    BackgroundTransparency = 0,
     TextSize = 14,
-    Font = Enum.Font.Gotham,
+    Font = Enum.Font.GothamBold,
     Visible = false, -- Hidden by default on hover
 }
 
@@ -67,10 +69,10 @@ InventoryStyling.GhostItem = {
 -- INVENTORY FRAME STYLING
 -- ============================================================================
 InventoryStyling.InventoryFrame = {
-    BackgroundColor = Color3.fromRGB(220, 220, 220),
-    BackgroundTransparency = 0.05,
-    BorderColor = Color3.fromRGB(100, 100, 100),
-    BorderSizePixel = 1,
+    BackgroundColor = Color3.fromRGB(255, 251, 231),
+    BackgroundTransparency = 0,
+    BorderColor = Color3.fromRGB(255, 255, 255),
+    BorderSizePixel = 0,
 }
 
 -- ============================================================================
@@ -157,6 +159,8 @@ function InventoryStyling.ApplyItemCountStyling(itemCountLabel)
     itemCountLabel.BackgroundTransparency = InventoryStyling.ItemCount.BackgroundTransparency
     itemCountLabel.TextSize = InventoryStyling.ItemCount.TextSize
     itemCountLabel.Font = InventoryStyling.ItemCount.Font
+    itemCountLabel.TextStrokeColor3 = InventoryStyling.ItemCount.TextStrokeColor
+    itemCountLabel.TextStrokeTransparency = InventoryStyling.ItemCount.TextStrokeTransparency
 end
 
 -- ============================================================================

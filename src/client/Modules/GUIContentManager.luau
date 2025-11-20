@@ -128,26 +128,18 @@ GUIContentManager.Inventory = {
 
     -- Slot configuration
     slots = {
-        rows = 6,
+        rows = 1,
         columns = 10,
-        totalSlots = 60,
+        totalSlots = 10,
         slotSize = UDim2.new(0, 64, 0, 64),
         slotSpacing = UDim2.new(0, 8, 0, 8),
     },
 
     -- Button labels
-    buttons = {
-        close = "×",
-        sort = "Sort",
-        search = "Search items...",
-    },
+    buttons = {},
 
     -- Status messages
-    messages = {
-        empty = "No items in inventory",
-        full = "Inventory is full",
-        transferring = "Transferring item...",
-    },
+    messages = {},
 
     -- Categories
     categories = {
