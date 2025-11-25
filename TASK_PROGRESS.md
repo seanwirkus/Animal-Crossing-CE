@@ -1,0 +1,9 @@
+- [x] Examine GUI files to understand current bells/miles implementation
+- [x] Identify brown background behind slots  
+- [x] Remove bells and miles appendages (keeping only specified labels)
+- [x] Remove brown background from slots
+- [x] Test and verify changes
+- [x] Find and remove dark brown background from other GUI styler
+- [x] Remove styling overrides for date/time GUI
+- [x] Remove styling overrides for inventory GUI
+- [x] Add debug code to figure out what is applying brown background in inventory

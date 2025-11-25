@@ -1,4 +1,4 @@
--- InventoryGuiSetup.lua
+t-- InventoryGuiSetup.lua
 -- Creates the inventory GUI structure with responsive slot templates
 
 local Players = game:GetService("Players")
@@ -12,128 +12,8 @@ local InventoryGuiSetup = {}
 
 local _inventoryGuiInitialized = false
 
-local STATS_CARD_CONFIG = {
-    {
-        name = "BellsCard",
-        iconName = "BellsIcon",
-        labelName = "BellsLabel",
-        assetId = "",
-        colorKey = "warmYellow",
-        layoutOrder = 1,
-        rotation = -2,
-    },
-    {
-        name = "MilesCard",
-        iconName = "MilesIcon",
-        labelName = "MilesLabel",
-        assetId = "",
-        colorKey = "teal",
-        layoutOrder = 2,
-        rotation = 3,
-    },
-}
-
-local function ensureStatsBar(parent)
-    local statsBar = parent:FindFirstChild("StatsBar")
-    if not statsBar or not statsBar:IsA("Frame") then
-        if statsBar then
-            statsBar:Destroy()
-        end
-        statsBar = Instance.new("Frame")
-        statsBar.Name = "StatsBar"
-        statsBar.BackgroundTransparency = 1
-        statsBar.Size = UDim2.new(1, 0, 0, 140)
-        statsBar.LayoutOrder = 2
-        statsBar.Parent = parent
-
-        local layout = Instance.new("UIListLayout")
-        layout.Name = "StatsLayout"
-        layout.FillDirection = Enum.FillDirection.Horizontal
-        layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        layout.VerticalAlignment = Enum.VerticalAlignment.Center
-        layout.Padding = UDim.new(0, 20)
-        layout.Parent = statsBar
-    end
-
-    for _, config in STATS_CARD_CONFIG do
-        local card = statsBar:FindFirstChild(config.name)
-        if not card or not card:IsA("Frame") then
-            if card then
-                card:Destroy()
-            end
-            card = Instance.new("Frame")
-            card.Name = config.name
-            card.Size = UDim2.fromOffset(180, 80)
-            card.BackgroundColor3 = ThemeProvider.getColor(config.colorKey)
-            card.BorderSizePixel = 0
-            card.LayoutOrder = config.layoutOrder
-            card.AnchorPoint = Vector2.new(0.5, 0.5)
-            card.Rotation = config.rotation or 0
-            card.Parent = statsBar
-
-            local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(1, 0)
-            corner.Parent = card
-
-            local stroke = Instance.new("UIStroke")
-            stroke.Color = ThemeProvider.getColor("textLight")
-            stroke.Thickness = 3
-            stroke.Parent = card
-        else
-            card.BackgroundColor3 = ThemeProvider.getColor(config.colorKey)
-            card.LayoutOrder = config.layoutOrder
-            card.Rotation = config.rotation or 0
-        end
-
-        local icon = card:FindFirstChild(config.iconName)
-        if not icon or not icon:IsA("ImageLabel") then
-            if icon then
-                icon:Destroy()
-            end
-            icon = Instance.new("ImageLabel")
-            icon.Name = config.iconName
-            icon.BackgroundTransparency = 1
-            icon.Size = UDim2.fromOffset(50, 50)
-            icon.AnchorPoint = Vector2.new(0.5, 0.5)
-            icon.Position = UDim2.new(0, 35, 0.5, 0)
-            icon.Parent = card
-        end
-        icon.Image = config.assetId
-        icon.ZIndex = card.ZIndex + 1
-
-        local label = card:FindFirstChild(config.labelName)
-        if not label or not label:IsA("TextLabel") then
-            if label then
-                label:Destroy()
-            end
-            label = Instance.new("TextLabel")
-            label.Name = config.labelName
-            label.BackgroundTransparency = 1
-            label.TextScaled = true
-            label.Font = Enum.Font.GothamBlack
-            label.AnchorPoint = Vector2.new(0, 0.5)
-            label.Size = UDim2.new(0.6, 0, 0.7, 0)
-            label.Position = UDim2.new(0.35, 0, 0.5, 0)
-            label.TextXAlignment = Enum.TextXAlignment.Right
-            label.Parent = card
-
-            local sizeConstraint = Instance.new("UITextSizeConstraint")
-            sizeConstraint.MaxTextSize = 36
-            sizeConstraint.MinTextSize = 12
-            sizeConstraint.Parent = label
-
-            local scale = Instance.new("UIScale")
-            scale.Parent = label
-        end
-
-        label.Text = "00,000"
-        label.TextColor3 = ThemeProvider.getColor("textLight")
-        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        label.TextStrokeTransparency = 1
-    end
-
-    return statsBar
-end
+-- Bells and miles appendages removed as requested
+-- Only keeping basic labels as specified
 
 local function ensureContentContainer(frame)
     local container = frame:FindFirstChild("ContentContainer")
@@ -253,11 +133,6 @@ local function ensureInventoryItems(parent, layout, options)
     return inventoryItems
 end
 
--- Footer removed to prevent overlay issues
--- local function createFooter(_frame, _layout)
---     return nil
--- end
-
 local function buildInventoryFrame(screenGui, layout)
     local frame = Instance.new("Frame")
     frame.Name = "InventoryFrame"
@@ -274,8 +149,6 @@ local function buildInventoryFrame(screenGui, layout)
     ensureInventoryItems(contentContainer, layout, {
         layoutOrder = 1,
     })
-    ensureStatsBar(contentContainer)
-    -- createFooter(frame, layout) -- Removed
 
     print("[InventoryGuiSetup] ✨ Created InventoryFrame with responsive layout")
     return frame
@@ -309,8 +182,6 @@ function InventoryGuiSetup.createInventoryGui()
         ensureInventoryItems(contentContainer, layout, {
             layoutOrder = 1,
         })
-        ensureStatsBar(contentContainer)
-        -- createFooter(inventoryFrame, layout) -- Removed
         print("[InventoryGuiSetup] ♻️ Refreshed existing InventoryFrame")
     end
 
@@ -318,7 +189,6 @@ function InventoryGuiSetup.createInventoryGui()
     local inventoryItems = ensureInventoryItems(contentContainer, layout, {
         layoutOrder = 1,
     })
-    ensureStatsBar(contentContainer)
     local slotTemplate = inventoryItems:FindFirstChild("ItemSlotTemplate")
     if not slotTemplate then
         slotTemplate = InventoryGuiSetup.createSlotTemplate()
@@ -353,19 +223,19 @@ function InventoryGuiSetup.createSlotTemplate()
     local slotLayout = GUIContentManager.getLayoutConfig("Inventory")
     local slotSizeOverride = slotLayout and slotLayout.slot and slotLayout.slot.size
     slot.Size = slotSizeOverride or UDim2.new(0, slotSize, 0, slotSize)
-    slot.BackgroundColor3 = Color3.fromRGB(255, 250, 240)
-    slot.BorderSizePixel = 2
-    slot.BorderColor3 = Color3.fromRGB(180, 170, 150)
+    -- Light gray background (removed brown background as requested)
+    slot.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+    slot.BorderSizePixel = 0
 
     local slotCorner = Instance.new("UICorner")
-    slotCorner.CornerRadius = UDim.new(0, 4)
+    slotCorner.CornerRadius = UDim.new(1, 0) -- Circular as in reference
     slotCorner.Parent = slot
 
     -- Item icon (sprite)
     local itemIcon = Instance.new("ImageLabel")
     itemIcon.Name = "ItemIcon"
-    itemIcon.Size = UDim2.new(0.8, 0, 0.7, 0)
-    itemIcon.Position = UDim2.new(0.1, 0, 0.05, 0)
+    itemIcon.Size = UDim2.new(1, 0, 1, 0)
+    itemIcon.Position = UDim2.new(0, 0, 0, 0)
     itemIcon.AnchorPoint = Vector2.new(0, 0)
     itemIcon.BackgroundTransparency = 1
     itemIcon.Image = ""
@@ -373,46 +243,48 @@ function InventoryGuiSetup.createSlotTemplate()
     itemIcon.ImageRectSize = Vector2.new(36, 36) -- Default sprite size from config
     itemIcon.Parent = slot
 
-    -- Item count label (top-right, always visible black text with stroke)
+    -- Item count label (top-right, matches reference styling)
     local itemCount = Instance.new("TextLabel")
     itemCount.Name = "ItemCount"
-    itemCount.Size = UDim2.new(0, 40, 0, 20)
-    itemCount.Position = UDim2.new(1, -2, 0, 2)
-    itemCount.AnchorPoint = Vector2.new(1, 0)
+    itemCount.Size = UDim2.new(0.2, 0, 0.2, 0)
+    itemCount.Position = UDim2.new(1, 0, 1, 0)
+    itemCount.AnchorPoint = Vector2.new(0.5, 0.5)
     itemCount.BackgroundTransparency = 1
-    itemCount.Text = ""
-    itemCount.TextColor3 = Color3.fromRGB(0, 0, 0) -- Pure black
+    itemCount.Text = "00"
+    itemCount.TextColor3 = Color3.fromRGB(0, 0, 0) -- Black text as in reference
     itemCount.TextSize = 14
-    itemCount.Font = Enum.Font.GothamBold
+    itemCount.Font = Enum.Font.SourceSans
     itemCount.TextXAlignment = Enum.TextXAlignment.Right
-    itemCount.TextYAlignment = Enum.TextYAlignment.Top
-    itemCount.TextWrapped = false
-    itemCount.Visible = true -- Always visible, will show/hide based on count
-    itemCount.ZIndex = 15 -- Higher z-index to ensure it's on top
+    itemCount.TextYAlignment = Enum.TextYAlignment.Bottom
+    itemCount.TextScaled = true
+    itemCount.TextWrapped = true
+    itemCount.Visible = true
+    itemCount.ZIndex = 15
     itemCount.Parent = slot
-    
-    -- Add text stroke for visibility on any background
-    local textStroke = Instance.new("UIStroke")
-    textStroke.Color = Color3.fromRGB(255, 255, 255) -- White outline
-    textStroke.Thickness = 2
-    textStroke.Transparency = 0.3
-    textStroke.Parent = itemCount
 
-    -- Item name label (shown on hover)
+    -- Item name label (bottom as in reference)
     local itemName = Instance.new("TextLabel")
     itemName.Name = "ItemName"
-    itemName.Size = UDim2.new(1, 0, 0.3, 0)
-    itemName.Position = UDim2.new(0, 0, 0.7, 0)
-    itemName.BackgroundTransparency = 0.3
-    itemName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    itemName.Text = ""
-    itemName.TextColor3 = Color3.fromRGB(255, 255, 255)
-    itemName.TextSize = 10
-    itemName.Font = Enum.Font.Gotham
+    itemName.Size = UDim2.new(0.75, 0, 0.75, 0)
+    itemName.Position = UDim2.new(0.5, 0, 1, 0)
+    itemName.AnchorPoint = Vector2.new(0.5, 0) -- Centered horizontally at bottom
+    itemName.BackgroundColor3 = Color3.fromRGB(130, 213, 187) -- Teal green as in reference
+    itemName.BackgroundTransparency = 0
+    itemName.Text = "Item Name"
+    itemName.TextColor3 = Color3.fromRGB(255, 255, 255) -- White text as in reference
+    itemName.TextSize = 14
+    itemName.Font = Enum.Font.SourceSans
     itemName.TextWrapped = true
-    itemName.TextScaled = true
-    itemName.Visible = false
+    itemName.TextXAlignment = Enum.TextXAlignment.Center
+    itemName.TextYAlignment = Enum.TextYAlignment.Center
+    itemName.Visible = true
+    itemName.ZIndex = 15
     itemName.Parent = slot
+
+    -- Add rounded corners to item name as in reference
+    local nameCorner = Instance.new("UICorner")
+    nameCorner.CornerRadius = UDim.new(0, 8) -- Rounded corners as in reference
+    nameCorner.Parent = itemName
 
     return slot
 end
