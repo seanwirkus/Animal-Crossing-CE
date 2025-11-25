@@ -82,9 +82,11 @@ local BuildingService = require(script:WaitForChild("BuildingService"))
 local NookConstructionService = require(script:WaitForChild("NookConstructionService"))
 local QuestService = require(script:WaitForChild("QuestService"))
 local QuestHandlers = require(script:WaitForChild("QuestHandlers"))
+local DailyChallengeService = require(script:WaitForChild("DailyChallengeService"))
 local CharacterAndToolFixes = require(ReplicatedStorage.Shared.CharacterAndToolFixes)
 
 local questService = nil
+local dailyChallengeService = nil
 
 local toolUseRemote = nil
 local toolFeedbackRemote = nil
@@ -118,6 +120,9 @@ local function handleShovelDig(player, payload)
     local success, resultType, resultData, errorMessage = ShovelSystem.attemptDig(player, targetPosition, targetInstance)
 
     if success then
+        if dailyChallengeService then
+            dailyChallengeService:recordEvent(player, "dig_spot", 1)
+        end
         fireToolFeedback(player, {
             toolType = "shovel",
             action = "dig_success",
@@ -165,6 +170,10 @@ local function handleFishingCatch(player)
                 reason = "Too early or no fish biting.",
             },
         })
+    else
+        if dailyChallengeService then
+            dailyChallengeService:recordEvent(player, "catch_fish", 1)
+        end
     end
 end
 
@@ -215,6 +224,9 @@ local function handleAxeChop(player, payload)
                 data = { wood = woodCount },
             })
             logInfo(string.format("🪓 %s chopped tree and got %d wood", player.Name, woodCount))
+            if dailyChallengeService then
+                dailyChallengeService:recordEvent(player, "chop_tree", 1)
+            end
         else
             fireToolFeedback(player, {
                 toolType = "axe",
@@ -277,13 +289,16 @@ local function handleNetSwing(player, payload)
         if success then
             -- Remove bug from world
             nearbyBug:Destroy()
-            
+
             fireToolFeedback(player, {
                 toolType = "net",
                 action = "catch_success",
                 data = { bug = bugName },
             })
             logInfo(string.format("🦋 %s caught %s", player.Name, bugName))
+            if dailyChallengeService then
+                dailyChallengeService:recordEvent(player, "catch_bug", 1)
+            end
         else
             fireToolFeedback(player, {
                 toolType = "net",
@@ -337,13 +352,16 @@ local function handleWateringCan(player, payload)
         -- Mark plant as watered
         nearbyPlant:SetAttribute("Watered", true)
         nearbyPlant:SetAttribute("WateredTime", tick())
-        
+
         fireToolFeedback(player, {
             toolType = "watering_can",
             action = "water_success",
             data = { plant = nearbyPlant.Name },
         })
         logInfo(string.format("💧 %s watered %s", player.Name, nearbyPlant.Name))
+        if dailyChallengeService then
+            dailyChallengeService:recordEvent(player, "water_flower", 1)
+        end
     else
         fireToolFeedback(player, {
             toolType = "watering_can",
@@ -2900,6 +2918,9 @@ balloonHitRemote.OnServerEvent:Connect(function(player, balloonName)
         -- Call the balloon hit handler
         BalloonSpawner.onBalloonHit(balloonId, nil)
         logInfo("✅ Balloon popped", { balloonId = balloonId })
+        if dailyChallengeService then
+            dailyChallengeService:recordEvent(player, "balloon_pop", 1)
+        end
     else
         warn("[Server] ⚠️ Invalid balloon name:", balloonName)
     end
@@ -2909,6 +2930,12 @@ end)
 local ProductPurchaseHandler = require(script.ProductPurchaseHandler)
 ProductPurchaseHandler.init()
 logInfo("✅ ProductPurchaseHandler initialized")
+
+-- Initialize Daily Challenge Service
+logInfo("📅 Initializing Daily Challenge Service...")
+dailyChallengeService = DailyChallengeService.new()
+dailyChallengeService:initialize()
+logInfo("✅ Daily Challenge Service initialized")
 
 -- Initialize Quest System
 logInfo("📋 Initializing Quest System...")
