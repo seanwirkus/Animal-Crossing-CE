@@ -129,6 +129,9 @@ print("[Client] ✅ NookShoppingGUI module loaded")
 local QuestGUIModule = require(script.Modules.QuestGUI)
 print("[Client] ✅ QuestGUI module loaded")
 
+local TutorialManagerModule = require(script.Modules.TutorialManager)
+print("[Client] ✅ TutorialManager module loaded")
+
 local HomeScreenModule = require(script.Modules.HomeScreen)
 print("[Client] ✅ HomeScreen module loaded")
 
@@ -263,6 +266,11 @@ print("[Client] ✅ QuestGUI initialized")
 -- Register Quest GUI with GUIManager
 guiManager:registerGUI("QuestGUI", questGUI)
 print("[Client] ✅ QuestGUI registered with GUIManager")
+
+-- Initialize Tutorial Manager (will listen for server to start tutorial)
+local tutorialManager = TutorialManagerModule.new()
+_G.TutorialManager = tutorialManager -- Expose globally for testing
+print("[Client] ✅ TutorialManager initialized")
 
 local SettingsControllerModule = require(script.Modules.SettingsController)
 local settingsController = SettingsControllerModule.init({

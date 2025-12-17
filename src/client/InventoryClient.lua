@@ -362,9 +362,8 @@ function InventoryClient:updateSlotAppearance(slot, state)
             nameLabel.Visible = false
         end
 
-        -- Set slot background for items
-        slot.BackgroundTransparency = 0
-        slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
+        -- Slot has item - keep existing styling from Studio
+        -- Don't override BackgroundColor3 or BackgroundTransparency
     else
         -- Empty slot - clear everything
         icon.Image = ""
@@ -380,9 +379,8 @@ function InventoryClient:updateSlotAppearance(slot, state)
             nameLabel.Visible = false
         end
 
-        -- Set slot background for empty slots
-        slot.BackgroundTransparency = 0.3
-        slot.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+        -- Empty slot - keep existing styling from Studio
+        -- Don't override BackgroundColor3 or BackgroundTransparency
     end
 end
 
@@ -426,7 +424,7 @@ function InventoryClient:ensureSlot(slotIndex)
         equipButton.Font = Enum.Font.Gotham
         equipButton.TextSize = 18
         equipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        equipButton.BackgroundColor3 = Color3.fromRGB(3, 176, 170) -- Teal from color scheme
+        equipButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128) -- Default gray
         equipButton.BackgroundTransparency = 0
         equipButton.BorderSizePixel = 0
         equipButton.Size = UDim2.new(0.4, 0, 0.4, 0) -- 40% size in corner
@@ -514,6 +512,7 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
             equipButton.Visible = true
         end
 
+        -- Hover effect - teal highlight
         slot.BackgroundColor3 = Color3.fromHex("#04AFA6")
 
         -- Show tooltip if item exists and tooltip module is available
@@ -539,6 +538,7 @@ function InventoryClient:configureSlotInteractions(slot, slotIndex)
             equipButton.Visible = false
         end
 
+        -- Mouse leave - reset to default color
         slot.BackgroundColor3 = Color3.fromRGB(238, 226, 204)
 
         -- Hide tooltip

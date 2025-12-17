@@ -84,6 +84,10 @@ function OnboardingService:onPlayerJoined(player)
         if islandData and not islandData.hasCompletedTutorial then
             print(string.format("[OnboardingService] Starting tutorial for %s", player.Name))
             self:startTutorial(player)
+        elseif not islandData then
+            -- New player without island data - still start tutorial
+            print(string.format("[OnboardingService] New player detected: %s - starting tutorial anyway", player.Name))
+            self:startTutorial(player)
         end
     end
 end
@@ -136,7 +140,7 @@ function OnboardingService:buildPlayerHome(player)
 
     local islandData = self.playerIslandService:getPlayerIsland(player.UserId)
     if not islandData then
-        warn(string.format("[OnboardingService] No island data for %s", player.Name))
+        print(string.format("[OnboardingService] No island data for %s yet - skipping home build", player.Name))
         return
     end
 

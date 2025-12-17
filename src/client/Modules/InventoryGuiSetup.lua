@@ -1,10 +1,9 @@
-t-- InventoryGuiSetup.lua
+-- InventoryGuiSetup.lua
 -- Creates the inventory GUI structure with responsive slot templates
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
-local ThemeProvider = require(script.Parent.ThemeProvider)
 local GUIContentManager = require(script.Parent.GUIContentManager)
 local LayoutLint = require(script.Parent.LayoutLint)
 
@@ -60,11 +59,9 @@ local function ensureScreenGui(playerGui)
 end
 
 local function applyFrameStyling(frame, layout)
-    ThemeProvider.styleFrame(frame, {
-        backgroundColor = "cream",
-        cornerRadius = layout.cornerRadius and UDim.new(0, layout.cornerRadius) or UDim.new(0.25, 0),
-        shadow = "large",
-    })
+    -- Minimal default styling
+    frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    frame.BackgroundTransparency = 0.1
     frame.ClipsDescendants = false
 
     local padding = frame:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
@@ -223,13 +220,10 @@ function InventoryGuiSetup.createSlotTemplate()
     local slotLayout = GUIContentManager.getLayoutConfig("Inventory")
     local slotSizeOverride = slotLayout and slotLayout.slot and slotLayout.slot.size
     slot.Size = slotSizeOverride or UDim2.new(0, slotSize, 0, slotSize)
-    -- Light gray background (removed brown background as requested)
-    slot.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+    -- Default white background
+    slot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    slot.BackgroundTransparency = 0.3
     slot.BorderSizePixel = 0
-
-    local slotCorner = Instance.new("UICorner")
-    slotCorner.CornerRadius = UDim.new(1, 0) -- Circular as in reference
-    slotCorner.Parent = slot
 
     -- Item icon (sprite)
     local itemIcon = Instance.new("ImageLabel")
@@ -243,7 +237,7 @@ function InventoryGuiSetup.createSlotTemplate()
     itemIcon.ImageRectSize = Vector2.new(36, 36) -- Default sprite size from config
     itemIcon.Parent = slot
 
-    -- Item count label (top-right, matches reference styling)
+    -- Item count label (minimal styling)
     local itemCount = Instance.new("TextLabel")
     itemCount.Name = "ItemCount"
     itemCount.Size = UDim2.new(0.2, 0, 0.2, 0)
@@ -251,7 +245,7 @@ function InventoryGuiSetup.createSlotTemplate()
     itemCount.AnchorPoint = Vector2.new(0.5, 0.5)
     itemCount.BackgroundTransparency = 1
     itemCount.Text = "00"
-    itemCount.TextColor3 = Color3.fromRGB(0, 0, 0) -- Black text as in reference
+    itemCount.TextColor3 = Color3.fromRGB(0, 0, 0)
     itemCount.TextSize = 14
     itemCount.Font = Enum.Font.SourceSans
     itemCount.TextXAlignment = Enum.TextXAlignment.Right
@@ -262,16 +256,16 @@ function InventoryGuiSetup.createSlotTemplate()
     itemCount.ZIndex = 15
     itemCount.Parent = slot
 
-    -- Item name label (bottom as in reference)
+    -- Item name label (minimal styling)
     local itemName = Instance.new("TextLabel")
     itemName.Name = "ItemName"
     itemName.Size = UDim2.new(0.75, 0, 0.75, 0)
     itemName.Position = UDim2.new(0.5, 0, 1, 0)
-    itemName.AnchorPoint = Vector2.new(0.5, 0) -- Centered horizontally at bottom
-    itemName.BackgroundColor3 = Color3.fromRGB(130, 213, 187) -- Teal green as in reference
-    itemName.BackgroundTransparency = 0
+    itemName.AnchorPoint = Vector2.new(0.5, 0)
+    itemName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    itemName.BackgroundTransparency = 0.3
     itemName.Text = "Item Name"
-    itemName.TextColor3 = Color3.fromRGB(255, 255, 255) -- White text as in reference
+    itemName.TextColor3 = Color3.fromRGB(0, 0, 0)
     itemName.TextSize = 14
     itemName.Font = Enum.Font.SourceSans
     itemName.TextWrapped = true
@@ -280,11 +274,6 @@ function InventoryGuiSetup.createSlotTemplate()
     itemName.Visible = true
     itemName.ZIndex = 15
     itemName.Parent = slot
-
-    -- Add rounded corners to item name as in reference
-    local nameCorner = Instance.new("UICorner")
-    nameCorner.CornerRadius = UDim.new(0, 8) -- Rounded corners as in reference
-    nameCorner.Parent = itemName
 
     return slot
 end
@@ -331,7 +320,7 @@ function InventoryGuiSetup.createDebugInventoryGui()
         cellPadding = UDim2.new(0, 18, 0, 18),
     })
     debugItems.ScrollBarThickness = 8
-    debugItems.ScrollBarImageColor3 = Color3.fromRGB(180, 170, 150)
+    debugItems.ScrollBarImageColor3 = Color3.fromRGB(128, 128, 128)
 
     -- Create debug item slot template
     local debugSlotTemplate = InventoryGuiSetup.createSlotTemplate()

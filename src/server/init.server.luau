@@ -160,7 +160,7 @@ local function handleFishingCast(player, payload)
 end
 
 local function handleFishingCatch(player)
-    local caught = FishingSystem.attemptCatch(player)
+    local caught, fishData = FishingSystem.attemptCatch(player)
     if not caught then
         fireToolFeedback(player, {
             toolType = "fishing",
@@ -173,6 +173,11 @@ local function handleFishingCatch(player)
     else
         if dailyChallengeService then
             dailyChallengeService:recordEvent(player, "catch_fish", 1)
+        end
+
+        -- Connect to quest system
+        if QuestHandlers and fishData then
+            QuestHandlers.onFishCaught(player, fishData)
         end
     end
 end
@@ -1386,6 +1391,11 @@ local function grantCraftedItems(player, craftedItems)
 
         if not added then
             warn("[Server] Inventory full - crafted item", itemId, "could not be added")
+        else
+            -- Connect to quest system
+            if QuestHandlers then
+                QuestHandlers.onItemCrafted(player, itemId)
+            end
         end
     end
 
