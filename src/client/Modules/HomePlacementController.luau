@@ -2,6 +2,7 @@
 -- Handles client-side home placement triggered by server
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
 
 local HomePlacementGUI = require(script.Parent.HomePlacementGUI)
 
@@ -37,11 +38,26 @@ function HomePlacementController:_setupRemotes()
 
 	startPlacementRemote.OnClientEvent:Connect(function(success, message, materials)
 		if success then
-			print("[HomePlacementController] ✅ Server says we can place home!")
+			print("[HomePlacementController] ✅ Server says we can place home!", message or "")
 			self:startPlacement()
 		else
 			warn("[HomePlacementController] ❌ Cannot place home:", message)
-			-- TODO: Show error message to player
+			local notificationText = message or "You need more resources before placing a home."
+			pcall(function()
+				StarterGui:SetCore("SendNotification", {
+					Title = "Cannot Place Home",
+					Text = notificationText,
+					Duration = 5,
+				})
+			end)
+
+			if materials then
+				local parts = {}
+				for _, material in ipairs(materials) do
+					table.insert(parts, string.format("%dx %s", material.count, material.itemId))
+				end
+				print("[HomePlacementController] Required materials:", table.concat(parts, ", "))
+			end
 		end
 	end)
 end
