@@ -487,7 +487,7 @@ _HomeBuildingService:SetCurrencyManager(CurrencyManager)
 -- Initialize Onboarding/Tutorial service
 logInfo("📚 Initializing Onboarding service...")
 local onboardingService = OnboardingService.new()
-onboardingService:initialize(islandService)
+onboardingService:initialize(islandService, _HomeBuildingService)
 
 -- Create RemoteEvent
 local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent") or Instance.new("RemoteEvent")

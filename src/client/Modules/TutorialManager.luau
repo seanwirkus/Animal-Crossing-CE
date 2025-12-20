@@ -9,7 +9,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local OnboardingFlow = require(script.Parent.OnboardingFlow)
-local DialogueGUI = require(script.Parent.DialogueGUI)
+-- local DialogueGUI = require(script.Parent.DialogueGUI) -- DISABLED: DialogueGUI removed
 local QuestGUI = require(script.Parent.QuestGUI)
 
 local TutorialManager = {}
@@ -170,19 +170,9 @@ function TutorialManager:_runStep(stepIndex)
 	local step = TUTORIAL_STEPS[stepIndex]
 	print(string.format("[TutorialManager] 📖 Step %d: %s", stepIndex, step.name))
 
-	-- Show dialogues first
-	if step.dialogues and #step.dialogues > 0 then
-		local dialogue = DialogueGUI.new()
-		dialogue:ShowSequence(step.dialogues, {
-			onComplete = function()
-				-- After dialogue, handle next action
-				self:_handleStepAction(step, stepIndex)
-			end,
-		})
-	else
-		-- No dialogue, go straight to action
-		self:_handleStepAction(step, stepIndex)
-	end
+	-- Show dialogues first (DISABLED - DialogueGUI removed)
+	-- Skip dialogues and go straight to action since DialogueGUI was removed
+	self:_handleStepAction(step, stepIndex)
 end
 
 --[[

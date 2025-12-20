@@ -16,17 +16,37 @@ local _instance = nil
 
 -- Home upgrade costs (in bells)
 local HOME_COSTS = {
-    Tent = 0, -- Free starter home
+    Tent = 0, -- No bells required for tent
     SmallHouse = 5000,
     LargeHouse = 10000,
     Mansion = 25000,
 }
 
--- Home upgrade materials (optional - can be empty)
+-- Home upgrade materials (REQUIRED for building)
 local HOME_MATERIALS = {
-    SmallHouse = {}, -- Can add: {{itemId = "wood", count = 30}, {itemId = "iron_nugget", count = 10}}
-    LargeHouse = {},
-    Mansion = {},
+    Tent = {
+        { itemId = "wood", count = 30 },
+        { itemId = "softwood", count = 30 },
+        { itemId = "stone", count = 15 },
+    },
+    SmallHouse = {
+        { itemId = "wood", count = 50 },
+        { itemId = "hardwood", count = 30 },
+        { itemId = "iron_nugget", count = 20 },
+        { itemId = "stone", count = 30 },
+    },
+    LargeHouse = {
+        { itemId = "wood", count = 80 },
+        { itemId = "hardwood", count = 50 },
+        { itemId = "iron_nugget", count = 40 },
+        { itemId = "clay", count = 30 },
+    },
+    Mansion = {
+        { itemId = "wood", count = 150 },
+        { itemId = "hardwood", count = 100 },
+        { itemId = "iron_nugget", count = 80 },
+        { itemId = "gold_nugget", count = 10 },
+    },
 }
 
 function HomeBuildingService.new()
@@ -92,6 +112,30 @@ function HomeBuildingService:_setupRemoteEvents()
             -- Send home data update to client
             self:_sendHomeDataUpdate(player)
         end
+    end)
+
+    -- StartHomePlacement RemoteEvent (opens placement GUI)
+    local startPlacementRemote = remoteEventsFolder:FindFirstChild("StartHomePlacement")
+    if not startPlacementRemote then
+        startPlacementRemote = Instance.new("RemoteEvent")
+        startPlacementRemote.Name = "StartHomePlacement"
+        startPlacementRemote.Parent = remoteEventsFolder
+    end
+
+    startPlacementRemote.OnServerEvent:Connect(function(player)
+        -- Check if player has materials
+        local materials = HOME_MATERIALS.Tent
+        if InventoryCheckFunction then
+            local hasMaterials, missingItem = InventoryCheckFunction(player, materials)
+            if not hasMaterials then
+                -- Send failure response
+                startPlacementRemote:FireClient(player, false, "Missing materials: " .. (missingItem or "unknown"), materials)
+                return
+            end
+        end
+
+        -- Send success with materials list
+        startPlacementRemote:FireClient(player, true, "Ready to place home", materials)
     end)
 
     -- UpgradeHome RemoteEvent
@@ -183,8 +227,9 @@ function HomeBuildingService:_loadExistingHomes()
     print("[HomeBuildingService] ✅ Loaded", #self._homeModels, "existing homes")
 end
 
-function HomeBuildingService:PlaceHome(player, position)
+function HomeBuildingService:PlaceHome(player, position, homeSize)
     local userId = player.UserId
+    homeSize = homeSize or "Tent"
 
     -- Check if player already has a home
     if self._playerHomes[userId] then
@@ -198,15 +243,45 @@ function HomeBuildingService:PlaceHome(player, position)
         return false, "Invalid position"
     end
 
+    -- Check materials FIRST
+    local materials = HOME_MATERIALS[homeSize] or HOME_MATERIALS.Tent
+    if materials and #materials > 0 then
+        -- Check if inventory system is connected
+        if not InventoryCheckFunction or not InventoryConsumeFunction then
+            warn("[HomeBuildingService] Inventory system not connected!")
+            return false, "System error - inventory not available"
+        end
+
+        -- Check if player has all required materials
+        local hasMaterials, missingItem = InventoryCheckFunction(player, materials)
+        if not hasMaterials then
+            warn("[HomeBuildingService] Player missing materials:", missingItem)
+            return false, "Missing materials: " .. (missingItem or "unknown")
+        end
+
+        -- Consume materials
+        local consumed = InventoryConsumeFunction(player, materials)
+        if not consumed then
+            warn("[HomeBuildingService] Failed to consume materials")
+            return false, "Failed to consume materials"
+        end
+
+        print("[HomeBuildingService] ✅ Consumed materials for", homeSize)
+    end
+
     -- Check if position is valid (flat ground, not too close to other homes, etc.)
     local isValid, reason = self:_validateHomePosition(position, player)
     if not isValid then
         warn("[HomeBuildingService] Invalid home position:", reason)
+        -- Refund materials if placement failed
+        if materials and #materials > 0 and InventoryCheckFunction then
+            -- TODO: Add refund logic
+        end
         return false, reason or "Invalid home position"
     end
 
     -- Create home model
-    local homeModel = self:_createHomeModel(player, position, "Tent")
+    local homeModel = self:_createHomeModel(player, position, homeSize)
     if not homeModel then
         warn("[HomeBuildingService] Failed to create home model")
         return false, "Failed to create home"
@@ -244,9 +319,9 @@ function HomeBuildingService:PlaceHome(player, position)
 end
 
 function HomeBuildingService:_validateHomePosition(position, player)
-    -- Check if position is on flat ground
-    local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
-    local rayDirection = Vector3.new(0, -100, 0)
+    -- Check if position is on flat ground (not in the air)
+    local rayOrigin = Vector3.new(position.X, position.Y + 5, position.Z)
+    local rayDirection = Vector3.new(0, -10, 0)
 
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Include
@@ -254,7 +329,47 @@ function HomeBuildingService:_validateHomePosition(position, player)
 
     local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
     if not rayResult then
-        return false, "Position must be on terrain"
+        return false, "Home must be placed on solid ground (not in the air)"
+    end
+
+    -- Check if ground is reasonably flat
+    local groundY = rayResult.Position.Y
+    if math.abs(position.Y - groundY) > 3 then
+        return false, "Ground is too steep here"
+    end
+
+    -- Check for obstacles/objects in the placement area (10x10 stud area)
+    local homeSize = Vector3.new(10, 8, 10) -- Approximate tent size
+    local region = Region3.new(
+        position - homeSize / 2,
+        position + homeSize / 2
+    ):ExpandToGrid(4)
+
+    -- Check for parts that would block placement
+    local partsInRegion = Workspace:FindPartsInRegion3(region, nil, 100)
+    for _, part in ipairs(partsInRegion) do
+        -- Ignore terrain and small decorative parts
+        if part:IsA("BasePart") and part.Parent then
+            local partName = part.Name:lower()
+            local parentName = part.Parent.Name:lower()
+
+            -- Allow terrain and ground
+            if part.Parent == Workspace.Terrain or partName == "terrain" then
+                continue
+            end
+
+            -- Block placement near homes, buildings, large rocks, trees
+            if parentName:find("home") or parentName:find("building") or
+               parentName:find("rock") or parentName:find("tree") or
+               parentName:find("tent") or part:GetAttribute("IsObstacle") then
+                return false, "Too close to " .. (parentName or "an object")
+            end
+
+            -- Check size - if part is large, it's probably an obstacle
+            if part.Size.Magnitude > 5 then
+                return false, "Area blocked by object: " .. (parentName or part.Name)
+            end
+        end
     end
 
     -- Check if on player's island (if PlayerIslandService available)
@@ -311,13 +426,8 @@ function HomeBuildingService:_createHomeModel(player, position, size)
     home:SetAttribute("Clickable", true)
     home:SetAttribute("BuildingType", "PlayerHome")
 
-    -- Position home
-    local homePart = home:FindFirstChildOfClass("BasePart")
-    if homePart then
-        homePart.CFrame = CFrame.new(position)
-    else
-        home:SetPrimaryPartCFrame(CFrame.new(position))
-    end
+    -- Position home using PivotTo (works with or without PrimaryPart)
+    home:PivotTo(CFrame.new(position))
 
     -- Parent to island folder if PlayerIslandService available, otherwise PlayerHomes
     local parentFolder = nil
@@ -580,4 +690,4 @@ end
 -- Initialize service
 local service = HomeBuildingService.new()
 
-return HomeBuildingService
+return service

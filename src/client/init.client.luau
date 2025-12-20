@@ -170,6 +170,9 @@ print("[Client] ✅ NookPlane module loaded")
 local DIYWorkBenchControllerModule = require(script.Modules.DIYWorkBenchController)
 print("[Client] ✅ DIYWorkBenchController module loaded")
 
+local HomePlacementControllerModule = require(script.Modules.HomePlacementController)
+print("[Client] ✅ HomePlacementController module loaded")
+
 -- Initialize HUD system
 local _HUD = nil
 local HUDSuccess, HUDErr = pcall(function()

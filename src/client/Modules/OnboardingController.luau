@@ -347,16 +347,26 @@ end
 function OnboardingController:buildHome()
     print("[OnboardingController] Building home...")
 
-    -- Fire remote to server to build home
+    -- Hide onboarding GUI during placement
+    self:hide()
+
+    -- Fire remote to server to trigger placement mode
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if remotes then
         local buildHomeRemote = remotes:FindFirstChild("BuildPlayerHome")
         if buildHomeRemote then
             buildHomeRemote:FireServer()
+            print("[OnboardingController] ✅ Requested home placement from server")
+        else
+            warn("[OnboardingController] BuildPlayerHome remote not found")
         end
     end
 
-    -- Move to complete step
+    -- Wait for home to be placed, then show completion
+    -- The server will handle the placement flow
+    task.wait(2) -- Give time for placement to start
+
+    -- Move to complete step (will show after placement finishes)
     self:showStep(STEPS.COMPLETE)
 end
 

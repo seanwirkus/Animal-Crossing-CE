@@ -15,14 +15,16 @@ function OnboardingService.new()
     local self = setmetatable({}, OnboardingService)
 
     self.playerIslandService = nil -- Will be set during init
+    self.homeBuildingService = nil -- Will be set during init
 
     return self
 end
 
-function OnboardingService:initialize(playerIslandService)
+function OnboardingService:initialize(playerIslandService, homeBuildingService)
     print("[OnboardingService] 📚 Initializing...")
 
     self.playerIslandService = playerIslandService
+    self.homeBuildingService = homeBuildingService
 
     -- Setup remotes
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -127,11 +129,33 @@ function OnboardingService:giveStarterRewards(player)
         end
     end
 
+    -- Give starter tools and materials
+    -- InventoryEvent is in ReplicatedStorage directly, not in Remotes folder
+    local inventoryEvent = ReplicatedStorage:FindFirstChild("InventoryEvent")
+    if inventoryEvent then
+        -- Starter tools
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "flimsy_axe", count = 1 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "stone_axe", count = 1 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "shovel", count = 1 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "fishing_rod", count = 1 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "net", count = 1 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "slingshot", count = 1 })
+
+        -- Starter materials for building first home
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "wood", count = 30 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "softwood", count = 30 })
+        inventoryEvent:FireClient(player, "AddItem", { itemId = "stone", count = 15 })
+
+        print("[OnboardingService] ✅ Gave starter tools and materials to", player.Name)
+    else
+        warn("[OnboardingService] ⚠️ InventoryEvent not found - couldn't give starter items")
+    end
+
     print(string.format("[OnboardingService] Gave starter rewards to %s", player.Name))
 end
 
 function OnboardingService:buildPlayerHome(player)
-    print(string.format("[OnboardingService] Building home for %s", player.Name))
+    print(string.format("[OnboardingService] Starting home placement for %s", player.Name))
 
     if not self.playerIslandService then
         warn("[OnboardingService] PlayerIslandService not available")
@@ -144,27 +168,27 @@ function OnboardingService:buildPlayerHome(player)
         return
     end
 
-    -- Check if home already exists
-    if islandData.hasBuiltHome then
-        print(string.format("[OnboardingService] %s already has a home", player.Name))
+    -- Note: hasBuiltHome check removed from here - HomeBuildingService will validate when player confirms placement
+    -- This allows the placement GUI to open and show proper error messages if already built
+
+    -- Trigger placement mode on client
+    local remoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if not remoteEvents then
+        warn("[OnboardingService] RemoteEvents folder not found!")
         return
     end
 
-    -- Get island center
-    local center = Vector3.new(islandData.center.X, islandData.center.Y, islandData.center.Z)
-
-    -- Place home near center (offset to the side)
-    local homePosition = center + Vector3.new(-15, 20, 0)
-
-    -- Raycast to find terrain
-    local ray = workspace:Raycast(homePosition + Vector3.new(0, 100, 0), Vector3.new(0, -200, 0))
-    if ray then
-        homePosition = ray.Position + Vector3.new(0, 0.5, 0)
+    local startPlacementRemote = remoteEvents:FindFirstChild("StartHomePlacement")
+    if startPlacementRemote then
+        -- Tell client to enter placement mode
+        startPlacementRemote:FireClient(player, true, "Place your home on your island!")
+        print("[OnboardingService] ✅ Sent home placement request to", player.Name)
+    else
+        warn("[OnboardingService] StartHomePlacement remote not found!")
     end
 
-    -- Use HomeBuildingService to place the home
-    local HomeBuildingService = require(script.Parent:WaitForChild("HomeBuildingService"))
-    local success, message = HomeBuildingService:PlaceHome(player, homePosition)
+    -- Old immediate placement code removed - now uses placement GUI
+    local success, message = true, "Placement mode started"
 
     if success then
         print(string.format("[OnboardingService] ✅ Placed home for %s using HomeBuildingService", player.Name))

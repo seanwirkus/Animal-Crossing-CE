@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animal Crossing CE | Roblox Recreation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Color palette inspired by ACNH */
+            --cream: #f9f5e3;
+            --beige: #e8dcc4;
+            --brown: #8b6f47;
+            --dark-bg: rgba(20, 20, 30, 0.95);
+            --glass-bg: rgba(20, 20, 30, 0.55);
+            --cyan: #00d4ff;
+            --neon-green: #39ff14;
+            --leaf-green: #7bc74d;
+            --soft-blue: #9fe3ff;
+            --card-border: rgba(255, 255, 255, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1e 100%);
+            color: white;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background clouds */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(123, 199, 77, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(57, 255, 20, 0.03) 0%, transparent 50%);
+            animation: float-clouds 30s ease-in-out infinite;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes float-clouds {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            50% { transform: translateY(-20px) translateX(10px); }
+        }
+
+        /* Glass card styling matching your site */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border-radius: 20px;
+            border: 1px solid var(--card-border);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+                0 0 25px rgba(0, 212, 255, 0.15),
+                0 0 40px rgba(57, 255, 20, 0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .glass-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.25),
+                transparent
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .glass-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                180deg,
+                rgba(255, 255, 255, 0.03),
+                transparent,
+                rgba(0, 0, 0, 0.25)
+            );
+            pointer-events: none;
+        }
+
+        .glass-card:hover {
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.5),
+                0 0 35px rgba(0, 212, 255, 0.35),
+                0 0 50px rgba(57, 255, 20, 0.25);
+            transform: translateY(-4px);
+        }
+
+        .glass-card:hover::before {
+            opacity: 1;
+            animation: shimmer 1.5s forwards;
+        }
+
+        @keyframes shimmer {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(100%); }
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Hero section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem 0;
+            position: relative;
+        }
+
+        .hero-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(2rem, 6vw, 4rem);
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--cyan), var(--neon-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: glow-pulse 3s ease-in-out infinite;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+        }
+
+        @keyframes glow-pulse {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.5)); }
+            50% { filter: drop-shadow(0 0 25px rgba(57, 255, 20, 0.7)); }
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1rem, 2vw, 1.5rem);
+            margin-bottom: 2rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .pixel-badge {
+            display: inline-block;
+            background: var(--glass-bg);
+            border: 2px solid var(--cyan);
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.7rem;
+            margin: 0.5rem;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+            transition: all 0.3s ease;
+            image-rendering: pixelated;
+        }
+
+        .pixel-badge:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 6px 25px rgba(0, 212, 255, 0.5);
+        }
+
+        .pixel-badge.green {
+            border-color: var(--leaf-green);
+            box-shadow: 0 4px 15px rgba(123, 199, 77, 0.3);
+        }
+
+        .pixel-badge.green:hover {
+            box-shadow: 0 6px 25px rgba(123, 199, 77, 0.5);
+        }
+
+        /* Leaf floating animation */
+        .leaf {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: var(--leaf-green);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            opacity: 0.15;
+            animation: float-leaf 20s infinite ease-in-out;
+            image-rendering: pixelated;
+        }
+
+        .leaf:nth-child(2) { animation-delay: -5s; left: 20%; top: 20%; }
+        .leaf:nth-child(3) { animation-delay: -10s; left: 60%; top: 30%; }
+        .leaf:nth-child(4) { animation-delay: -15s; left: 80%; top: 50%; }
+
+        @keyframes float-leaf {
+            0%, 100% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 0.15;
+            }
+            50% {
+                transform: translateY(-100px) rotate(180deg);
+                opacity: 0.3;
+            }
+        }
+
+        /* Section styling */
+        section {
+            padding: 4rem 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .section-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            margin-bottom: 3rem;
+            text-align: center;
+            color: var(--cyan);
+        }
+
+        /* Grid layouts */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            padding: 2rem;
+            min-height: 200px;
+        }
+
+        .feature-card h3 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            color: var(--neon-green);
+        }
+
+        .feature-card p {
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        /* Status section */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .status-item {
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .status-number {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 2.5rem;
+            color: var(--cyan);
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        /* Roadmap */
+        .roadmap-item {
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--leaf-green);
+        }
+
+        .roadmap-item.in-progress {
+            border-left-color: var(--cyan);
+        }
+
+        .roadmap-item.completed {
+            border-left-color: var(--neon-green);
+            opacity: 0.7;
+        }
+
+        .roadmap-status {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.7rem;
+            color: var(--leaf-green);
+            margin-bottom: 0.5rem;
+        }
+
+        .roadmap-item.in-progress .roadmap-status {
+            color: var(--cyan);
+        }
+
+        .roadmap-item.completed .roadmap-status {
+            color: var(--neon-green);
+        }
+
+        .roadmap-item h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Tech stack */
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+
+        .tech-tag {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid var(--cyan);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .tech-tag:hover {
+            background: rgba(0, 212, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        /* CTA Button */
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--cyan), var(--leaf-green));
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+            margin-top: 2rem;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(0, 212, 255, 0.6);
+        }
+
+        /* 8-bit style divider */
+        .pixel-divider {
+            height: 4px;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--cyan) 0px,
+                var(--cyan) 10px,
+                transparent 10px,
+                transparent 20px
+            );
+            margin: 3rem 0;
+            opacity: 0.3;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem;
+            }
+
+            .feature-grid,
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-title {
+                font-size: 2rem;
+            }
+        }
+
+        /* Scroll animation */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* GitHub link */
+        .github-link {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            z-index: 100;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            padding: 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+        }
+
+        .github-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating leaves -->
+    <div class="leaf"></div>
+    <div class="leaf"></div>
+    <div class="leaf"></div>
+    <div class="leaf"></div>
+
+    <!-- GitHub Link -->
+    <a href="https://github.com/seanwirkus/Animal-Crossing-CE" target="_blank" class="github-link">
+        View on GitHub →
+    </a>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Animal Crossing CE</h1>
+            <p class="hero-subtitle">A pixel-perfect Roblox recreation of Animal Crossing: New Horizons</p>
+            <div>
+                <span class="pixel-badge">Roblox Studio</span>
+                <span class="pixel-badge green">Luau</span>
+                <span class="pixel-badge">Active Development</span>
+            </div>
+            <a href="#features" class="cta-button">Explore Features</a>
+        </div>
+    </section>
+
+    <!-- Status Section -->
+    <section id="status">
+        <div class="container">
+            <h2 class="section-title">Project Status</h2>
+            <div class="status-grid">
+                <div class="status-item glass-card fade-in">
+                    <span class="status-number">85+</span>
+                    <span class="status-label">Commits</span>
+                </div>
+                <div class="status-item glass-card fade-in">
+                    <span class="status-number">12+</span>
+                    <span class="status-label">Core Systems</span>
+                </div>
+                <div class="status-item glass-card fade-in">
+                    <span class="status-number">100%</span>
+                    <span class="status-label">ACNH Inspired</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="pixel-divider"></div>
+
+    <!-- Features Section -->
+    <section id="features">
+        <div class="container">
+            <h2 class="section-title">Core Features</h2>
+            <div class="feature-grid">
+                <div class="feature-card glass-card fade-in">
+                    <span class="feature-icon">🎒</span>
+                    <h3>Inventory System</h3>
+                    <p>Drag-and-drop interface with purchasable pocket expansions across four upgrade tiers. Persistent inventory management with seamless item organization.</p>
+                </div>
+
+                <div class="feature-card glass-card fade-in">
+                    <span class="feature-icon">🔨</span>
+                    <h3>Crafting Stations</h3>
+                    <p>Multiple stations including Workbench, Forge, Cooking Stove, Sewing Table, and Potion Bench with themed recipe sets and progression unlocks.</p>
+                </div>
+
+                <div class="feature-card glass-card fade-in">
+                    <span class="feature-icon">🏝️</span>
+                    <h3>Island Generation</h3>
+                    <p>Procedural island generation with persistent player islands. Build your dream island with custom terrain and decorations.</p>
+                </div>
+
+                <div class="feature-card glass-card fade-in">
+                    <span class="feature-icon">📱</span>
+                    <h3>NookPhone</h3>
+                    <p>Integrated navigation tools including minimap, tool ring, and NookPhone with shopping interface and quest tracking.</p>
+                </div>
+
+                <div class="feature-card glass-card fade-in">
+                    <span class="feature-icon">😊</span>
+                    <h3>Social Features</h3>
+                    <p>Emote wheel with animations and interactive player expressions. Engage with friends in a vibrant social experience.</p>
+                </div>
+
+                <div class="feature-card glass-card fade-in">
+                    <span class="feature-icon">🌱</span>
+                    <h3>Recipe Discovery</h3>
+                    <p>Server-driven recipe unlocking system based on milestones and player progression. Discover new crafting possibilities as you play.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="pixel-divider"></div>
+
+    <!-- Technology Stack -->
+    <section id="tech">
+        <div class="container">
+            <h2 class="section-title">Technology Stack</h2>
+            <div class="tech-stack fade-in">
+                <span class="tech-tag">Roblox Studio</span>
+                <span class="tech-tag">Luau</span>
+                <span class="tech-tag">Rojo</span>
+                <span class="tech-tag">Stylua</span>
+                <span class="tech-tag">Selene</span>
+                <span class="tech-tag">Luau-LSP</span>
+                <span class="tech-tag">GitHub Actions CI/CD</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="pixel-divider"></div>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap">
+        <div class="container">
+            <h2 class="section-title">Development Roadmap</h2>
+
+            <div class="roadmap-item glass-card completed fade-in">
+                <div class="roadmap-status">✓ COMPLETED</div>
+                <h4>Core Inventory System</h4>
+                <p>Drag-and-drop interface with four-tier pocket upgrade system</p>
+            </div>
+
+            <div class="roadmap-item glass-card completed fade-in">
+                <div class="roadmap-status">✓ COMPLETED</div>
+                <h4>Crafting Stations</h4>
+                <p>Multiple themed crafting stations with recipe sets</p>
+            </div>
+
+            <div class="roadmap-item glass-card completed fade-in">
+                <div class="roadmap-status">✓ COMPLETED</div>
+                <h4>Social UX Features</h4>
+                <p>Emote wheel and interactive player expressions</p>
+            </div>
+
+            <div class="roadmap-item glass-card in-progress fade-in">
+                <div class="roadmap-status">⚡ IN PROGRESS</div>
+                <h4>Home Building System</h4>
+                <p>Place and customize your island home with furniture and decorations</p>
+            </div>
+
+            <div class="roadmap-item glass-card in-progress fade-in">
+                <div class="roadmap-status">⚡ IN PROGRESS</div>
+                <h4>Quest System Integration</h4>
+                <p>Quest-driven recipe unlocking and progression milestones</p>
+            </div>
+
+            <div class="roadmap-item glass-card fade-in">
+                <div class="roadmap-status">◯ PLANNED</div>
+                <h4>Crafting Station Props</h4>
+                <p>Placeable crafting stations in the game world</p>
+            </div>
+
+            <div class="roadmap-item glass-card fade-in">
+                <div class="roadmap-status">◯ PLANNED</div>
+                <h4>Controller & Mobile Support</h4>
+                <p>Full interface support for controller and mobile platforms</p>
+            </div>
+
+            <div class="roadmap-item glass-card fade-in">
+                <div class="roadmap-status">◯ PLANNED</div>
+                <h4>Automated Testing</h4>
+                <p>Comprehensive test coverage for upgrade edge cases and systems</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="pixel-divider"></div>
+
+    <!-- Design Philosophy -->
+    <section id="design">
+        <div class="container">
+            <div class="glass-card fade-in" style="padding: 3rem; text-align: center;">
+                <h2 class="section-title" style="margin-bottom: 2rem;">Design Philosophy</h2>
+                <p style="font-size: 1.2rem; line-height: 1.8; max-width: 800px; margin: 0 auto; color: rgba(255, 255, 255, 0.9);">
+                    Animal Crossing CE maintains a unified cream and beige aesthetic matching the original game's visual style.
+                    Every system is built with attention to detail, from the drag-and-drop inventory mechanics to the
+                    server-driven progression systems. The goal is to capture the cozy, relaxing essence of Animal Crossing
+                    while leveraging Roblox's multiplayer capabilities.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <div class="pixel-divider"></div>
+
+    <!-- Call to Action -->
+    <section id="cta" style="padding: 6rem 0;">
+        <div class="container" style="text-align: center;">
+            <h2 class="section-title fade-in">Join the Development</h2>
+            <p class="fade-in" style="font-size: 1.2rem; margin-bottom: 2rem; color: rgba(255, 255, 255, 0.85);">
+                This project is actively maintained and open for contributions
+            </p>
+            <div class="fade-in">
+                <a href="https://github.com/seanwirkus/Animal-Crossing-CE" target="_blank" class="cta-button">
+                    View on GitHub
+                </a>
+                <a href="https://github.com/seanwirkus/Animal-Crossing-CE/issues" target="_blank" class="cta-button" style="background: linear-gradient(135deg, var(--leaf-green), var(--soft-blue)); margin-left: 1rem;">
+                    Report Issues
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="padding: 2rem 0; text-align: center; background: var(--dark-bg); margin-top: 4rem;">
+        <div class="container">
+            <p style="color: rgba(255, 255, 255, 0.6); font-size: 0.9rem;">
+                Developed by <a href="https://seanwirkus.com" style="color: var(--cyan); text-decoration: none;">Sean Wirkus</a> •
+                Built with Roblox Studio & Luau
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Scroll-triggered fade-in animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.fade-in').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

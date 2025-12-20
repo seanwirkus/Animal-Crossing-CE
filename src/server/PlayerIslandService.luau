@@ -58,26 +58,45 @@ function PlayerIslandService:initialize()
         self:onPlayerLeaving(player)
     end)
 
+    -- Handle players who joined before service initialized (important for Studio testing)
+    for _, player in ipairs(Players:GetPlayers()) do
+        task.spawn(function()
+            self:onPlayerJoined(player)
+        end)
+    end
+
     print("[PlayerIslandService] ✅ Initialized")
 end
 
 function PlayerIslandService:onPlayerJoined(player)
     print(string.format("[PlayerIslandService] Player %s joined, loading island...", player.Name))
 
-    -- Load or create island for this player
+    -- Load or create island DATA (but don't generate terrain - use existing world)
     local islandData = self:loadIsland(player.UserId)
 
     if not islandData then
-        -- New player - create island
-        islandData = self:createNewIsland(player.UserId)
+        -- New player - create island data (without generating new terrain)
+        islandData = {
+            userId = player.UserId,
+            center = { X = 0, Y = 20, Z = 0 }, -- Use existing island center
+            size = { X = 400, Y = 50, Z = 400 }, -- Existing island size
+            createdAt = os.time(),
+            lastVisited = os.time(),
+            trees = {},
+            rocks = {},
+            holes = {},
+            buildings = {},
+            hasCompletedTutorial = false,
+            hasBuiltHome = false,
+        }
+        self:saveIsland(player.UserId, islandData)
+        print("[PlayerIslandService] ✅ Created island data for player (using existing world terrain)")
     end
 
     self.playerIslands[player.UserId] = islandData
 
-    -- Generate/regenerate island in world
-    self:generateIslandInWorld(player.UserId, islandData)
-
-    -- Spawn player on their island
+    -- DON'T generate new terrain - use existing island
+    -- Just spawn player on the existing island
     self:spawnPlayerOnIsland(player, islandData)
 end
 
