@@ -171,31 +171,19 @@ function OnboardingService:buildPlayerHome(player)
     -- Note: hasBuiltHome check removed from here - HomeBuildingService will validate when player confirms placement
     -- This allows the placement GUI to open and show proper error messages if already built
 
-    -- Trigger placement mode on client
-    local remoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
-    if not remoteEvents then
-        warn("[OnboardingService] RemoteEvents folder not found!")
+    if not self.homeBuildingService then
+        warn("[OnboardingService] HomeBuildingService not available")
         return
     end
 
-    local startPlacementRemote = remoteEvents:FindFirstChild("StartHomePlacement")
-    if startPlacementRemote then
-        -- Tell client to enter placement mode
-        startPlacementRemote:FireClient(player, true, "Place your home on your island!")
-        print("[OnboardingService] ✅ Sent home placement request to", player.Name)
-    else
-        warn("[OnboardingService] StartHomePlacement remote not found!")
-    end
-
-    -- Old immediate placement code removed - now uses placement GUI
-    local success, message = true, "Placement mode started"
+    local success, message = self.homeBuildingService:RequestPlacement(player)
 
     if success then
-        print(string.format("[OnboardingService] ✅ Placed home for %s using HomeBuildingService", player.Name))
+        print(string.format("[OnboardingService] ✅ Placement mode started for %s", player.Name))
     else
         warn(
             string.format(
-                "[OnboardingService] ⚠️ Failed to place home for %s: %s",
+                "[OnboardingService] ⚠️ Home placement blocked for %s: %s",
                 player.Name,
                 message or "Unknown error"
             )

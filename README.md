@@ -121,6 +121,10 @@ This update adopts the new pipeline in `GameMenu`, `RecipesInventoryGUI`, `Emote
 2. **Cutscene + Dialogue** – `DialogueGUI` handles Nook/Isabelle conversation before island selection.
 3. **First steps** – Keybind Guide (disabled by default) and the Game Menu highlight the upgrades tab so players learn about pockets/stations before onboarding quests begin.
 
+### Housing prerequisites
+* **Server-gated placement** – `HomeBuildingService:RequestPlacement` now blocks the placement GUI unless the player has island data **and** the required tent materials (30 wood, 30 softwood, 15 stone). Clients receive a notification instead of entering placement when resources are missing.
+* **Resource paths** – Tutorial rewards seed the starter kit, while `TreeShakingSystem` drops and quest progress (`QuestService` + `QuestHandlers`) keep resource gathering and onboarding quests aligned so players can actually collect what the home flow demands.
+
 ### Next Steps
 * **Quest-driven discovery** – tie recipe unlock tags to quest completion handlers.
 * **Crafting station props** – spawn actual station models when a player purchases them and auto-open the relevant GUI when interacting.

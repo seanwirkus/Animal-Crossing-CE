@@ -98,9 +98,9 @@ When players complete the tutorial, they receive:
 ### 5. Material Checking & Consumption ✅
 **Flow**:
 1. Player clicks "Build Home"
-2. Server checks if player has ALL materials
-3. If missing materials → Show error message
-4. If has materials → Open placement GUI
+2. **`HomeBuildingService:RequestPlacement()`** verifies the player has island data, the tent material bundle, and that inventory/resource systems are online.
+3. If anything is missing → Server sends a failure response; client shows a notification with the missing materials.
+4. If everything is ready → Server opens placement GUI with a ghost preview.
 5. Player places home
 6. Server validates position
 7. Server consumes materials
@@ -138,6 +138,7 @@ When players complete the tutorial, they receive:
    - Enhanced placement validation
    - Material checking & consumption
    - New RemoteEvent: `StartHomePlacement`
+   - **Placement gate** shared by onboarding + client requests to block the GUI until resources exist
 
 2. **OnboardingService.luau**:
    - Modified `giveStarterRewards()` to give tools

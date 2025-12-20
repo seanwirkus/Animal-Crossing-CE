@@ -59,6 +59,7 @@ function HomeBuildingService.new()
     self._playerHomes = {} -- [userId] = homeData
     self._homeModels = {} -- [userId] = Model
     self._playerIslandService = nil -- Will be set by init
+    self._startPlacementRemote = nil
 
     -- Setup RemoteEvents
     self:_setupRemoteEvents()
@@ -88,6 +89,56 @@ function HomeBuildingService:SetInventoryFunctions(hasMaterialsFunc, consumeMate
     InventoryCheckFunction = hasMaterialsFunc
     InventoryConsumeFunction = consumeMaterialsFunc
     print("[HomeBuildingService] ✅ Connected to Inventory system")
+end
+
+local function formatMaterials(materials)
+    local formatted = {}
+    for _, material in ipairs(materials or {}) do
+        table.insert(formatted, string.format("%dx %s", material.count, material.itemId))
+    end
+    return table.concat(formatted, ", ")
+end
+
+function HomeBuildingService:_validatePlacementPrerequisites(player, materials)
+    if not player or not player.Parent then
+        return false, "Player not available", materials
+    end
+
+    if self:HasHome(player) then
+        return false, "You already have a home placed.", materials
+    end
+
+    if self._playerIslandService then
+        local islandData = self._playerIslandService:getPlayerIsland(player.UserId)
+        if not islandData then
+            return false, "Finish onboarding to generate your island before placing a home.", materials
+        end
+    end
+
+    if not InventoryCheckFunction then
+        return false, "Resource checks are offline until the inventory/resource systems finish loading.", materials
+    end
+
+    local hasMaterials, missingItem = InventoryCheckFunction(player, materials)
+    if not hasMaterials then
+        local missingText = missingItem or formatMaterials(materials)
+        return false, "Gather materials first: " .. missingText, materials
+    end
+
+    return true, "Ready to place your home!", materials
+end
+
+function HomeBuildingService:RequestPlacement(player, homeSize)
+    local materials = HOME_MATERIALS[homeSize or "Tent"] or HOME_MATERIALS.Tent
+    local success, message = self:_validatePlacementPrerequisites(player, materials)
+
+    if self._startPlacementRemote then
+        self._startPlacementRemote:FireClient(player, success, message, materials)
+    else
+        warn("[HomeBuildingService] StartHomePlacement remote missing while handling placement request")
+    end
+
+    return success, message, materials
 end
 
 function HomeBuildingService:_setupRemoteEvents()
@@ -122,20 +173,10 @@ function HomeBuildingService:_setupRemoteEvents()
         startPlacementRemote.Parent = remoteEventsFolder
     end
 
-    startPlacementRemote.OnServerEvent:Connect(function(player)
-        -- Check if player has materials
-        local materials = HOME_MATERIALS.Tent
-        if InventoryCheckFunction then
-            local hasMaterials, missingItem = InventoryCheckFunction(player, materials)
-            if not hasMaterials then
-                -- Send failure response
-                startPlacementRemote:FireClient(player, false, "Missing materials: " .. (missingItem or "unknown"), materials)
-                return
-            end
-        end
+    self._startPlacementRemote = startPlacementRemote
 
-        -- Send success with materials list
-        startPlacementRemote:FireClient(player, true, "Ready to place home", materials)
+    startPlacementRemote.OnServerEvent:Connect(function(player)
+        self:RequestPlacement(player)
     end)
 
     -- UpgradeHome RemoteEvent
