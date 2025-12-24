@@ -82,6 +82,7 @@ function OnboardingController.new()
     self._boardSurfaceGui = nil
     self._boardTextLabel = nil
     self._boardHeaderLabel = nil
+    self._onCompleteCallback = nil
 
     self:createGUI()
 
@@ -240,8 +241,103 @@ function OnboardingController:createGUI()
 end
 
 function OnboardingController:_setupBoardDisplay()
-    -- Whiteboard system removed - skipping board display
-    return
+    local function findBoardModel(): Model?
+        local nameCandidates = { "Whiteboard", "whiteboard", "WHITEBOARD", "TutorialBoard" }
+        for _, candidate in ipairs(nameCandidates) do
+            local board = Workspace:FindFirstChild(candidate)
+            if board and board:IsA("Model") then
+                return board
+            end
+        end
+
+        for _, child in ipairs(Workspace:GetChildren()) do
+            if child:IsA("Model") and string.find(string.lower(child.Name), "board") then
+                return child
+            end
+        end
+
+        for _, descendant in ipairs(Workspace:GetDescendants()) do
+            if descendant:IsA("Model") and string.find(string.lower(descendant.Name), "board") then
+                return descendant
+            end
+        end
+
+        return nil
+    end
+
+    local boardModel = findBoardModel()
+    if not boardModel then
+        warn("[OnboardingController] ⚠️ Whiteboard model not found - board display disabled")
+        return
+    end
+
+    local targetPart = findLargestPart(boardModel)
+    if not targetPart then
+        warn("[OnboardingController] ⚠️ Board model found but no BasePart detected")
+        return
+    end
+
+    local existingGui = targetPart:FindFirstChildOfClass("SurfaceGui")
+    if existingGui and existingGui.Name == "OnboardingBoard" then
+        existingGui:Destroy()
+    end
+
+    local surfaceGui = Instance.new("SurfaceGui")
+    surfaceGui.Name = "OnboardingBoard"
+    surfaceGui.Adornee = targetPart
+    surfaceGui.Face = Enum.NormalId.Front
+    surfaceGui.CanvasSize = Vector2.new(1024, 640)
+    surfaceGui.LightInfluence = 1
+    surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    surfaceGui.PixelsPerStud = 50
+    surfaceGui.Enabled = false
+    surfaceGui.Parent = targetPart
+
+    local container = Instance.new("Frame")
+    container.Size = UDim2.fromScale(1, 1)
+    container.BackgroundColor3 = Color3.fromRGB(255, 253, 243)
+    container.BackgroundTransparency = 0.08
+    container.BorderSizePixel = 0
+    container.Parent = surfaceGui
+
+    local border = Instance.new("UIStroke")
+    border.Color = Color3.fromRGB(120, 95, 72)
+    border.Thickness = 4
+    border.Parent = container
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 24)
+    corner.Parent = container
+
+    local header = Instance.new("TextLabel")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, -40, 0, 70)
+    header.Position = UDim2.new(0, 20, 0, 20)
+    header.BackgroundTransparency = 1
+    header.Font = Enum.Font.GothamBold
+    header.TextSize = 40
+    header.TextColor3 = Color3.fromRGB(86, 60, 40)
+    header.TextXAlignment = Enum.TextXAlignment.Left
+    header.Text = "Onboarding"
+    header.Parent = container
+
+    local body = Instance.new("TextLabel")
+    body.Name = "Body"
+    body.Size = UDim2.new(1, -40, 1, -120)
+    body.Position = UDim2.new(0, 20, 0, 100)
+    body.BackgroundTransparency = 1
+    body.Font = Enum.Font.Gotham
+    body.TextSize = 24
+    body.TextWrapped = true
+    body.TextColor3 = Color3.fromRGB(70, 55, 45)
+    body.TextXAlignment = Enum.TextXAlignment.Left
+    body.TextYAlignment = Enum.TextYAlignment.Top
+    body.Text = ""
+    body.Parent = container
+
+    self._boardSurfaceGui = surfaceGui
+    self._boardTextLabel = body
+    self._boardHeaderLabel = header
 end
 
 function OnboardingController:_setBoardDisplayVisible(isVisible: boolean)
@@ -452,6 +548,7 @@ function OnboardingController:showStep(step)
     end
 
     self:_updateBoardDisplay(self._textLabel.Text, headerTitle)
+    self:_setBoardDisplayVisible(true)
 end
 
 function OnboardingController:nextStep()
@@ -489,13 +586,22 @@ end
 function OnboardingController:complete()
     print("[OnboardingController] Tutorial completed")
 
+    if _G.OnboardingTutorialCompleteFired then
+        print("[OnboardingController] Tutorial completion already reported - skipping duplicate")
+    end
+
     -- Fire remote to mark tutorial complete
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if remotes then
         local tutorialCompleteRemote = remotes:FindFirstChild("TutorialComplete")
         if tutorialCompleteRemote then
             tutorialCompleteRemote:FireServer()
+            _G.OnboardingTutorialCompleteFired = true
         end
+    end
+
+    if self._onCompleteCallback then
+        self._onCompleteCallback()
     end
 
     self:finish()
@@ -507,6 +613,18 @@ function OnboardingController:finish()
     self:_setBoardDisplayVisible(false)
 
     print("[OnboardingController] Tutorial finished!")
+end
+
+function OnboardingController:showBoard()
+    self:_setBoardDisplayVisible(true)
+end
+
+function OnboardingController:hideBoard()
+    self:_setBoardDisplayVisible(false)
+end
+
+function OnboardingController:setOnCompleteCallback(callback: (() -> ())?)
+    self._onCompleteCallback = callback
 end
 
 function OnboardingController:hide()
@@ -522,26 +640,5 @@ function OnboardingController:show()
     end
     self:_setBoardDisplayVisible(self.isActive)
 end
-
--- Setup remote listener for server to start tutorial
-local function setupRemoteListener()
-    local remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
-    if remotes then
-        local startTutorialRemote = remotes:FindFirstChild("StartOnboarding")
-        if not startTutorialRemote then
-            startTutorialRemote = Instance.new("RemoteEvent")
-            startTutorialRemote.Name = "StartOnboarding"
-            startTutorialRemote.Parent = remotes
-        end
-
-        startTutorialRemote.OnClientEvent:Connect(function()
-            local controller = OnboardingController.new()
-            controller:start()
-        end)
-    end
-end
-
--- Auto-setup
-task.spawn(setupRemoteListener)
 
 return OnboardingController

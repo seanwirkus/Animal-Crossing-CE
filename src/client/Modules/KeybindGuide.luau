@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local UIComponents = require(script.Parent.UIComponents)
 local KeybindManagerModule = require(script.Parent.Parent.KeybindManager)
+local OnboardingFlow = require(script.Parent.OnboardingFlow)
 local KeybindDescriptions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("KeybindDescriptions"))
 
 local LOCAL_PLAYER = Players.LocalPlayer
@@ -498,6 +499,10 @@ function KeybindGuide.showOnboardingPrompt()
     end
 
     _onboardingShown = true
+    if OnboardingFlow and OnboardingFlow.start then
+        OnboardingFlow.start()
+        return
+    end
 
     if _guiManager then
         _guiManager:showGUI("keybindGuide")

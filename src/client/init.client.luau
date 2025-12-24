@@ -54,12 +54,8 @@ end
 -- ═══════════════════════════════════════════════════════════════
 -- LOADING SCREEN FIRST - Show immediately before everything else
 -- ═══════════════════════════════════════════════════════════════
--- DISABLED FOR DEBUG
--- print("[Client] 🎬 SHOWING LOADING SCREEN FIRST...")
 local _LoadingScreenModule = require(script.Modules.LoadingScreen)
--- _LoadingScreenModule.init()
--- print("[Client] ✅ Loading screen displayed")
-print("[Client] ⏸️ LOADING SCREEN DISABLED FOR DEBUG")
+print("[Client] ✅ Loading screen module loaded")
 
 -- ═══════════════════════════════════════════════════════════════
 -- NOW load everything else in the background
@@ -99,8 +95,8 @@ local craftingGUI = CraftingGUIModule.new()
 print("[Client] ✅ CraftingGUI initialized")
 
 local _OnboardingControllerModule = require(script.Modules.OnboardingController)
-print("[Client] ✅ OnboardingController module loaded (disabled for debug)")
--- Onboarding controller auto-initializes and listens for server events
+print("[Client] ✅ OnboardingController module loaded")
+-- Onboarding controller used by the unified onboarding flow
 
 local RecipesInventoryGUIModule = require(script.Modules.RecipesInventoryGUI)
 print("[Client] ✅ RecipesInventoryGUI module loaded")
@@ -136,7 +132,7 @@ local HomeScreenModule = require(script.Modules.HomeScreen)
 print("[Client] ✅ HomeScreen module loaded")
 
 local _OnboardingFlowModule = require(script.Modules.OnboardingFlow)
-print("[Client] ✅ OnboardingFlow module loaded (disabled for debug)")
+print("[Client] ✅ OnboardingFlow module loaded")
 
 local FishingControllerModule = require(script.Modules.FishingController)
 local SlingshotControllerModule = require(script.Modules.SlingshotController)
@@ -322,9 +318,27 @@ print("[Client] ✅ ACNHCamera module loaded")
 ACNHCameraModule.init()
 print("[Client] 🎥 Animal Crossing camera initialized")
 
--- DISABLED FOR DEBUG: Skip loading screen and onboarding
-print("[Client] ⏸️ LOADING SCREEN & ONBOARDING DISABLED FOR DEBUG")
-print("[Client] ✅ Game fully ready - skipping startup flows")
+-- Listen for onboarding start from server
+task.spawn(function()
+    local remotes = _ReplicatedStorage:WaitForChild("Remotes", 10)
+    if not remotes then
+        warn("[Client] ⚠️ Remotes folder not found - onboarding cannot start")
+        return
+    end
+
+    local startOnboardingRemote = remotes:FindFirstChild("StartOnboarding")
+    if not startOnboardingRemote then
+        warn("[Client] ⚠️ StartOnboarding remote missing - onboarding will not trigger")
+        return
+    end
+
+    startOnboardingRemote.OnClientEvent:Connect(function()
+        print("[Client] 🎬 Server requested onboarding start")
+        _OnboardingFlowModule.start()
+    end)
+end)
+
+print("[Client] ✅ Game systems ready - waiting for onboarding/startup events")
 
 task.wait(0.2) -- Brief wait for modules to settle
 -- StartupKeybindHintModule.init() -- Disabled: Remove keybind GUI
