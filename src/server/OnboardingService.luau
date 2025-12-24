@@ -17,6 +17,7 @@ function OnboardingService.new()
     self.playerIslandService = nil -- Will be set during init
     self.homeBuildingService = nil -- Will be set during init
     self.playersWhoReceivedRewards = {} -- Track who got tutorial rewards to prevent duplicates
+    self.playersWithActiveReward = {} -- Track in-progress grants to avoid double work
 
     return self
 end
@@ -114,6 +115,49 @@ function OnboardingService:startTutorial(player)
     print(string.format("[OnboardingService] Tutorial started for %s", player.Name))
 end
 
+function OnboardingService:_waitForInventory(player)
+    local maxWait = 20
+    local waited = 0
+
+    while player and player.Parent and waited < maxWait do
+        local hasInventoryAttributes = player:GetAttribute("InventoryMaxSlots") ~= nil
+            or player:GetAttribute("InventoryLevel") ~= nil
+        if self.addItemToInventory and hasInventoryAttributes then
+            return true
+        end
+
+        task.wait(0.5)
+        waited += 0.5
+    end
+
+    return false
+end
+
+function OnboardingService:_grantStarterItems(player)
+    if not self.addItemToInventory then
+        return false
+    end
+
+    local starterItems = {
+        { itemId = "flimsy_axe", count = 1 },
+        { itemId = "stone_axe", count = 1 },
+        { itemId = "shovel", count = 1 },
+        { itemId = "fishing_rod", count = 1 },
+        { itemId = "net", count = 1 },
+        { itemId = "slingshot", count = 1 },
+    }
+
+    for _, item in ipairs(starterItems) do
+        local success, err = self.addItemToInventory(player, item)
+        if not success then
+            warn(string.format("[OnboardingService] ⚠️ Failed to add %s: %s", item.itemId, tostring(err)))
+            return false
+        end
+    end
+
+    return true
+end
+
 function OnboardingService:giveStarterKit(player)
     -- Check if player already received starter kit
     if self.playersWhoReceivedRewards[player.UserId] then
@@ -121,28 +165,39 @@ function OnboardingService:giveStarterKit(player)
         return
     end
 
-    -- Wait for inventory system to be ready (it takes a few seconds to initialize)
-    local maxWait = 10
-    local waited = 0
-    while not self.addItemToInventory and waited < maxWait do
-        task.wait(0.5)
-        waited = waited + 0.5
+    if self.playersWithActiveReward[player.UserId] then
+        return
     end
 
-    -- Mark player as having received kit
-    self.playersWhoReceivedRewards[player.UserId] = true
+    self.playersWithActiveReward[player.UserId] = true
+
+    local ready = self:_waitForInventory(player)
+    if not ready then
+        warn(string.format("[OnboardingService] ⚠️ Inventory not ready for %s - retrying later", player.Name))
+        self.playersWithActiveReward[player.UserId] = nil
+        task.delay(5, function()
+            if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
+                self:giveStarterKit(player)
+            end
+        end)
+        return
+    end
 
     -- Give starter tools so player can gather resources
-    if self.addItemToInventory then
-        self.addItemToInventory(player, { itemId = "flimsy_axe", count = 1 })
-        self.addItemToInventory(player, { itemId = "stone_axe", count = 1 })
-        self.addItemToInventory(player, { itemId = "shovel", count = 1 })
-        self.addItemToInventory(player, { itemId = "fishing_rod", count = 1 })
-        self.addItemToInventory(player, { itemId = "net", count = 1 })
-        self.addItemToInventory(player, { itemId = "slingshot", count = 1 })
+    local gaveItems = self:_grantStarterItems(player)
+
+    if gaveItems then
+        self.playersWhoReceivedRewards[player.UserId] = true
         print("[OnboardingService] ✅ Gave starter tools to", player.Name)
     else
-        warn("[OnboardingService] ⚠️ addItemToInventory function not available after waiting - couldn't give starter items")
+        warn("[OnboardingService] ⚠️ Starter kit failed to grant - will retry")
+        self.playersWithActiveReward[player.UserId] = nil
+        task.delay(5, function()
+            if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
+                self:giveStarterKit(player)
+            end
+        end)
+        return
     end
 
     -- Give starting bells and miles
@@ -154,6 +209,8 @@ function OnboardingService:giveStarterKit(player)
             print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
         end
     end
+
+    self.playersWithActiveReward[player.UserId] = nil
 end
 
 function OnboardingService:onTutorialComplete(player)

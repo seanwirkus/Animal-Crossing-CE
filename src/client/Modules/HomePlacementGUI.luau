@@ -19,6 +19,8 @@ function HomePlacementGUI.new()
 	self.currentPosition = nil
 	self.isValidPosition = false
 	self.rotationAngle = 0
+	self.smoothedPosition = nil
+	self.lastValidPosition = nil
 
 	-- Create UI
 	self:_createUI()
@@ -119,6 +121,18 @@ function HomePlacementGUI:startPlacement(homeTemplate)
 		self.ghostModel = homeTemplate:Clone()
 		self.ghostModel.Name = "HomePlacementGhost"
 
+		-- Guarantee a PrimaryPart for stable PivotTo calls
+		if not self.ghostModel.PrimaryPart then
+			local anchor = Instance.new("Part")
+			anchor.Name = "PlacementAnchor"
+			anchor.Size = self.ghostModel:GetExtentsSize()
+			anchor.Transparency = 1
+			anchor.CanCollide = false
+			anchor.Anchored = true
+			anchor.Parent = self.ghostModel
+			self.ghostModel.PrimaryPart = anchor
+		end
+
 		-- Make all parts transparent and non-collidable
 		for _, descendant in ipairs(self.ghostModel:GetDescendants()) do
 			if descendant:IsA("BasePart") then
@@ -138,6 +152,8 @@ function HomePlacementGUI:startPlacement(homeTemplate)
 	self.active = true
 	self.screenGui.Enabled = true
 	self.rotationAngle = 0
+	self.smoothedPosition = nil
+	self.lastValidPosition = nil
 
 	-- Lock player movement (optional)
 	if player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -173,6 +189,13 @@ end
 function HomePlacementGUI:_updateGhostPosition()
 	if not self.active or not self.ghostModel then return end
 
+	if not mouse.Hit then
+		self.isValidPosition = false
+		self.statusLabel.Text = "❌ Point at the ground to place"
+		self.statusLabel.TextColor3 = Color3.fromRGB(200, 80, 80)
+		return
+	end
+
 	-- Raycast from mouse to ground
 	local rayOrigin = mouse.Hit.Position + Vector3.new(0, 50, 0)
 	local rayDirection = Vector3.new(0, -100, 0)
@@ -186,7 +209,21 @@ function HomePlacementGUI:_updateGhostPosition()
 
 	if rayResult then
 		local position = rayResult.Position
+
+		-- Snap to a gentle grid to reduce jitter/sensitivity
+		local snap = 2
+		position = Vector3.new(
+			math.floor(position.X / snap + 0.5) * snap,
+			position.Y,
+			math.floor(position.Z / snap + 0.5) * snap
+		)
+
+		-- Smooth movement so the ghost model doesn't fly around
+		if self.smoothedPosition then
+			position = self.smoothedPosition:Lerp(position, 0.3)
+		end
 		self.currentPosition = position
+		self.smoothedPosition = position
 
 		-- Position ghost model
 		local rotation = CFrame.Angles(0, math.rad(self.rotationAngle), 0)
@@ -196,6 +233,12 @@ function HomePlacementGUI:_updateGhostPosition()
 		local isValid = self:_validatePosition(position)
 		self:_updateGhostAppearance(isValid)
 		self.isValidPosition = isValid
+		if isValid then
+			self.lastValidPosition = position
+		elseif self.lastValidPosition then
+			-- Keep the ghost anchored to the last valid spot instead of jumping erratically
+			self.ghostModel:PivotTo(CFrame.new(self.lastValidPosition) * rotation)
+		end
 
 		-- Update status
 		if isValid then

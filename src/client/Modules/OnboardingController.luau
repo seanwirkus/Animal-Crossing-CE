@@ -83,8 +83,10 @@ function OnboardingController.new()
     self._boardTextLabel = nil
     self._boardHeaderLabel = nil
     self._onCompleteCallback = nil
+    self.homePlaced = false
 
     self:createGUI()
+    self:_connectHomePlacementUpdates()
 
     _instance = self
     return self
@@ -240,6 +242,18 @@ function OnboardingController:createGUI()
     self:_updateBoardDisplay(self._textLabel.Text)
 end
 
+function OnboardingController:clearButtons()
+    if not self._buttonFrame then
+        return
+    end
+
+    for _, child in ipairs(self._buttonFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+end
+
 function OnboardingController:_setupBoardDisplay()
     local function findBoardModel(): Model?
         local nameCandidates = { "Whiteboard", "whiteboard", "WHITEBOARD", "TutorialBoard" }
@@ -360,11 +374,7 @@ end
 
 function OnboardingController:createNextButton()
     -- Clear existing buttons
-    for _, child in ipairs(self._buttonFrame:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
+    self:clearButtons()
 
     local nextButton = Instance.new("TextButton")
     nextButton.Name = "NextButton"
@@ -423,6 +433,8 @@ function OnboardingController:showStep(step)
     local headerTitle = "Onboarding"
     local icon = "🏝️"
 
+    self:clearButtons()
+
     if step == STEPS.WELCOME then
         headerTitle = "Welcome to Your Island"
         icon = "🏝️"
@@ -442,7 +454,7 @@ function OnboardingController:showStep(step)
         icon = "🏠"
         self._titleLabel.Text = "Place Your Tent"
         self._textLabel.Text =
-            "Let's place your starter tent! Click the button below to choose where to build."
+            "Let's place your starter tent! You can place it now or finish onboarding and place it later from the Home menu."
 
         local buildButton = Instance.new("TextButton")
         buildButton.Name = "BuildButton"
@@ -475,6 +487,40 @@ function OnboardingController:showStep(step)
 
         buildButton.MouseButton1Click:Connect(function()
             self:buildHome()
+        end)
+
+        -- Continue button so the player is never blocked by placement timing
+        local continueButton = Instance.new("TextButton")
+        continueButton.Name = "ContinueButton"
+        continueButton.Size = UDim2.new(0, 160, 0, 45)
+        continueButton.BackgroundColor3 = Color3.fromRGB(144, 202, 119)
+        continueButton.BorderSizePixel = 0
+        continueButton.Font = Enum.Font.GothamBold
+        continueButton.TextSize = 17
+        continueButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        continueButton.Text = "I'll Place Later →"
+        continueButton.AutoButtonColor = false
+        continueButton.Parent = self._buttonFrame
+
+        local continueCorner = Instance.new("UICorner")
+        continueCorner.CornerRadius = UDim.new(0, 10)
+        continueCorner.Parent = continueButton
+
+        local continueStroke = Instance.new("UIStroke")
+        continueStroke.Color = Color3.fromRGB(100, 150, 85)
+        continueStroke.Thickness = 2
+        continueStroke.Parent = continueButton
+
+        continueButton.MouseEnter:Connect(function()
+            continueButton.BackgroundColor3 = Color3.fromRGB(164, 222, 139)
+        end)
+
+        continueButton.MouseLeave:Connect(function()
+            continueButton.BackgroundColor3 = Color3.fromRGB(144, 202, 119)
+        end)
+
+        continueButton.MouseButton1Click:Connect(function()
+            self:nextStep()
         end)
 
         -- Add skip button
@@ -560,9 +606,6 @@ end
 function OnboardingController:buildHome()
     print("[OnboardingController] Building home...")
 
-    -- Hide onboarding GUI during placement
-    self:hide()
-
     -- Fire remote to server to trigger placement mode
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if remotes then
@@ -575,12 +618,7 @@ function OnboardingController:buildHome()
         end
     end
 
-    -- Wait for home to be placed, then show completion
-    -- The server will handle the placement flow
-    task.wait(2) -- Give time for placement to start
-
-    -- Move to complete step (will show after placement finishes)
-    self:showStep(STEPS.COMPLETE)
+    -- Keep onboarding UI visible so players can continue through tips even if they place later
 end
 
 function OnboardingController:complete()
@@ -613,6 +651,29 @@ function OnboardingController:finish()
     self:_setBoardDisplayVisible(false)
 
     print("[OnboardingController] Tutorial finished!")
+end
+
+function OnboardingController:_connectHomePlacementUpdates()
+    local remotes = ReplicatedStorage:WaitForChild("RemoteEvents", 5)
+    if not remotes then
+        warn("[OnboardingController] RemoteEvents not found for home placement updates")
+        return
+    end
+
+    local homeDataUpdate = remotes:WaitForChild("HomeDataUpdate", 5)
+    if not homeDataUpdate then
+        warn("[OnboardingController] HomeDataUpdate remote not found")
+        return
+    end
+
+    homeDataUpdate.OnClientEvent:Connect(function(homeData)
+        if homeData and homeData.owner == player.UserId then
+            self.homePlaced = true
+            if self.isActive and self.currentStep == STEPS.BUILD_HOME then
+                self:showStep(STEPS.COMPLETE)
+            end
+        end
+    end)
 end
 
 function OnboardingController:showBoard()
