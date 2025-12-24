@@ -446,9 +446,10 @@ local function performTreeDig(player, treeModel)
         treeSurfaceNormal = rayResult.Normal
     end
     
-    -- Create hole at tree position (on ground level, grid-aligned)
-    createHole(groundPosition, treeSurfaceNormal)
-    
+    -- DISABLED: No hole creation for tree digging
+    -- createHole(groundPosition, treeSurfaceNormal)
+    print("[ShovelSystem] 🕳️ Tree hole creation DISABLED (no visual holes)")
+
     -- Remove tree model
     task.wait(0.1) -- Brief delay before removing
     treeModel:Destroy()
@@ -592,8 +593,9 @@ local function performDig(player, targetPosition, targetInstance)
     if success then
         digSucceeded = true
 
-        -- Create the visual hole (with surface normal for proper positioning)
-        createHole(holePosition, surfaceNormal)
+        -- DISABLED: No more visual holes created
+        -- createHole(holePosition, surfaceNormal)
+        print("[ShovelSystem] 🕳️ Dig hole creation DISABLED (no visual holes)")
 
         -- Handle rewards based on result type
         if resultType == "fossil" and resultData then

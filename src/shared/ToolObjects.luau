@@ -215,7 +215,7 @@ end
 local function createCustomShovelModel(): Model
     local shovelModel = Instance.new("Model")
     shovelModel.Name = "Shovel"
-    
+
     -- Shovel handle (long stick)
     local handle = Instance.new("Part")
     handle.Name = "Handle"
@@ -225,7 +225,7 @@ local function createCustomShovelModel(): Model
     handle.CanCollide = false
     handle.Massless = true
     handle.Parent = shovelModel
-    
+
     -- Shovel blade (metal part)
     local blade = Instance.new("Part")
     blade.Name = "Blade"
@@ -235,43 +235,219 @@ local function createCustomShovelModel(): Model
     blade.CanCollide = false
     blade.Massless = true
     blade.Parent = shovelModel
-    
+
     -- Position blade at bottom of handle
     local bladeWeld = Instance.new("WeldConstraint")
     bladeWeld.Part0 = handle
     bladeWeld.Part1 = blade
     bladeWeld.Parent = blade
-    
+
     blade.CFrame = handle.CFrame * CFrame.new(0, -handle.Size.Y / 2 - blade.Size.Y / 2 + 0.1, 0) * CFrame.Angles(math.rad(-20), 0, 0)
-    
+
     -- Set primary part
     shovelModel.PrimaryPart = handle
-    
+
     return shovelModel
 end
 
+-- Create a simple custom fishing rod model
+local function createCustomFishingRodModel(): Model
+    local rodModel = Instance.new("Model")
+    rodModel.Name = "FishingRod"
+
+    -- Fishing pole (long stick)
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(0.15, 3, 0.15)
+    handle.Material = Enum.Material.Wood
+    handle.Color = Color3.fromRGB(139, 90, 43) -- Brown wood
+    handle.CanCollide = false
+    handle.Massless = true
+    handle.Parent = rodModel
+
+    -- Reel (small cylinder at bottom)
+    local reel = Instance.new("Part")
+    reel.Name = "Reel"
+    reel.Size = Vector3.new(0.3, 0.3, 0.3)
+    reel.Shape = Enum.PartType.Cylinder
+    reel.Material = Enum.Material.Metal
+    reel.Color = Color3.fromRGB(150, 150, 150)
+    reel.CanCollide = false
+    reel.Massless = true
+    reel.Parent = rodModel
+
+    local reelWeld = Instance.new("WeldConstraint")
+    reelWeld.Part0 = handle
+    reelWeld.Part1 = reel
+    reelWeld.Parent = reel
+
+    reel.CFrame = handle.CFrame * CFrame.new(0, -1, 0) * CFrame.Angles(0, 0, math.rad(90))
+
+    -- Tip attachment for fishing line
+    local tipAttach = Instance.new("Attachment")
+    tipAttach.Name = "TipAttachment"
+    tipAttach.Position = Vector3.new(0, handle.Size.Y / 2, 0)
+    tipAttach.Parent = handle
+
+    -- Float/Bobber
+    local float = Instance.new("Part")
+    float.Name = "Float"
+    float.Size = Vector3.new(0.4, 0.4, 0.4)
+    float.Shape = Enum.PartType.Ball
+    float.Material = Enum.Material.SmoothPlastic
+    float.Color = Color3.fromRGB(255, 80, 80) -- Red bobber
+    float.CanCollide = true
+    float.Massless = false
+    float.Anchored = true
+    float.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 1, 1)
+    float.Position = handle.Position
+    float.Parent = rodModel
+
+    local floatAttach = Instance.new("Attachment")
+    floatAttach.Name = "FloatAttachment"
+    floatAttach.Position = Vector3.new(0, 0, 0)
+    floatAttach.Parent = float
+
+    -- Fishing line
+    local fishingLine = Instance.new("RopeConstraint")
+    fishingLine.Name = "FishingLine"
+    fishingLine.Attachment0 = tipAttach
+    fishingLine.Attachment1 = floatAttach
+    fishingLine.Length = 10
+    fishingLine.Visible = true
+    fishingLine.Color = BrickColor.new("White")
+    fishingLine.Thickness = 0.05
+    fishingLine.Restitution = 0
+    fishingLine.Parent = rodModel
+
+    rodModel.PrimaryPart = handle
+
+    return rodModel
+end
+
+-- Create a simple custom axe model
+local function createCustomAxeModel(): Model
+    local axeModel = Instance.new("Model")
+    axeModel.Name = "Axe"
+
+    -- Axe handle
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(0.2, 2, 0.2)
+    handle.Material = Enum.Material.Wood
+    handle.Color = Color3.fromRGB(101, 67, 33)
+    handle.CanCollide = false
+    handle.Massless = true
+    handle.Parent = axeModel
+
+    -- Axe head (metal blade)
+    local blade = Instance.new("Part")
+    blade.Name = "Blade"
+    blade.Size = Vector3.new(0.8, 0.6, 0.15)
+    blade.Material = Enum.Material.Metal
+    blade.Color = Color3.fromRGB(180, 180, 180)
+    blade.CanCollide = false
+    blade.Massless = true
+    blade.Parent = axeModel
+
+    local bladeWeld = Instance.new("WeldConstraint")
+    bladeWeld.Part0 = handle
+    bladeWeld.Part1 = blade
+    bladeWeld.Parent = blade
+
+    blade.CFrame = handle.CFrame * CFrame.new(0.3, handle.Size.Y / 2 - 0.2, 0) * CFrame.Angles(0, 0, math.rad(45))
+
+    axeModel.PrimaryPart = handle
+
+    return axeModel
+end
+
+-- Create a simple custom net model
+local function createCustomNetModel(): Model
+    local netModel = Instance.new("Model")
+    netModel.Name = "Net"
+
+    -- Net handle
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(0.15, 2.5, 0.15)
+    handle.Material = Enum.Material.Wood
+    handle.Color = Color3.fromRGB(101, 67, 33)
+    handle.CanCollide = false
+    handle.Massless = true
+    handle.Parent = netModel
+
+    -- Net hoop
+    local hoop = Instance.new("Part")
+    hoop.Name = "Hoop"
+    hoop.Size = Vector3.new(1.2, 0.1, 1.2)
+    hoop.Shape = Enum.PartType.Cylinder
+    hoop.Material = Enum.Material.Metal
+    hoop.Color = Color3.fromRGB(100, 100, 100)
+    hoop.CanCollide = false
+    hoop.Massless = true
+    hoop.Parent = netModel
+
+    local hoopWeld = Instance.new("WeldConstraint")
+    hoopWeld.Part0 = handle
+    hoopWeld.Part1 = hoop
+    hoopWeld.Parent = hoop
+
+    hoop.CFrame = handle.CFrame * CFrame.new(0, handle.Size.Y / 2 + 0.3, 0) * CFrame.Angles(0, 0, math.rad(90))
+
+    -- Net mesh (semi-transparent part)
+    local mesh = Instance.new("Part")
+    mesh.Name = "Mesh"
+    mesh.Size = Vector3.new(1.1, 0.05, 1.1)
+    mesh.Shape = Enum.PartType.Cylinder
+    mesh.Material = Enum.Material.Fabric
+    mesh.Color = Color3.fromRGB(200, 255, 200)
+    mesh.Transparency = 0.5
+    mesh.CanCollide = false
+    mesh.Massless = true
+    mesh.Parent = netModel
+
+    local meshWeld = Instance.new("WeldConstraint")
+    meshWeld.Part0 = hoop
+    meshWeld.Part1 = mesh
+    meshWeld.Parent = mesh
+
+    mesh.CFrame = hoop.CFrame
+
+    netModel.PrimaryPart = handle
+
+    return netModel
+end
+
 function ToolObjects.getToolModel(spriteId: string): Model?
-    print("[ToolObjects] Looking for tool model:", spriteId)
-    local modelName = TOOL_MODELS[spriteId]
-    if not modelName then
-        warn("[ToolObjects] ⚠️ No model mapping for sprite:", spriteId)
+    print("[ToolObjects] Creating custom tool model for:", spriteId)
+
+    -- Use custom built-in models instead of external assets
+    if spriteId:find("shovel") then
+        return createCustomShovelModel()
+    elseif spriteId:find("fishing") or spriteId:find("rod") then
+        return createCustomFishingRodModel()
+    elseif spriteId:find("axe") then
+        return createCustomAxeModel()
+    elseif spriteId:find("net") then
+        return createCustomNetModel()
+    elseif spriteId:find("slingshot") then
+        -- For slingshot, try to find in ReplicatedStorage first, fall back to simple model
+        local toolModels = ReplicatedStorage:FindFirstChild("ToolModels")
+        if toolModels then
+            local model = toolModels:FindFirstChild("Slingshot")
+            if model then
+                print("[ToolObjects] ✅ Found slingshot model in ReplicatedStorage")
+                return model:Clone()
+            end
+        end
+        -- Fall back to a simple slingshot model
+        warn("[ToolObjects] ⚠️ Slingshot model not found, using placeholder")
+        return nil
+    else
+        warn("[ToolObjects] ⚠️ No custom model available for:", spriteId)
         return nil
     end
-
-    local toolModels = ReplicatedStorage:FindFirstChild("ToolModels")
-    if not toolModels then
-        warn("[ToolObjects] ⚠️ ToolModels folder not found in ReplicatedStorage")
-        return nil
-    end
-
-    local model = toolModels:FindFirstChild(modelName)
-    if not model then
-        warn("[ToolObjects] ⚠️ Tool model not found:", modelName)
-        return nil
-    end
-
-    print("[ToolObjects] ✅ Found tool model:", modelName)
-    return model:Clone()
 end
 
 -- Check if an item has a 3D model available
@@ -438,7 +614,7 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
         -- Handle slingshots specially to prevent sitting bug
         if spriteId:find("slingshot") then
             print("[ToolObjects] Setting up slingshot...")
-            tool.ManualActivationOnly = true -- Prevent auto-activation on click
+            tool.ManualActivationOnly = false -- Allow left-click activation
             tool.RequiresHandle = false -- Ranged weapon doesn't need handle grip
 
             configureSlingshotParts(tool, toolModel)
@@ -449,105 +625,15 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
 
             print("[ToolObjects] ✅ Slingshot configured!")
 
-        -- Handle fishing rod specially (check for underscore pattern)
-        elseif spriteId:find("fishing_rod") then
-            print("[ToolObjects] Setting up fishing rod...")
+        -- Handle fishing rod specially - SKIP creating Tool to avoid physics glitches
+        elseif spriteId:find("fishing") or spriteId:find("rod") then
+            print("[ToolObjects] Fishing rod equipped (no Tool object - handled by FishingController)")
 
-            -- Scale all parts in the model to 50% size
-            for _, part in ipairs(toolModel:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Size = part.Size * 0.5
-                elseif part:IsA("SpecialMesh") then
-                    part.Scale = part.Scale * 0.5
-                elseif part:IsA("Attachment") then
-                    part.Position = part.Position * 0.5
-                end
-            end
+            -- DON'T create a Tool object - it causes physics glitches
+            -- The FishingController will handle everything based on the EquippedToolType attribute
 
-            -- Create or find the pole (handle)
-            local pole = toolModel:FindFirstChild("Pole")
-            if not pole then
-                -- Create pole from asset
-                pole = Instance.new("Part")
-                pole.Name = "Handle"
-                pole.Size = Vector3.new(0.1, 2, 0.1) -- Half size
-                pole.BrickColor = BrickColor.new("Brown")
-                pole.Material = Enum.Material.Wood
-                pole.CanCollide = false
-                pole.Massless = true
-                -- If you want to use the mesh asset:
-                local mesh = Instance.new("SpecialMesh")
-                mesh.MeshId = "rbxassetid://133928709891856"
-                mesh.TextureId = "rbxassetid://133928709891856"
-                mesh.Scale = Vector3.new(0.05, 0.05, 0.05) -- Half size
-                mesh.Parent = pole
-                pole.Parent = tool
-            else
-                pole.Name = "Handle"
-                pole.CanCollide = false
-                pole.Massless = true
-                pole.Parent = tool
-            end
-
-            -- Set tool grip to position it correctly in hand
-            tool.Grip = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.rad(0), 0, 0) -- Adjusted for smaller size
-
-            -- Create tip attachment at top of pole (where line connects)
-            local tipAttach = pole:FindFirstChild("TipAttachment") or Instance.new("Attachment")
-            tipAttach.Name = "TipAttachment"
-            tipAttach.Position = Vector3.new(0, 1, 0) -- Top of pole (adjusted for half size)
-            tipAttach.Parent = pole
-
-            -- Setup float/bobber
-            local float = toolModel:FindFirstChild("Float")
-            if not float then
-                -- Create float from asset
-                float = Instance.new("Part")
-                float.Name = "Float"
-                float.Size = Vector3.new(0.25, 0.25, 0.25) -- Half size
-                float.Shape = Enum.PartType.Ball
-                float.BrickColor = BrickColor.new("Bright red")
-                float.Material = Enum.Material.SmoothPlastic
-                float.CanCollide = true -- Enable collision for water detection
-                float.Massless = false -- Give it mass so it can be thrown
-                float.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 1, 1) -- Light, floaty
-                -- If you want to use the mesh asset:
-                local floatMesh = Instance.new("SpecialMesh")
-                floatMesh.MeshId = "rbxassetid://89373493728161"
-                floatMesh.TextureId = "rbxassetid://89373493728161"
-                floatMesh.Scale = Vector3.new(0.25, 0.25, 0.25) -- Half size
-                floatMesh.Parent = float
-                float.Parent = tool
-            else
-                float.CanCollide = true
-                float.Massless = false
-                float.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 1, 1)
-                float.Parent = tool
-            end
-
-            -- Create float attachment
-            local floatAttach = float:FindFirstChild("FloatAttachment") or Instance.new("Attachment")
-            floatAttach.Name = "FloatAttachment"
-            floatAttach.Position = Vector3.new(0, 0, 0)
-            floatAttach.Parent = float
-
-            -- Create visible fishing line using RopeConstraint
-            local fishingLine = Instance.new("RopeConstraint")
-            fishingLine.Name = "FishingLine"
-            fishingLine.Attachment0 = tipAttach -- Connect from tip of pole
-            fishingLine.Attachment1 = floatAttach -- Connect to float
-            fishingLine.Length = 60 -- MUCH longer line for long distance casting!
-            fishingLine.Visible = true -- Make the line visible
-            fishingLine.Color = BrickColor.new("White") -- White fishing line
-            fishingLine.Thickness = 0.05 -- Thin line
-            fishingLine.Restitution = 0 -- No bounce
-            fishingLine.Parent = tool
-
-            -- Store references for casting
-            tool:SetAttribute("HasFloat", true)
-            tool:SetAttribute("IsCasted", false)
-
-            print("[ToolObjects] ✅ Fishing rod with line created!")
+            -- Just return nil - the player attribute is already set
+            return nil
         else
             -- For non-fishing rod tools, ensure we have a Handle part
             local handle = toolModel:FindFirstChildWhichIsA("BasePart")
@@ -560,14 +646,17 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
                 if spriteId:find("shovel") or spriteId:find("axe") then
                     -- Shovels and axes share the same grip to avoid physics glitches
                     tool.Grip = CFrame.new(0, -0.8, 0.2) * CFrame.Angles(math.rad(-90), 0, 0)
-                    tool.ManualActivationOnly = true -- Prevent auto-activation that causes laying down
+                    tool.ManualActivationOnly = false -- Allow left-click activation
+                    tool.CanBeDropped = false -- Prevent accidental dropping
                 elseif spriteId:find("net") then
                     tool.Grip = CFrame.new(0, -0.7, 0) * CFrame.Angles(0, 0, 0)
-                    tool.ManualActivationOnly = true
+                    tool.ManualActivationOnly = false -- Allow left-click activation
+                    tool.CanBeDropped = false
                 else
                     -- Default grip for unknown tools - position away from spherical hand center
                     tool.Grip = CFrame.new(0, -0.8, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                    tool.ManualActivationOnly = true
+                    tool.ManualActivationOnly = false -- Allow left-click activation
+                    tool.CanBeDropped = false
                 end
             end
         end
@@ -594,6 +683,30 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
         toolModel.Parent = humanoid.Parent -- Parent to character first
         humanoid:EquipTool(toolModel) -- Then equip it
 
+        -- Set EquippedToolType attribute for the player
+        local player = Players:GetPlayerFromCharacter(character)
+        if player then
+            local toolType = nil
+            if spriteId:find("axe") then
+                toolType = "axe"
+            elseif spriteId:find("shovel") then
+                toolType = "shovel"
+            elseif spriteId:find("net") then
+                toolType = "net"
+            elseif spriteId:find("watering") then
+                toolType = "watering_can"
+            elseif spriteId:find("fishing") or spriteId:find("rod") then
+                toolType = "fishing_rod"
+            elseif spriteId:find("slingshot") then
+                toolType = "slingshot"
+            end
+
+            if toolType then
+                player:SetAttribute("EquippedToolType", toolType)
+                print(string.format("[ToolObjects] ✅ Set EquippedToolType to '%s' for player %s", toolType, player.Name))
+            end
+        end
+
         -- Monitor and prevent sitting while tool is equipped
         local sitConnection = nil
         sitConnection = humanoid:GetPropertyChangedSignal("Sit"):Connect(function()
@@ -608,6 +721,13 @@ function ToolObjects.equipTool(character: Model, spriteId: string): Tool?
             if toolModel.Parent ~= character and sitConnection then
                 sitConnection:Disconnect()
                 sitConnection = nil
+
+                -- Clear EquippedToolType attribute when tool is unequipped
+                local player = Players:GetPlayerFromCharacter(character)
+                if player then
+                    player:SetAttribute("EquippedToolType", nil)
+                    print(string.format("[ToolObjects] ✅ Cleared EquippedToolType for player %s", player.Name))
+                end
             end
         end)
     else
@@ -715,9 +835,16 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
         return false, "No water detected! Cast towards water."
     end
 
+    -- Disable the fishing line rope constraint during cast to prevent player from being pulled
+    local fishingLine = tool:FindFirstChild("FishingLine", true)
+    if fishingLine and fishingLine:IsA("RopeConstraint") then
+        fishingLine.Enabled = false
+    end
+
     -- Detach float for casting
     float.Anchored = false
     float.CanCollide = true
+    float.Massless = true -- Make it massless so it doesn't pull the player
     float.Position = handle.Position + castDirection * 5 -- Start closer
 
     -- Prevent player collision
@@ -745,6 +872,11 @@ function ToolObjects.castFishingRod(tool: Tool, character: Model, power: number?
         if bodyPosition and bodyPosition.Parent then
             bodyPosition.MaxForce = Vector3.new(0, 2000, 0)
             bodyPosition.Position = float.Position
+        end
+
+        -- Re-enable fishing line rope constraint after cast
+        if fishingLine and fishingLine:IsA("RopeConstraint") then
+            fishingLine.Enabled = true
         end
     end)
 
@@ -799,10 +931,10 @@ function ToolObjects.shootSlingshot(tool: Tool, character: Model, targetPosition
 
     print("[ToolObjects] 🎯 Shooting slingshot from", shootPoint.Name)
 
-    -- Create projectile (small ball)
+    -- Create projectile (bigger ball for easier aiming)
     local projectile = Instance.new("Part")
     projectile.Name = "SlingshotProjectile"
-    projectile.Size = Vector3.new(0.8, 0.8, 0.8) -- Increased size
+    projectile.Size = Vector3.new(1.5, 1.5, 1.5) -- Bigger projectile for visibility
     projectile.Shape = Enum.PartType.Ball
     projectile.Material = Enum.Material.Plastic
     projectile.BrickColor = BrickColor.new("Dark stone grey")

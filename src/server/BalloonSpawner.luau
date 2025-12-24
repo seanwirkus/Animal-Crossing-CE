@@ -6,7 +6,7 @@ BalloonSpawner.activeBalloons = {}
 BalloonSpawner.nextBalloonId = 1
 
 -- Configuration
-local SPAWN_INTERVAL = 15 -- Spawn a balloon every 15 seconds (debug mode - increased frequency)
+local SPAWN_INTERVAL = 120 -- Spawn a balloon every 2 minutes
 local BALLOON_SPEED = 10 -- Studs per second
 local BALLOON_HEIGHT = 60 -- Height above ground
 local BALLOON_LIFETIME = 120 -- Despawn after 2 minutes if not popped
@@ -74,8 +74,8 @@ function BalloonSpawner.spawnBalloon()
     local balloon = balloonTemplate:Clone()
     balloon.Name = "Balloon_" .. balloonId
 
-    -- Scale up the balloon model
-    local scaleFactor = 1.25
+    -- Scale down the balloon and present by 25% (0.75x)
+    local scaleFactor = 0.75
     for _, part in ipairs(balloon:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Size = part.Size * scaleFactor
@@ -399,13 +399,13 @@ function BalloonSpawner.onPresentLanded(balloonId, present, position)
     local itemId = balloonData.lootItemId
     local count = balloonData.lootCount
 
-    -- Get the createDroppedItem function from server
-    -- We'll need to expose this through a module event or directly call it
+    -- Create visual dropped item
+    BalloonSpawner.createDroppedItem(itemId, count, position)
+
+    -- Get the createDroppedItem function from server (for backwards compatibility)
     local event = ReplicatedStorage:FindFirstChild("BalloonPresentDropped")
     if event then
         event:Fire(itemId, count, position)
-    else
-        warn("[BalloonSpawner] ⚠️ BalloonPresentDropped event not found!")
     end
 
     -- Clean up present with particle effect
@@ -433,6 +433,69 @@ function BalloonSpawner.onPresentLanded(balloonId, present, position)
     task.delay(3, function()
         BalloonSpawner.removeBalloon(balloonId)
     end)
+end
+
+-- Create a dropped item visual at position
+function BalloonSpawner.createDroppedItem(itemId, count, position)
+    -- Create a glowing orb to represent the item
+    local itemDrop = Instance.new("Part")
+    itemDrop.Name = "DroppedItem"
+    itemDrop.Shape = Enum.PartType.Ball
+    itemDrop.Size = Vector3.new(2, 2, 2)
+    itemDrop.Position = position + Vector3.new(0, 2, 0)
+    itemDrop.Anchored = true
+    itemDrop.CanCollide = false
+    itemDrop.Material = Enum.Material.Neon
+    itemDrop.BrickColor = BrickColor.new("Bright yellow")
+    itemDrop.Parent = Workspace
+
+    -- Add billboard label
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 150, 0, 60)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = itemDrop
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = string.format("%s x%d", itemId, count)
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextStrokeTransparency = 0.5
+    label.Font = Enum.Font.GothamBold
+    label.TextScaled = true
+    label.Parent = billboard
+
+    -- Add proximity prompt for pickup
+    local proximityPrompt = Instance.new("ProximityPrompt")
+    proximityPrompt.ActionText = "Pick up"
+    proximityPrompt.ObjectText = string.format("%s x%d", itemId, count)
+    proximityPrompt.MaxActivationDistance = 10
+    proximityPrompt.Parent = itemDrop
+
+    proximityPrompt.Triggered:Connect(function(player)
+        -- Add item to player inventory
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        if remotes then
+            local inventoryRemote = remotes:FindFirstChild("InventoryEvent")
+            if inventoryRemote then
+                inventoryRemote:FireClient(player, "AddItem", { itemId = itemId, count = count })
+                print(string.format("[BalloonSpawner] ✅ Gave %s x%d to %s", itemId, count, player.Name))
+            end
+        end
+
+        -- Destroy the dropped item
+        itemDrop:Destroy()
+    end)
+
+    -- Auto-despawn after 5 minutes
+    task.delay(300, function()
+        if itemDrop and itemDrop.Parent then
+            itemDrop:Destroy()
+        end
+    end)
+
+    print(string.format("[BalloonSpawner] 📦 Created dropped item: %s x%d at %s", itemId, count, tostring(position)))
 end
 
 -- Remove balloon from tracking

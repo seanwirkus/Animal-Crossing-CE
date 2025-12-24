@@ -24,12 +24,12 @@ local equippedTool = nil
 local toolActivationConnection = nil
 local rightClickConnection = nil
 
--- Check if tool is axe, net, or watering can
+-- Check if tool is axe, net, watering can, or shovel
 local function isToolType(tool, toolType)
     if not tool then
         return false
     end
-    
+
     local toolName = tool.Name:lower()
     if toolType == "axe" then
         return toolName:find("axe")
@@ -37,8 +37,10 @@ local function isToolType(tool, toolType)
         return toolName:find("net")
     elseif toolType == "watering_can" then
         return toolName:find("watering")
+    elseif toolType == "shovel" then
+        return toolName:find("shovel")
     end
-    
+
     return false
 end
 
@@ -78,6 +80,9 @@ local function onToolActivated(tool)
     elseif isToolType(tool, "watering_can") then
         fireToolRequest("watering_can", "water")
         print("[ToolController] 💧 Watering can use requested")
+    elseif isToolType(tool, "shovel") then
+        fireToolRequest("shovel", "hit")
+        print("[ToolController] 🪨 Shovel hit requested")
     end
 end
 
@@ -97,9 +102,11 @@ local function getEquippedToolType(character)
             return "net"
         elseif toolType:find("watering") then
             return "watering_can"
+        elseif toolType:find("shovel") then
+            return "shovel"
         end
     end
-    
+
     -- Check for Tool objects
     for _, child in ipairs(character:GetChildren()) do
         if child:IsA("Tool") then
@@ -109,10 +116,12 @@ local function getEquippedToolType(character)
                 return "net"
             elseif isToolType(child, "watering_can") then
                 return "watering_can"
+            elseif isToolType(child, "shovel") then
+                return "shovel"
             end
         end
     end
-    
+
     return nil
 end
 
@@ -121,20 +130,26 @@ local function onRightClick()
     if UserInputService:GetFocusedTextBox() then
         return -- Don't activate if typing
     end
-    
+
     local character = player.Character
     if not character then
         return
     end
-    
+
     local toolType = getEquippedToolType(character)
     if toolType then
         if toolType == "axe" then
             fireToolRequest("axe", "chop")
+            print("[ToolController] 🪓 Axe chop requested (right-click)")
         elseif toolType == "net" then
             fireToolRequest("net", "swing")
+            print("[ToolController] 🦋 Net swing requested (right-click)")
         elseif toolType == "watering_can" then
             fireToolRequest("watering_can", "water")
+            print("[ToolController] 💧 Watering can use requested (right-click)")
+        elseif toolType == "shovel" then
+            fireToolRequest("shovel", "hit")
+            print("[ToolController] 🪨 Shovel hit requested (right-click)")
         end
     end
 end
@@ -151,22 +166,22 @@ local function onCharacterAdded(character)
     character.ChildAdded:Connect(function(child)
         if child:IsA("Tool") then
             equippedTool = child
-            
+
             -- Connect to tool activation (left-click)
-            if isToolType(child, "axe") or isToolType(child, "net") or isToolType(child, "watering_can") then
+            if isToolType(child, "axe") or isToolType(child, "net") or isToolType(child, "watering_can") or isToolType(child, "shovel") then
                 child.Activated:Connect(function()
                     onToolActivated(child)
                 end)
             end
         end
     end)
-    
+
     -- Check for existing tools
     for _, child in ipairs(character:GetChildren()) do
         if child:IsA("Tool") then
             equippedTool = child
-            
-            if isToolType(child, "axe") or isToolType(child, "net") or isToolType(child, "watering_can") then
+
+            if isToolType(child, "axe") or isToolType(child, "net") or isToolType(child, "watering_can") or isToolType(child, "shovel") then
                 child.Activated:Connect(function()
                     onToolActivated(child)
                 end)

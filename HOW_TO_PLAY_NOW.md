@@ -33,13 +33,15 @@ After 3 seconds, you'll see:
 |-----|---------------|--------|
 | **P** | NookPhone | ✅ WORKING |
 | **E** | Inventory | ✅ WORKING |
-| **R** | Tool Ring | ✅ WORKING |
+| **T** | Tool Ring | ✅ WORKING |
+| **R** | Recipes | ✅ WORKING |
 | **C** | Crafting Menu | ✅ WORKING |
 | **J** | Quest Tracker | ✅ WORKING |
 | **B** | Item Browser | ✅ WORKING |
 | **G** | Debug Inventory | ✅ WORKING |
 | **H** | Building Menu | ✅ WORKING |
 | **\`** | Game Menu | ✅ WORKING |
+| **Left-Click** | Use Equipped Tool | ✅ WORKING |
 
 ---
 
@@ -69,8 +71,22 @@ When you start, the tutorial will guide you through:
 - Inventory opens
 - ✅ Quest complete!
 
-### Quest 2: Catch 3 Fish
-1. Press **R** to open Tool Ring
+### Quest 2: Gather Resources
+1. Press **T** to open Tool Ring
+2. Select **Axe** to chop trees or **Shovel** to hit rocks
+3. Find a tree or rock nearby
+4. **Left-click** to use the tool (NOT right-click!)
+5. Hit 3 times to chop down a tree, or 8 times to deplete a rock
+6. **Watch the visual feedback**:
+   - Yellow glowing orbs appear showing what you collected
+   - Trees fall over with physics when chopped down
+   - Rocks gradually fade out when depleted
+   - Items float up before being added to inventory
+7. Gather 30x wood, 30x softwood, 15x stone to build your home
+8. ✅ Quest complete! (+300 bells, +30 miles)
+
+### Quest 3: Catch 3 Fish
+1. Press **T** to open Tool Ring
 2. Click **Fishing Rod** to equip
 3. Find **water** (ocean, river, pond)
 4. **Click on water** to cast
@@ -79,7 +95,7 @@ When you start, the tutorial will guide you through:
 7. Repeat 3 times
 8. ✅ Quest complete! (+500 bells, +50 miles)
 
-### Quest 3: Craft 1 Item
+### Quest 4: Craft 1 Item
 1. Find **DIY Workbench** on island
 2. Press **C** to open crafting
 3. Select any recipe
@@ -98,6 +114,9 @@ When you start, the tutorial will guide you through:
 ### ✅ Systems Active
 - **Tutorial System** - Auto-starts, guides players
 - **Quest System** - Tracks progress, gives rewards
+- **Resource System** - Trees and rocks spawn on island, respawn after 5 min
+- **Tool System** - Axe chops trees, shovel hits rocks/digs ground
+- **Visual Feedback** - Item drops float up, trees fall, rocks fade, dig holes
 - **Fishing** - Catches fish, updates quests
 - **Crafting** - Makes items, updates quests
 - **Inventory** - Stores items, drag-and-drop
@@ -208,11 +227,14 @@ print("Added bells!")
 1. ✅ **Press F5** - Game loads
 2. ✅ **Wait 3 sec** - Tutorial starts
 3. ✅ **Follow tutorial** - Learn the game
-4. ✅ **Catch fish** - Earn bells, complete quest
-5. ✅ **Craft items** - Use materials, complete quest
-6. ✅ **Open NookPhone (P)** - See all apps
-7. ✅ **Check quests (J)** - See progress
-8. ✅ **Browse items (B)** - See all 494 items
+4. ✅ **Chop trees (T → Axe → Left-Click)** - Watch trees fall! Get wood, softwood
+5. ✅ **Hit rocks (T → Shovel → Left-Click)** - Watch rocks fade! Get stone, iron, clay
+6. ✅ **Dig ground (T → Shovel → Left-Click on ground)** - Create holes, find bells!
+7. ✅ **Catch fish** - Earn bells, complete quest
+8. ✅ **Craft items** - Use materials, complete quest
+9. ✅ **Open NookPhone (P)** - See all apps
+10. ✅ **Check quests (J)** - See progress
+11. ✅ **Browse items (B)** - See all 494 items
 
 ---
 

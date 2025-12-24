@@ -120,8 +120,8 @@ print("[Client] ✅ EmoteWheel module loaded")
 local BuildingGUIModule = require(script.Modules.BuildingGUI)
 print("[Client] ✅ BuildingGUI module loaded")
 
-local NookPhoneGUIModule = require(script.Modules.NookPhoneGUI)
-print("[Client] ✅ NookPhoneGUI module loaded")
+local SimpleNookPhoneGUIModule = require(script.Modules.SimpleNookPhoneGUI)
+print("[Client] ✅ SimpleNookPhoneGUI module loaded")
 
 local NookShoppingGUIModule = require(script.Modules.NookShoppingGUI)
 print("[Client] ✅ NookShoppingGUI module loaded")
@@ -427,12 +427,10 @@ print("[Client] ✅ NookShoppingGUI initialized")
 -- Initialize Minimap first (needed for NookPhone map app)
 local MinimapModule = require(script.Modules.Minimap)
 
--- Initialize NookPhoneGUI and connect it to NookShoppingGUI, GUIManager, and Minimap
-local nookPhoneGUI = NookPhoneGUIModule.new()
-nookPhoneGUI:setShopGUI(nookShoppingGUI)
-nookPhoneGUI:init(guiManager, MinimapModule) -- Connect to GUIManager and Minimap for app functionality
+-- Initialize SimpleNookPhoneGUI (cleaner, compact design)
+local nookPhoneGUI = SimpleNookPhoneGUIModule.new()
 guiManager:registerGUI("nookPhone", nookPhoneGUI)
-print("[Client] ✅ NookPhoneGUI initialized")
+print("[Client] ✅ SimpleNookPhoneGUI initialized")
 
 -- Register NOOK_PHONE keybind (P key)
 keybindManager:registerBind("NOOK_PHONE", function(inputState)

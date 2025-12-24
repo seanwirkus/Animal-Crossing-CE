@@ -16,15 +16,19 @@ function OnboardingService.new()
 
     self.playerIslandService = nil -- Will be set during init
     self.homeBuildingService = nil -- Will be set during init
+    self.playersWhoReceivedRewards = {} -- Track who got tutorial rewards to prevent duplicates
 
     return self
 end
 
-function OnboardingService:initialize(playerIslandService, homeBuildingService)
+function OnboardingService:initialize(playerIslandService, homeBuildingService, addItemFunc)
     print("[OnboardingService] 📚 Initializing...")
 
     self.playerIslandService = playerIslandService
     self.homeBuildingService = homeBuildingService
+    if addItemFunc then
+        self.addItemToInventory = addItemFunc
+    end
 
     -- Setup remotes
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -75,6 +79,10 @@ function OnboardingService:initialize(playerIslandService, homeBuildingService)
     print("[OnboardingService] ✅ Initialized")
 end
 
+function OnboardingService:setAddItemFunction(addItemFunc)
+    self.addItemToInventory = addItemFunc
+end
+
 function OnboardingService:onPlayerJoined(player)
     -- Wait a moment for island to be created
     task.wait(2)
@@ -95,10 +103,57 @@ function OnboardingService:onPlayerJoined(player)
 end
 
 function OnboardingService:startTutorial(player)
+    -- Give starter kit in background (waits for inventory system to be ready)
+    task.spawn(function()
+        self:giveStarterKit(player)
+    end)
+
     -- Fire client event to start tutorial UI
     self.startOnboardingRemote:FireClient(player)
 
     print(string.format("[OnboardingService] Tutorial started for %s", player.Name))
+end
+
+function OnboardingService:giveStarterKit(player)
+    -- Check if player already received starter kit
+    if self.playersWhoReceivedRewards[player.UserId] then
+        print(string.format("[OnboardingService] ⚠️ %s already received starter kit - skipping", player.Name))
+        return
+    end
+
+    -- Wait for inventory system to be ready (it takes a few seconds to initialize)
+    local maxWait = 10
+    local waited = 0
+    while not self.addItemToInventory and waited < maxWait do
+        task.wait(0.5)
+        waited = waited + 0.5
+    end
+
+    -- Mark player as having received kit
+    self.playersWhoReceivedRewards[player.UserId] = true
+
+    -- Give starter tools so player can gather resources
+    if self.addItemToInventory then
+        self.addItemToInventory(player, { itemId = "flimsy_axe", count = 1 })
+        self.addItemToInventory(player, { itemId = "stone_axe", count = 1 })
+        self.addItemToInventory(player, { itemId = "shovel", count = 1 })
+        self.addItemToInventory(player, { itemId = "fishing_rod", count = 1 })
+        self.addItemToInventory(player, { itemId = "net", count = 1 })
+        self.addItemToInventory(player, { itemId = "slingshot", count = 1 })
+        print("[OnboardingService] ✅ Gave starter tools to", player.Name)
+    else
+        warn("[OnboardingService] ⚠️ addItemToInventory function not available after waiting - couldn't give starter items")
+    end
+
+    -- Give starting bells and miles
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if remotes then
+        local currencyRemote = remotes:FindFirstChild("CurrencyUpdate")
+        if currencyRemote then
+            currencyRemote:FireClient(player, "Grant", { bells = 1000, miles = 500 })
+            print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
+        end
+    end
 end
 
 function OnboardingService:onTutorialComplete(player)
@@ -114,44 +169,8 @@ function OnboardingService:onTutorialComplete(player)
         end
     end
 
-    -- Give starter items/currency as reward
-    self:giveStarterRewards(player)
-end
-
-function OnboardingService:giveStarterRewards(player)
-    -- Give starting bells and miles
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        local currencyRemote = remotes:FindFirstChild("CurrencyUpdate")
-        if currencyRemote then
-            -- Award 1000 bells and 500 miles for completing tutorial
-            currencyRemote:FireClient(player, "Grant", { bells = 1000, miles = 500 })
-        end
-    end
-
-    -- Give starter tools and materials
-    -- InventoryEvent is in ReplicatedStorage directly, not in Remotes folder
-    local inventoryEvent = ReplicatedStorage:FindFirstChild("InventoryEvent")
-    if inventoryEvent then
-        -- Starter tools
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "flimsy_axe", count = 1 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "stone_axe", count = 1 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "shovel", count = 1 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "fishing_rod", count = 1 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "net", count = 1 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "slingshot", count = 1 })
-
-        -- Starter materials for building first home
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "wood", count = 30 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "softwood", count = 30 })
-        inventoryEvent:FireClient(player, "AddItem", { itemId = "stone", count = 15 })
-
-        print("[OnboardingService] ✅ Gave starter tools and materials to", player.Name)
-    else
-        warn("[OnboardingService] ⚠️ InventoryEvent not found - couldn't give starter items")
-    end
-
-    print(string.format("[OnboardingService] Gave starter rewards to %s", player.Name))
+    -- Starter kit is already given at tutorial START, so just log completion
+    print(string.format("[OnboardingService] ✅ %s finished tutorial!", player.Name))
 end
 
 function OnboardingService:buildPlayerHome(player)

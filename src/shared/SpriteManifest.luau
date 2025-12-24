@@ -374,7 +374,7 @@ return {
     cherry_blossom_petal = { name = "cherry-blossom petal", spriteIndex = 265 },
 
     -- Materials
-    clay = { name = "clay", spriteIndex = 266 },
+    clay = { name = "clay", spriteIndex = 50 }, -- Fixed to use correct sprite
     clump_of_weeds = { name = "clump of weeds", spriteIndex = 267 },
 
     -- Flimsy Tools
@@ -415,7 +415,7 @@ return {
     -- Materials
     softwood = { name = "Softwood", spriteIndex = 46 },
     star_fragment = { name = "star fragment", spriteIndex = 282 },
-    stone = { name = "stone", spriteIndex = 283 },
+    stone = { name = "stone", spriteIndex = 53 }, -- Fixed to use correct sprite
     sugar = { name = "sugar", spriteIndex = 284 },
     sugarcane = { name = "sugarcane", spriteIndex = 285 },
     wasp_nest = { name = "wasp nest", spriteIndex = 286 },

@@ -85,9 +85,9 @@ local WELCOME_TIPS = {
     "🎣 Fish at dawn and dusk for rare catches.",
     "🛠️ Press T to open your tool wheel and swap quickly.",
     "🍃 Daily tasks award Nook Miles—check in often!",
-    "🎒 Press E to open your inventory anywhere, anytime.",
     "⚙️ Use the Game Menu (`) to tweak graphics and controls.",
     "📱 Tap the Nook Phone (P) for quests and shopping.",
+    "🪓 Chop trees and hit rocks to gather crafting materials!",
 }
 
 local NEWS_LINES = {

@@ -23,12 +23,9 @@ local HOME_COSTS = {
 }
 
 -- Home upgrade materials (REQUIRED for building)
+-- NOTE: First tent is FREE during onboarding - materials only for upgrades
 local HOME_MATERIALS = {
-    Tent = {
-        { itemId = "wood", count = 30 },
-        { itemId = "softwood", count = 30 },
-        { itemId = "stone", count = 15 },
-    },
+    Tent = {}, -- First tent is free!
     SmallHouse = {
         { itemId = "wood", count = 50 },
         { itemId = "hardwood", count = 30 },

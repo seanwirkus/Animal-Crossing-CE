@@ -1037,10 +1037,11 @@ function InventoryClient:populateFromServer(payload)
         self._isInitialLoad = true
     end
 
-    -- Play sound when items change (not during initial load or drag)
-    if not wasInitialLoad and not self.drag then
-        playInventorySound()
-    end
+    -- Only play sound when items actually change (not just sync/refresh)
+    -- Sound should only play when:
+    -- 1. Items are added via server events (not sync)
+    -- 2. Items are moved via drag and drop (handled separately)
+    -- We do NOT play sound on sync because opening inventory triggers sync
 end
 
 function InventoryClient:requestInventory()
@@ -1058,6 +1059,10 @@ end
 function InventoryClient:setupRemoteHandling()
     self:trackConnection(self.inventoryRemote.OnClientEvent:Connect(function(action, data)
         if action == "SyncInventory" then
+            self:populateFromServer(data)
+        elseif action == "AddItem" then
+            -- Item was added (pickup, reward, etc.) - play sound and sync
+            playInventorySound()
             self:populateFromServer(data)
         elseif action == "InventoryUpgradeInfo" then
             self:_applyUpgradePayload(data)

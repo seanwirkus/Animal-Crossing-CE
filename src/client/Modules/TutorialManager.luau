@@ -15,20 +15,16 @@ local QuestGUI = require(script.Parent.QuestGUI)
 local TutorialManager = {}
 TutorialManager.__index = TutorialManager
 
--- Tutorial steps with dialogue and quests
+-- Tutorial steps - simplified for a smooth experience
+-- Tools are given at the START so players can explore right away
 local TUTORIAL_STEPS = {
 	{
 		name = "Welcome",
 		dialogues = {
 			{
 				speaker = "Tom Nook",
-				text = "Welcome to your island getaway! I'm Tom Nook, and I'll help you get started.",
+				text = "Welcome to your island! I've given you starter tools to help you get started.",
 				duration = 4,
-			},
-			{
-				speaker = "Tom Nook",
-				text = "First things first - let me show you around!",
-				duration = 3,
 			},
 		},
 		quest = nil, -- No quest, just intro
@@ -38,7 +34,7 @@ local TUTORIAL_STEPS = {
 		dialogues = {
 			{
 				speaker = "Tom Nook",
-				text = "Press 'E' to open your inventory. This is where you'll store all your items!",
+				text = "Press 'E' to open your inventory and see your tools!",
 				duration = 4,
 			},
 		},
@@ -46,56 +42,12 @@ local TUTORIAL_STEPS = {
 		waitForAction = "inventory_opened",
 	},
 	{
-		name = "First Fishing Quest",
-		dialogues = {
-			{
-				speaker = "Tom Nook",
-				text = "Now let's try fishing! Head to the water and equip your fishing rod.",
-				duration = 4,
-			},
-			{
-				speaker = "Tom Nook",
-				text = "Cast your line by clicking on water, then wait for a bite!",
-				duration = 4,
-			},
-		},
-		questId = "fishing_tutorial", -- From QuestData.TUTORIAL_QUESTS
-		waitForAction = "quest_completed",
-	},
-	{
-		name = "Crafting Introduction",
-		dialogues = {
-			{
-				speaker = "Tom Nook",
-				text = "Excellent fishing! Now let's learn about crafting.",
-				duration = 3,
-			},
-			{
-				speaker = "Tom Nook",
-				text = "Find a DIY workbench and press 'C' to open the crafting menu!",
-				duration = 4,
-			},
-		},
-		questId = "crafting_tutorial",
-		waitForAction = "quest_completed",
-	},
-	{
 		name = "Tutorial Complete",
 		dialogues = {
 			{
 				speaker = "Tom Nook",
-				text = "Wonderful work! You're a natural at island life!",
+				text = "You're all set! Explore, gather resources, and have fun!",
 				duration = 3,
-			},
-			{
-				speaker = "Tom Nook",
-				text = "Feel free to explore, fish, craft, and make this island your own!",
-				duration = 4,
-			},
-			{
-				speaker = "Tom Nook",
-				text = "Check your quests (Q key) for more things to do. Good luck!",
-				duration = 4,
 			},
 		},
 		onComplete = "tutorial_finished",
@@ -126,8 +78,14 @@ function TutorialManager:_setupRemotes()
 		return
 	end
 
-	-- Quest remote for assigning quests
+	-- Quest remote for assigning quests (check RemoteEvents folder too)
 	self.questRemote = remotes:FindFirstChild("QuestEvent")
+	if not self.questRemote then
+		local remoteEvents = ReplicatedStorage:FindFirstChild("RemoteEvents")
+		if remoteEvents then
+			self.questRemote = remoteEvents:FindFirstChild("QuestEvent")
+		end
+	end
 
 	-- Tutorial remote for server communication
 	self.tutorialRemote = remotes:FindFirstChild("StartOnboarding")
@@ -179,10 +137,10 @@ end
 	Handle step actions (quests, keybinds, etc.)
 ]]
 function TutorialManager:_handleStepAction(step, stepIndex)
-	-- Show keybind hint if specified
-	if step.keybindHint then
-		self:_showKeybindHint(step.keybindHint)
-	end
+	-- Keybind hint disabled - we have a permanent keybind hint in the corner instead
+	-- if step.keybindHint then
+	-- 	self:_showKeybindHint(step.keybindHint)
+	-- end
 
 	-- Assign quest if specified
 	if step.questId then

@@ -38,16 +38,19 @@ local function createHintGUI()
     _screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     _screenGui.Parent = playerGui
 
-    -- Main frame (bottom-right corner)
+    -- Main frame (bottom-right corner) - Start minimized
     _hintFrame = Instance.new("Frame")
     _hintFrame.Name = "HintFrame"
-    _hintFrame.Size = UDim2.new(0, 240, 0, 280)
-    _hintFrame.Position = UDim2.new(1, -250, 1, -290)
+    _hintFrame.Size = UDim2.new(0, 240, 0, 44) -- Start minimized
+    _hintFrame.Position = UDim2.new(1, -250, 1, -54) -- Adjust position for minimized state
     _hintFrame.AnchorPoint = Vector2.new(0, 0)
     _hintFrame.BackgroundColor3 = Color3.fromRGB(255, 251, 231) -- Cream ACNH color
     _hintFrame.BackgroundTransparency = 0.05
     _hintFrame.BorderSizePixel = 0
     _hintFrame.Parent = _screenGui
+
+    -- Mark as initially minimized
+    _isMinimized = true
 
     local frameCorner = Instance.new("UICorner")
     frameCorner.CornerRadius = UDim.new(0, 12)
@@ -92,7 +95,7 @@ local function createHintGUI()
     minimizeBtn.Position = UDim2.new(1, -34, 0, 8)
     minimizeBtn.BackgroundColor3 = Color3.fromRGB(4, 175, 166)
     minimizeBtn.BorderSizePixel = 0
-    minimizeBtn.Text = "−"
+    minimizeBtn.Text = "+" -- Start with + since we're minimized
     minimizeBtn.Font = Enum.Font.GothamBold
     minimizeBtn.TextSize = 20
     minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -102,10 +105,10 @@ local function createHintGUI()
     btnCorner.CornerRadius = UDim.new(0, 6)
     btnCorner.Parent = minimizeBtn
 
-    -- Content container (for minimizing)
+    -- Content container (for minimizing) - Start hidden
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "ContentFrame"
-    contentFrame.Size = UDim2.new(1, -20, 1, -48)
+    contentFrame.Size = UDim2.new(1, -20, 0, 0) -- Start at 0 height (minimized)
     contentFrame.Position = UDim2.new(0, 10, 0, 42)
     contentFrame.BackgroundTransparency = 1
     contentFrame.ClipsDescendants = true
@@ -167,7 +170,7 @@ local function createHintGUI()
         actionLabel.Parent = entry
     end
 
-    -- Footer tip
+    -- Footer tip - Start invisible
     local footer = Instance.new("TextLabel")
     footer.Name = "Footer"
     footer.Size = UDim2.new(1, -20, 0, 30)
@@ -177,7 +180,7 @@ local function createHintGUI()
     footer.Font = Enum.Font.GothamMedium
     footer.TextSize = 11
     footer.TextColor3 = Color3.fromRGB(100, 90, 80)
-    footer.TextTransparency = 0.3
+    footer.TextTransparency = 1 -- Start invisible
     footer.TextWrapped = true
     footer.Parent = _hintFrame
 
@@ -265,39 +268,8 @@ end
 function StartupKeybindHint.init()
     createHintGUI()
 
-    -- Auto-minimize after 30 seconds if player hasn't interacted
-    task.spawn(function()
-        task.wait(30)
-        if not _isMinimized and _hintFrame then
-            -- Programmatically minimize
-            _isMinimized = true
-            local minimizeBtn = _hintFrame:FindFirstChild("MinimizeBtn")
-            local contentFrame = _hintFrame:FindFirstChild("ContentFrame")
-            local footer = _hintFrame:FindFirstChild("Footer")
-
-            if minimizeBtn then
-                minimizeBtn.Text = "+"
-            end
-
-            if _hintFrame then
-                TweenService:Create(_hintFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-                    Size = UDim2.new(0, 240, 0, 44),
-                }):Play()
-            end
-
-            if contentFrame then
-                TweenService:Create(contentFrame, TweenInfo.new(0.2), {
-                    Size = UDim2.new(1, -20, 0, 0),
-                }):Play()
-            end
-
-            if footer then
-                TweenService:Create(footer, TweenInfo.new(0.2), {
-                    TextTransparency = 1,
-                }):Play()
-            end
-        end
-    end)
+    -- Keybind hint starts minimized, no need for auto-minimize
+    print("[StartupKeybindHint] ✅ Keybind hint created (minimized by default)")
 end
 
 function StartupKeybindHint.show()

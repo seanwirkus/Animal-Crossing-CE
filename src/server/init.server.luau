@@ -83,6 +83,8 @@ local NookConstructionService = require(script:WaitForChild("NookConstructionSer
 local QuestService = require(script:WaitForChild("QuestService"))
 local QuestHandlers = require(script:WaitForChild("QuestHandlers"))
 local DailyChallengeService = require(script:WaitForChild("DailyChallengeService"))
+local ResourceSpawner = require(script:WaitForChild("ResourceSpawner"))
+local ToolInteractionSystem = require(script:WaitForChild("ToolInteractionSystem"))
 local CharacterAndToolFixes = require(ReplicatedStorage.Shared.CharacterAndToolFixes)
 
 local questService = nil
@@ -1411,6 +1413,10 @@ CraftingSystem.configure({
 -- Now connect HomeBuildingService to Inventory system (functions are now defined)
 logInfo("🏠 Connecting HomeBuildingService to Inventory system...")
 _HomeBuildingService:SetInventoryFunctions(hasCraftingMaterials, consumeCraftingMaterials)
+
+-- Connect OnboardingService to Inventory system
+logInfo("📚 Connecting OnboardingService to Inventory system...")
+onboardingService:setAddItemFunction(addItemToInventory)
 
 -- FishingSystem is ready to use (no init needed)
 
@@ -2970,6 +2976,8 @@ Players.PlayerAdded:Connect(function(player)
         questService:CreateQuest(player.UserId, QuestData.TUTORIAL_QUESTS.fishing_tutorial)
         questService:CreateQuest(player.UserId, QuestData.TUTORIAL_QUESTS.crafting_tutorial)
         questService:CreateQuest(player.UserId, QuestData.TUTORIAL_QUESTS.collect_fruit)
+        questService:CreateQuest(player.UserId, QuestData.TUTORIAL_QUESTS.chop_trees)
+        questService:CreateQuest(player.UserId, QuestData.TUTORIAL_QUESTS.gather_stone)
 
         -- Give a random daily quest
         local dailyQuest = QuestData.getRandomDailyQuest()
@@ -2980,5 +2988,18 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 logInfo("✅ Quest System initialized!")
+
+-- Initialize Resource Spawner
+logInfo("🌳 Initializing Resource Spawner...")
+local resourceSpawner = ResourceSpawner.new()
+resourceSpawner:initialize()
+logInfo("✅ Resource Spawner initialized")
+
+-- Initialize Tool Interaction System
+logInfo("🔨 Initializing Tool Interaction System...")
+local toolInteractionSystem = ToolInteractionSystem.new(resourceSpawner)
+toolInteractionSystem:initialize()
+toolInteractionSystem:setAddItemFunction(addItemToInventory)
+logInfo("✅ Tool Interaction System initialized")
 
 logInfo("✅ All systems initialized!")

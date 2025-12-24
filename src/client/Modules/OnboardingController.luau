@@ -24,14 +24,12 @@ OnboardingController.__index = OnboardingController
 -- Singleton
 local _instance = nil
 
--- Tutorial steps
+-- Tutorial steps - simplified
 local STEPS = {
     WELCOME = 1,
     MOVEMENT = 2,
-    FIND_WORKBENCH = 3,
-    CRAFT_TOOLS = 4,
-    BUILD_HOME = 5,
-    COMPLETE = 6,
+    BUILD_HOME = 3,
+    COMPLETE = 4,
 }
 
 local function findLargestPart(model: Model?): BasePart?
@@ -78,6 +76,8 @@ function OnboardingController.new()
     self.isActive = false
     self._gui = nil
     self._textLabel = nil
+    self._titleLabel = nil
+    self._iconLabel = nil
     self._buttonFrame = nil
     self._boardSurfaceGui = nil
     self._boardTextLabel = nil
@@ -106,51 +106,116 @@ function OnboardingController:createGUI()
 
     self._gui = screenGui
 
-    -- Tutorial box (bottom center)
+    -- Tutorial box (bottom center) - Animal Crossing style
     local tutorialBox = Instance.new("Frame")
     tutorialBox.Name = "TutorialBox"
-    tutorialBox.Size = UDim2.new(0, 600, 0, 150)
-    tutorialBox.Position = UDim2.new(0.5, -300, 1, -180)
-    tutorialBox.BackgroundColor3 = Color3.fromRGB(255, 251, 231)
+    tutorialBox.Size = UDim2.new(0, 650, 0, 180)
+    tutorialBox.Position = UDim2.new(0.5, -325, 1, -200)
+    tutorialBox.BackgroundColor3 = Color3.fromRGB(255, 250, 235) -- Warmer cream
     tutorialBox.BorderSizePixel = 0
     tutorialBox.Parent = screenGui
 
+    -- Subtle shadow effect
+    local shadow = Instance.new("Frame")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 8, 1, 8)
+    shadow.Position = UDim2.new(0, 4, 0, 4)
+    shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.BackgroundTransparency = 0.85
+    shadow.ZIndex = -1
+    shadow.Parent = tutorialBox
+
+    local shadowCorner = Instance.new("UICorner")
+    shadowCorner.CornerRadius = UDim.new(0, 16)
+    shadowCorner.Parent = shadow
+
     local boxCorner = Instance.new("UICorner")
-    boxCorner.CornerRadius = UDim.new(0, 12)
+    boxCorner.CornerRadius = UDim.new(0, 16)
     boxCorner.Parent = tutorialBox
 
+    -- Multiple stroke layers for depth
     local boxStroke = Instance.new("UIStroke")
-    boxStroke.Color = Color3.fromRGB(139, 90, 43)
-    boxStroke.Thickness = 3
+    boxStroke.Color = Color3.fromRGB(139, 90, 43) -- Brown border
+    boxStroke.Thickness = 4
     boxStroke.Parent = tutorialBox
 
-    -- Icon
+    -- Inner highlight stroke
+    local innerFrame = Instance.new("Frame")
+    innerFrame.Name = "InnerHighlight"
+    innerFrame.Size = UDim2.new(1, -8, 1, -8)
+    innerFrame.Position = UDim2.new(0, 4, 0, 4)
+    innerFrame.BackgroundTransparency = 1
+    innerFrame.Parent = tutorialBox
+
+    local innerStroke = Instance.new("UIStroke")
+    innerStroke.Color = Color3.fromRGB(255, 255, 255)
+    innerStroke.Thickness = 2
+    innerStroke.Transparency = 0.6
+    innerStroke.Parent = innerFrame
+
+    local innerCorner = Instance.new("UICorner")
+    innerCorner.CornerRadius = UDim.new(0, 13)
+    innerCorner.Parent = innerFrame
+
+    -- Icon with background circle
+    local iconCircle = Instance.new("Frame")
+    iconCircle.Name = "IconCircle"
+    iconCircle.Size = UDim2.new(0, 70, 0, 70)
+    iconCircle.Position = UDim2.new(0, 20, 0, 20)
+    iconCircle.BackgroundColor3 = Color3.fromRGB(255, 228, 181) -- Peach
+    iconCircle.BorderSizePixel = 0
+    iconCircle.Parent = tutorialBox
+
+    local circleCorner = Instance.new("UICorner")
+    circleCorner.CornerRadius = UDim.new(1, 0) -- Full circle
+    circleCorner.Parent = iconCircle
+
+    local circleStroke = Instance.new("UIStroke")
+    circleStroke.Color = Color3.fromRGB(139, 90, 43)
+    circleStroke.Thickness = 2
+    circleStroke.Parent = iconCircle
+
     local iconLabel = Instance.new("TextLabel")
     iconLabel.Name = "Icon"
-    iconLabel.Size = UDim2.new(0, 60, 0, 60)
-    iconLabel.Position = UDim2.new(0, 15, 0, 15)
+    iconLabel.Size = UDim2.new(1, 0, 1, 0)
+    iconLabel.Position = UDim2.new(0, 0, 0, 0)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Font = Enum.Font.GothamBold
-    iconLabel.TextSize = 40
+    iconLabel.TextSize = 42
     iconLabel.Text = "🏝️"
-    iconLabel.Parent = tutorialBox
+    iconLabel.Parent = iconCircle
+
+    -- Title label
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -110, 0, 30)
+    titleLabel.Position = UDim2.new(0, 100, 0, 15)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 20
+    titleLabel.TextColor3 = Color3.fromRGB(86, 60, 40) -- Dark brown
+    titleLabel.Text = "Welcome to Your Island!"
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = tutorialBox
 
     -- Text label
     local textLabel = Instance.new("TextLabel")
     textLabel.Name = "Text"
-    textLabel.Size = UDim2.new(1, -90, 1, -80)
-    textLabel.Position = UDim2.new(0, 85, 0, 10)
+    textLabel.Size = UDim2.new(1, -110, 1, -105)
+    textLabel.Position = UDim2.new(0, 100, 0, 50)
     textLabel.BackgroundTransparency = 1
     textLabel.Font = Enum.Font.Gotham
-    textLabel.TextSize = 16
-    textLabel.TextColor3 = Color3.fromRGB(60, 50, 40)
+    textLabel.TextSize = 15
+    textLabel.TextColor3 = Color3.fromRGB(70, 55, 45)
     textLabel.Text = "Welcome to your island!"
     textLabel.TextWrapped = true
     textLabel.TextXAlignment = Enum.TextXAlignment.Left
     textLabel.TextYAlignment = Enum.TextYAlignment.Top
     textLabel.Parent = tutorialBox
 
+    self._titleLabel = titleLabel
     self._textLabel = textLabel
+    self._iconLabel = iconLabel
 
     -- Button frame
     local buttonFrame = Instance.new("Frame")
@@ -207,18 +272,33 @@ function OnboardingController:createNextButton()
 
     local nextButton = Instance.new("TextButton")
     nextButton.Name = "NextButton"
-    nextButton.Size = UDim2.new(0, 120, 0, 40)
-    nextButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+    nextButton.Size = UDim2.new(0, 140, 0, 45)
+    nextButton.BackgroundColor3 = Color3.fromRGB(144, 202, 119) -- AC green
     nextButton.BorderSizePixel = 0
     nextButton.Font = Enum.Font.GothamBold
-    nextButton.TextSize = 16
+    nextButton.TextSize = 17
     nextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     nextButton.Text = "Next →"
+    nextButton.AutoButtonColor = false
     nextButton.Parent = self._buttonFrame
 
     local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.CornerRadius = UDim.new(0, 10)
     btnCorner.Parent = nextButton
+
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Color = Color3.fromRGB(100, 150, 85)
+    btnStroke.Thickness = 2
+    btnStroke.Parent = nextButton
+
+    -- Hover effect
+    nextButton.MouseEnter:Connect(function()
+        nextButton.BackgroundColor3 = Color3.fromRGB(164, 222, 139)
+    end)
+
+    nextButton.MouseLeave:Connect(function()
+        nextButton.BackgroundColor3 = Color3.fromRGB(144, 202, 119)
+    end)
 
     nextButton.MouseButton1Click:Connect(function()
         self:nextStep()
@@ -245,94 +325,130 @@ end
 function OnboardingController:showStep(step)
     self.currentStep = step
     local headerTitle = "Onboarding"
+    local icon = "🏝️"
 
     if step == STEPS.WELCOME then
         headerTitle = "Welcome to Your Island"
+        icon = "🏝️"
+        self._titleLabel.Text = "Welcome to Your Island!"
         self._textLabel.Text =
-            "Welcome to your island! 🏝️\n\nYou've just arrived on this beautiful deserted island. Let's get you settled in!"
+            "You've just arrived on this beautiful island! I've given you some starter tools. Let's get you settled in!"
         self:createNextButton()
     elseif step == STEPS.MOVEMENT then
-        headerTitle = "Movement 101"
+        headerTitle = "Movement"
+        icon = "🏃"
+        self._titleLabel.Text = "Controls"
         self._textLabel.Text =
-            "Movement Tutorial 🏃\n\nUse WASD keys to move around.\nPress SPACE to jump.\nMove your mouse to look around."
+            "Use WASD to move around\nPress SPACE to jump\nPress T to open your tool wheel\nPress E to open inventory"
         self:createNextButton()
-    elseif step == STEPS.FIND_WORKBENCH then
-        headerTitle = "Find the Workbench"
+    elseif step == STEPS.BUILD_HOME then
+        headerTitle = "Build Home"
+        icon = "🏠"
+        self._titleLabel.Text = "Place Your Tent"
         self._textLabel.Text =
-            "Find the DIY Workbench 🔨\n\nLook around your island for a wooden workbench. Walk up to it and press the interaction button to craft items."
+            "Let's place your starter tent! Click the button below to choose where to build."
 
+        local buildButton = Instance.new("TextButton")
+        buildButton.Name = "BuildButton"
+        buildButton.Size = UDim2.new(0, 160, 0, 45)
+        buildButton.BackgroundColor3 = Color3.fromRGB(115, 169, 219)
+        buildButton.BorderSizePixel = 0
+        buildButton.Font = Enum.Font.GothamBold
+        buildButton.TextSize = 17
+        buildButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        buildButton.Text = "🏠 Place Tent"
+        buildButton.AutoButtonColor = false
+        buildButton.Parent = self._buttonFrame
+
+        local buildCorner = Instance.new("UICorner")
+        buildCorner.CornerRadius = UDim.new(0, 10)
+        buildCorner.Parent = buildButton
+
+        local buildStroke = Instance.new("UIStroke")
+        buildStroke.Color = Color3.fromRGB(85, 139, 189)
+        buildStroke.Thickness = 2
+        buildStroke.Parent = buildButton
+
+        buildButton.MouseEnter:Connect(function()
+            buildButton.BackgroundColor3 = Color3.fromRGB(135, 189, 239)
+        end)
+
+        buildButton.MouseLeave:Connect(function()
+            buildButton.BackgroundColor3 = Color3.fromRGB(115, 169, 219)
+        end)
+
+        buildButton.MouseButton1Click:Connect(function()
+            self:buildHome()
+        end)
+
+        -- Add skip button
         local skipButton = Instance.new("TextButton")
         skipButton.Name = "SkipButton"
-        skipButton.Size = UDim2.new(0, 120, 0, 40)
-        skipButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+        skipButton.Size = UDim2.new(0, 100, 0, 45)
+        skipButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
         skipButton.BorderSizePixel = 0
         skipButton.Font = Enum.Font.Gotham
-        skipButton.TextSize = 16
+        skipButton.TextSize = 15
         skipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        skipButton.Text = "Skip Tutorial"
+        skipButton.Text = "Skip"
+        skipButton.AutoButtonColor = false
         skipButton.Parent = self._buttonFrame
 
         local skipCorner = Instance.new("UICorner")
-        skipCorner.CornerRadius = UDim.new(0, 8)
+        skipCorner.CornerRadius = UDim.new(0, 10)
         skipCorner.Parent = skipButton
 
         skipButton.MouseButton1Click:Connect(function()
             self:complete()
         end)
-    elseif step == STEPS.CRAFT_TOOLS then
-        headerTitle = "Craft Your Tools"
-        self._textLabel.Text =
-            "Craft Your First Tools 🛠️\n\nAt the workbench, craft basic tools like:\n• Fishing Rod\n• Net\n• Shovel\n• Axe\n\nThese will help you gather resources!"
-        self:createNextButton()
-    elseif step == STEPS.BUILD_HOME then
-        headerTitle = "Build Your Home"
-        self._textLabel.Text =
-            "Build Your Home 🏠\n\nEvery island needs a home! Use the resources you've gathered to build your first tent. You can upgrade it later!"
-
-        local buildButton = Instance.new("TextButton")
-        buildButton.Name = "BuildButton"
-        buildButton.Size = UDim2.new(0, 150, 0, 40)
-        buildButton.BackgroundColor3 = Color3.fromRGB(100, 150, 200)
-        buildButton.BorderSizePixel = 0
-        buildButton.Font = Enum.Font.GothamBold
-        buildButton.TextSize = 16
-        buildButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        buildButton.Text = "Build Home"
-        buildButton.Parent = self._buttonFrame
-
-        local buildCorner = Instance.new("UICorner")
-        buildCorner.CornerRadius = UDim.new(0, 8)
-        buildCorner.Parent = buildButton
-
-        buildButton.MouseButton1Click:Connect(function()
-            self:buildHome()
-        end)
     elseif step == STEPS.COMPLETE then
-        headerTitle = "Tutorial Complete"
+        headerTitle = "All Set!"
+        icon = "🎉"
+        self._titleLabel.Text = "You're Ready!"
         self._textLabel.Text =
-            "Tutorial Complete! 🎉\n\nYou're all set! Explore your island, gather resources, and make it your own.\n\nPress ESC anytime to open the menu."
+            "Explore your island and have fun!\n\nKey Tips:\n• T = Tool wheel\n• E = Inventory\n• P = NookPhone\n• Use axe on trees, shovel on rocks"
 
         local doneButton = Instance.new("TextButton")
         doneButton.Name = "DoneButton"
-        doneButton.Size = UDim2.new(0, 120, 0, 40)
-        doneButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+        doneButton.Size = UDim2.new(0, 140, 0, 45)
+        doneButton.BackgroundColor3 = Color3.fromRGB(255, 195, 77) -- Golden
         doneButton.BorderSizePixel = 0
         doneButton.Font = Enum.Font.GothamBold
-        doneButton.TextSize = 16
+        doneButton.TextSize = 17
         doneButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         doneButton.Text = "Let's Go!"
+        doneButton.AutoButtonColor = false
         doneButton.Parent = self._buttonFrame
 
         local doneCorner = Instance.new("UICorner")
-        doneCorner.CornerRadius = UDim.new(0, 8)
+        doneCorner.CornerRadius = UDim.new(0, 10)
         doneCorner.Parent = doneButton
+
+        local doneStroke = Instance.new("UIStroke")
+        doneStroke.Color = Color3.fromRGB(215, 155, 37)
+        doneStroke.Thickness = 2
+        doneStroke.Parent = doneButton
+
+        doneButton.MouseEnter:Connect(function()
+            doneButton.BackgroundColor3 = Color3.fromRGB(255, 215, 117)
+        end)
+
+        doneButton.MouseLeave:Connect(function()
+            doneButton.BackgroundColor3 = Color3.fromRGB(255, 195, 77)
+        end)
 
         doneButton.MouseButton1Click:Connect(function()
             self:finish()
         end)
     else
+        self._titleLabel.Text = "Coming Soon"
         self._textLabel.Text = "Next step coming soon!"
         self:createNextButton()
+    end
+
+    -- Update icon
+    if self._iconLabel then
+        self._iconLabel.Text = icon
     end
 
     self:_updateBoardDisplay(self._textLabel.Text, headerTitle)

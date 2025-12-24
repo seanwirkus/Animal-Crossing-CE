@@ -4,6 +4,27 @@ local QuestData = {}
 
 -- Tutorial Quests
 QuestData.TUTORIAL_QUESTS = {
+    gather_resources_tutorial = {
+        id = "gather_resources_tutorial",
+        name = "Gather Resources",
+        description = "Gather materials for building your home! Chop trees and hit rocks.",
+        category = "tutorial",
+        difficulty = "easy",
+        icon = "🪓",
+        target = 1, -- Simplified - just complete the task
+        objectives = {
+            {
+                type = "gather_materials",
+                amount = 1,
+                hint = "Use your Axe to chop trees and Shovel to hit rocks!",
+            },
+        },
+        rewards = {
+            bells = 300,
+            miles = 30,
+            items = {},
+        },
+    },
     fishing_tutorial = {
         id = "fishing_tutorial",
         name = "Catch Your First Fish",
@@ -64,6 +85,48 @@ QuestData.TUTORIAL_QUESTS = {
         rewards = {
             bells = 400,
             miles = 40,
+            items = {},
+        },
+    },
+    chop_trees = {
+        id = "chop_trees",
+        name = "Lumberjack Training",
+        description = "Chop down 3 trees to gather wood for crafting!",
+        category = "tutorial",
+        difficulty = "easy",
+        icon = "🪓",
+        target = 3,
+        objectives = {
+            {
+                type = "chop_tree",
+                amount = 3,
+                hint = "Equip your axe and chop trees! Each tree takes 3 hits.",
+            },
+        },
+        rewards = {
+            bells = 500,
+            miles = 50,
+            items = {},
+        },
+    },
+    gather_stone = {
+        id = "gather_stone",
+        name = "Rock Solid",
+        description = "Hit rocks to collect 10 pieces of stone!",
+        category = "tutorial",
+        difficulty = "easy",
+        icon = "🪨",
+        target = 10,
+        objectives = {
+            {
+                type = "collect_stone",
+                amount = 10,
+                hint = "Hit rocks with your shovel or pickaxe to gather materials!",
+            },
+        },
+        rewards = {
+            bells = 600,
+            miles = 60,
             items = {},
         },
     },

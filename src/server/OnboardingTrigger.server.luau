@@ -58,20 +58,31 @@ local function startTutorialForPlayer(player)
 	startOnboardingRemote:FireClient(player)
 end
 
+-- Get OnboardingService (will be set by init.server after it loads)
+local OnboardingService = nil
+task.spawn(function()
+	task.wait(5) -- Wait for server init to complete
+	local ServerScriptService = game:GetService("ServerScriptService")
+	local onboardingModule = ServerScriptService:FindFirstChild("OnboardingService")
+	if onboardingModule then
+		local success, result = pcall(function()
+			return require(onboardingModule)
+		end)
+		if success and result then
+			-- OnboardingService is a class, look for instance in _G or get from init
+			print("[OnboardingTrigger] ⚠️ OnboardingService module found but instance needed from init.server")
+		end
+	end
+end)
+
 -- Listen for tutorial completion
 tutorialCompleteRemote.OnServerEvent:Connect(function(player)
 	print(string.format("[OnboardingTrigger] ✅ %s completed tutorial!", player.Name))
 
-	-- Give rewards (handled by OnboardingService if it exists)
-	-- Otherwise give here
-	local currencyRemote = remotes:FindFirstChild("CurrencyUpdate")
-	if currencyRemote then
-		-- Give 1000 bells and 500 miles
-		task.wait(0.5)
-		-- Note: This assumes CurrencyManager handles the actual currency
-		-- Just fire event to notify client
-		print(string.format("[OnboardingTrigger] 💰 Giving rewards to %s", player.Name))
-	end
+	-- Call OnboardingService if available (it will give tools + currency)
+	-- The OnboardingService already listens to TutorialComplete remote,
+	-- so this is redundant - just log it here
+	print(string.format("[OnboardingTrigger] 💡 OnboardingService should handle rewards automatically", player.Name))
 end)
 
 -- Start tutorial for players when they join
