@@ -4,6 +4,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 
+local HomeTemplates = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("HomeTemplates"))
+
 local HomeBuildingService = {}
 HomeBuildingService.__index = HomeBuildingService
 
@@ -498,12 +500,11 @@ function HomeBuildingService:_createHomeModel(player, position, size)
 end
 
 function HomeBuildingService:_getHomeTemplate(size)
-    -- First, try to find PlayerHome in ReplicatedStorage (user added this)
-    local playerHome = ReplicatedStorage:FindFirstChild("PlayerHome")
-    if playerHome and playerHome:IsA("Model") then
-        print("[HomeBuildingService] ✅ Found PlayerHome model in ReplicatedStorage")
-        return playerHome
-    end
+	if size == "Tent" then
+		return HomeTemplates.createTentTemplate({
+			anchored = true,
+		})
+	end
 
     -- Fallback: Try to find template in ReplicatedStorage/Models
     local modelsFolder = ReplicatedStorage:FindFirstChild("Models")

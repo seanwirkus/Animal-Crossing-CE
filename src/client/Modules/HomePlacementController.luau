@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 
 local HomePlacementGUI = require(script.Parent.HomePlacementGUI)
+local HomeTemplates = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("HomeTemplates"))
 
 local player = Players.LocalPlayer
 
@@ -63,21 +64,10 @@ function HomePlacementController:_setupRemotes()
 end
 
 function HomePlacementController:startPlacement()
-	-- Get home template from ReplicatedStorage
-	local homeTemplate = ReplicatedStorage:FindFirstChild("PlayerHome")
-	if not homeTemplate then
-		warn("[HomePlacementController] ⚠️ PlayerHome template not found in ReplicatedStorage!")
-		-- Create a fallback cube as placeholder
-		homeTemplate = Instance.new("Model")
-		homeTemplate.Name = "TentPlaceholder"
-
-		local part = Instance.new("Part")
-		part.Size = Vector3.new(10, 8, 10)
-		part.Anchored = true
-		part.Color = Color3.fromRGB(200, 150, 100)
-		part.Parent = homeTemplate
-		homeTemplate.PrimaryPart = part
-	end
+	-- Use a procedurally generated tent so we never depend on imported OBJ content.
+	local homeTemplate = HomeTemplates.createTentTemplate({
+		anchored = true,
+	})
 
 	-- Start placement GUI
 	print("[HomePlacementController] Starting placement with template:", homeTemplate.Name)

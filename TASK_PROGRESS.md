@@ -7,3 +7,6 @@
 - [x] Remove styling overrides for date/time GUI
 - [x] Remove styling overrides for inventory GUI
 - [x] Add debug code to figure out what is applying brown background in inventory
+- [ ] Add starter-kit telemetry and exponential backoff
+- [ ] Clamp client placement to island bounds and keep ghost open on server rejection
+- [ ] Add footprint decal + finer rotation controls to placement ghost
