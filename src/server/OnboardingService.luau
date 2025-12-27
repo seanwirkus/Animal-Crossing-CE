@@ -164,9 +164,17 @@ function OnboardingService:_grantStarterItems(player)
     end
 
     local starterItems = {
+        -- Flimsy tools (starter tier)
         { itemId = "flimsy-axe", count = 1 },
-        { itemId = "axe", count = 1 },
         { itemId = "flimsy-shovel", count = 1 },
+        { itemId = "flimsy-pickaxe", count = 1 },
+        { itemId = "flimsy-net", count = 1 },
+        { itemId = "flimsy-fishing-rod", count = 1 },
+        -- Upgraded tools
+        { itemId = "axe", count = 1 },
+        { itemId = "shovel", count = 1 },
+        { itemId = "net", count = 1 },
+        { itemId = "fishing-rod", count = 1 },
     }
 
     local anySuccess = false
@@ -174,8 +182,10 @@ function OnboardingService:_grantStarterItems(player)
         local success, err = self.addItemToInventory(player, item)
         if success then
             anySuccess = true
+            print(string.format("[OnboardingService] ✅ Gave %s to %s", item.itemId, player.Name))
         else
-            warn(string.format("[OnboardingService] ⚠️ Failed to add %s: %s", item.itemId, tostring(err)))
+            -- Log warning but continue trying other items
+            warn(string.format("[OnboardingService] ⚠️ Failed to add %s: %s (will use placeholder if item doesn't exist)", item.itemId, tostring(err)))
         end
     end
 

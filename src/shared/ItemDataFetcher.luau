@@ -245,7 +245,19 @@ end
 function ItemDataFetcher.getItem(itemId)
     local record = itemsById[itemId]
     if not record then
-        return nil
+        -- Create placeholder for missing items (will be added by user later)
+        -- This allows the game to function with placeholder items that will be replaced
+        local placeholder = {
+            id = itemId,
+            name = itemId:gsub("-", " "):gsub("^%l", string.upper),
+            displayName = itemId:gsub("-", " "):gsub("^%l", string.upper),
+            category = "placeholder",
+            sell = 0,
+            buy = 0,
+            source = {},
+            themes = {},
+        }
+        return placeholder
     end
     return cloneShallow(record)
 end
