@@ -136,29 +136,11 @@ function OnboardingController:createGUI()
     boxCorner.CornerRadius = UDim.new(0, 16)
     boxCorner.Parent = tutorialBox
 
-    -- Multiple stroke layers for depth
+    -- Simple subtle border
     local boxStroke = Instance.new("UIStroke")
-    boxStroke.Color = Color3.fromRGB(139, 90, 43) -- Brown border
-    boxStroke.Thickness = 4
+    boxStroke.Color = Color3.fromRGB(180, 150, 120) -- Lighter border
+    boxStroke.Thickness = 1
     boxStroke.Parent = tutorialBox
-
-    -- Inner highlight stroke
-    local innerFrame = Instance.new("Frame")
-    innerFrame.Name = "InnerHighlight"
-    innerFrame.Size = UDim2.new(1, -8, 1, -8)
-    innerFrame.Position = UDim2.new(0, 4, 0, 4)
-    innerFrame.BackgroundTransparency = 1
-    innerFrame.Parent = tutorialBox
-
-    local innerStroke = Instance.new("UIStroke")
-    innerStroke.Color = Color3.fromRGB(255, 255, 255)
-    innerStroke.Thickness = 2
-    innerStroke.Transparency = 0.6
-    innerStroke.Parent = innerFrame
-
-    local innerCorner = Instance.new("UICorner")
-    innerCorner.CornerRadius = UDim.new(0, 13)
-    innerCorner.Parent = innerFrame
 
     -- Icon with background circle
     local iconCircle = Instance.new("Frame")
@@ -174,8 +156,8 @@ function OnboardingController:createGUI()
     circleCorner.Parent = iconCircle
 
     local circleStroke = Instance.new("UIStroke")
-    circleStroke.Color = Color3.fromRGB(139, 90, 43)
-    circleStroke.Thickness = 2
+    circleStroke.Color = Color3.fromRGB(180, 150, 120)
+    circleStroke.Thickness = 1
     circleStroke.Parent = iconCircle
 
     local iconLabel = Instance.new("TextLabel")
@@ -194,10 +176,10 @@ function OnboardingController:createGUI()
     titleLabel.Size = UDim2.new(1, -110, 0, 30)
     titleLabel.Position = UDim2.new(0, 100, 0, 15)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 20
-    titleLabel.TextColor3 = Color3.fromRGB(86, 60, 40) -- Dark brown
-    titleLabel.Text = "Welcome to Your Island!"
+    titleLabel.Font = Enum.Font.Gotham
+    titleLabel.TextSize = 18
+    titleLabel.TextColor3 = Color3.fromRGB(100, 80, 60) -- Lighter brown
+    titleLabel.Text = "Welcome to Your Island"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = tutorialBox
 
@@ -393,8 +375,8 @@ function OnboardingController:createNextButton()
     btnCorner.Parent = nextButton
 
     local btnStroke = Instance.new("UIStroke")
-    btnStroke.Color = Color3.fromRGB(100, 150, 85)
-    btnStroke.Thickness = 2
+    btnStroke.Color = Color3.fromRGB(120, 170, 100)
+    btnStroke.Thickness = 1
     btnStroke.Parent = nextButton
 
     -- Hover effect
@@ -474,8 +456,8 @@ function OnboardingController:showStep(step)
         continueCorner.Parent = continueButton
 
         local continueStroke = Instance.new("UIStroke")
-        continueStroke.Color = Color3.fromRGB(85, 139, 189)
-        continueStroke.Thickness = 2
+        continueStroke.Color = Color3.fromRGB(110, 160, 210)
+        continueStroke.Thickness = 1
         continueStroke.Parent = continueButton
 
         continueButton.MouseEnter:Connect(function()
@@ -513,8 +495,8 @@ function OnboardingController:showStep(step)
         doneCorner.Parent = doneButton
 
         local doneStroke = Instance.new("UIStroke")
-        doneStroke.Color = Color3.fromRGB(215, 155, 37)
-        doneStroke.Thickness = 2
+        doneStroke.Color = Color3.fromRGB(230, 180, 80)
+        doneStroke.Thickness = 1
         doneStroke.Parent = doneButton
 
         doneButton.MouseEnter:Connect(function()

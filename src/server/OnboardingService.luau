@@ -18,6 +18,7 @@ function OnboardingService.new()
     self.homeBuildingService = nil -- Will be set during init
     self.playersWhoReceivedRewards = {} -- Track who got tutorial rewards to prevent duplicates
     self.playersWithActiveReward = {} -- Track in-progress grants to avoid double work
+    self.playerRetryAttempts = {} -- Track retry attempts per player to prevent spam
 
     return self
 end
@@ -185,7 +186,6 @@ end
 function OnboardingService:giveStarterKit(player, currencyManager)
     -- Check if player already received starter kit
     if self.playersWhoReceivedRewards[player.UserId] then
-        print(string.format("[OnboardingService] ⚠️ %s already received starter kit - skipping", player.Name))
         return
     end
 
@@ -193,20 +193,34 @@ function OnboardingService:giveStarterKit(player, currencyManager)
         return
     end
 
-    self.playersWithActiveReward[player.UserId] = true
+    -- Initialize retry counter if not already set
+    if not self.playerRetryAttempts[player.UserId] then
+        self.playerRetryAttempts[player.UserId] = 0
+    end
 
-    print(string.format("[OnboardingService] 🎁 Starting starter kit grant for %s", player.Name))
-    print(string.format("[OnboardingService] Debug: addItemToInventory available: %s", tostring(self.addItemToInventory ~= nil)))
+    -- Max 3 retries to prevent infinite spam
+    if self.playerRetryAttempts[player.UserId] >= 3 then
+        warn("[OnboardingService] ⚠️ Max retries reached for starter kit for", player.Name, "- giving up")
+        self.playersWhoReceivedRewards[player.UserId] = true
+        self.playersWithActiveReward[player.UserId] = nil
+        return
+    end
+
+    self.playersWithActiveReward[player.UserId] = true
+    self.playerRetryAttempts[player.UserId] = self.playerRetryAttempts[player.UserId] + 1
+
+    print(string.format("[OnboardingService] 🎁 Starting starter kit grant for %s (attempt %d)", player.Name, self.playerRetryAttempts[player.UserId]))
 
     local ready = self:_waitForInventory(player)
     if not ready then
-        warn(string.format("[OnboardingService] ⚠️ Inventory not ready for %s - retrying later", player.Name))
         self.playersWithActiveReward[player.UserId] = nil
-        task.delay(5, function()
-            if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
-                self:giveStarterKit(player, currencyManager)
-            end
-        end)
+        if self.playerRetryAttempts[player.UserId] < 3 then
+            task.delay(2, function()
+                if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
+                    self:giveStarterKit(player, currencyManager)
+                end
+            end)
+        end
         return
     end
 
@@ -214,13 +228,14 @@ function OnboardingService:giveStarterKit(player, currencyManager)
     local gaveItems = self:_grantStarterItems(player)
 
     if not gaveItems then
-        warn("[OnboardingService] ⚠️ Starter kit items failed to grant - will retry")
         self.playersWithActiveReward[player.UserId] = nil
-        task.delay(5, function()
-            if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
-                self:giveStarterKit(player, currencyManager)
-            end
-        end)
+        if self.playerRetryAttempts[player.UserId] < 3 then
+            task.delay(2, function()
+                if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
+                    self:giveStarterKit(player, currencyManager)
+                end
+            end)
+        end
         return
     end
 
@@ -228,24 +243,20 @@ function OnboardingService:giveStarterKit(player, currencyManager)
 
     -- Give starting bells and miles DIRECTLY via CurrencyManager
     if currencyManager then
-        print("[OnboardingService] 💰 CurrencyManager available, granting currency...")
         local bellsSuccess = currencyManager.addBells(player, 1000)
         local milesSuccess = currencyManager.addMiles(player, 500)
-
-        print(string.format("[OnboardingService] Currency grant results - Bells: %s, Miles: %s", tostring(bellsSuccess), tostring(milesSuccess)))
 
         if bellsSuccess and milesSuccess then
             print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
         else
-            warn("[OnboardingService] ⚠️ Currency grant partially failed - bells:", bellsSuccess, "miles:", milesSuccess)
+            warn("[OnboardingService] ⚠️ Currency grant partially failed")
         end
-    else
-        warn("[OnboardingService] ⚠️ CurrencyManager not provided - currency may not be granted")
     end
 
     -- Mark as completed AFTER all items are given
     self.playersWhoReceivedRewards[player.UserId] = true
     self.playersWithActiveReward[player.UserId] = nil
+    self.playerRetryAttempts[player.UserId] = nil
 end
 
 function OnboardingService:onTutorialComplete(player)

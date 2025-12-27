@@ -568,7 +568,7 @@ function OnboardingFlow.showStartDayScreen()
     startButton.Font = Enum.Font.GothamBold
     startButton.TextColor3 = GUIContentManager.LoadingScreen.buttons.start.textColor
     startButton.TextSize = 24
-    startButton.Text = "Start Guided Setup"
+    startButton.Text = "Start"
     startButton.Parent = container
 
     local buttonCorner = Instance.new("UICorner")
@@ -582,7 +582,7 @@ function OnboardingFlow.showStartDayScreen()
     buttonStroke.Parent = startButton
 
     startButton.MouseButton1Click:Connect(function()
-        print("[OnboardingFlow] 🎉 Starting guided setup")
+        print("[OnboardingFlow] 🎬 Starting onboarding")
         _G.PreStartCompleted = true
         cleanupGui(screenGui)
         OnboardingFlow._startDayGui = nil
