@@ -19,18 +19,23 @@ local playerGui = player:WaitForChild("PlayerGui")
 local SimpleNookPhoneGUI = {}
 SimpleNookPhoneGUI.__index = SimpleNookPhoneGUI
 
--- Smaller, more compact design
-local PHONE_SIZE = UDim2.fromOffset(280, 420)
-local APP_SIZE = UDim2.fromOffset(80, 80)
+-- Improved larger design for better usability
+local PHONE_SIZE = UDim2.fromOffset(380, 580) -- Bigger phone
+local APP_SIZE = UDim2.fromOffset(110, 110) -- Bigger app icons
 
--- Core apps only - keep it simple
+-- Essential apps organized by category
 local APPS = {
-	{ name = "Map", icon = "🗺️", color = Color3.fromRGB(100, 180, 100) },
-	{ name = "Quests", icon = "📋", color = Color3.fromRGB(255, 180, 80) },
-	{ name = "Shop", icon = "🛒", color = Color3.fromRGB(180, 140, 255) },
-	{ name = "Crafting", icon = "🔨", color = Color3.fromRGB(200, 150, 100) },
-	{ name = "Settings", icon = "⚙️", color = Color3.fromRGB(160, 160, 160) },
-	{ name = "Close", icon = "✕", color = Color3.fromRGB(200, 100, 100) },
+	-- First row: Gathering & Economy
+	{ name = "Shop", icon = "🛒", color = Color3.fromRGB(180, 140, 255), description = "Buy & Sell Items" },
+	{ name = "Crafting", icon = "🔨", color = Color3.fromRGB(200, 150, 100), description = "Craft Items" },
+
+	-- Second row: Gameplay
+	{ name = "Home", icon = "🏠", color = Color3.fromRGB(255, 150, 80), description = "Home Management" },
+	{ name = "Quests", icon = "📋", color = Color3.fromRGB(255, 180, 80), description = "Quests & Tasks" },
+
+	-- Third row: Info & Settings
+	{ name = "Map", icon = "🗺️", color = Color3.fromRGB(100, 180, 100), description = "Island Map" },
+	{ name = "Settings", icon = "⚙️", color = Color3.fromRGB(160, 160, 160), description = "Options" },
 }
 
 local _instance = nil
@@ -271,6 +276,21 @@ function SimpleNookPhoneGUI:_setupDefaultCallbacks()
 		end)
 		if success and SettingsController and SettingsController.toggle then
 			SettingsController.toggle()
+		end
+	end
+
+	self.appCallbacks["Home"] = function()
+		self:Hide()
+		-- Access home placement via HomePlacementController
+		local success, HomePlacementController = pcall(function()
+			return require(script.Parent.HomePlacementController)
+		end)
+		if success and HomePlacementController then
+			if type(HomePlacementController.requestPlacement) == "function" then
+				HomePlacementController:requestPlacement()
+			elseif type(HomePlacementController.open) == "function" then
+				HomePlacementController:open()
+			end
 		end
 	end
 end

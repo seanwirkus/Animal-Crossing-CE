@@ -450,55 +450,22 @@ function OnboardingController:showStep(step)
             "Use WASD to move around\nPress SPACE to jump\nPress T to open your tool wheel\nPress E to open inventory"
         self:createNextButton()
     elseif step == STEPS.BUILD_HOME then
-        headerTitle = "Build Home"
+        headerTitle = "Home Ready!"
         icon = "🏠"
-        self._titleLabel.Text = "Place Your Tent"
+        self._titleLabel.Text = "Home Placement Available"
         self._textLabel.Text =
-            "Let's place your starter tent! You can place it now or finish onboarding and place it later from the Home menu."
+            "You can now place your home! Open the Nook Phone and go to Home Management to start placing your tent.\n\nYou can also access this anytime from the Nook Phone home app."
 
-        local buildButton = Instance.new("TextButton")
-        buildButton.Name = "BuildButton"
-        buildButton.Size = UDim2.new(0, 160, 0, 45)
-        buildButton.BackgroundColor3 = Color3.fromRGB(115, 169, 219)
-        buildButton.BorderSizePixel = 0
-        buildButton.Font = Enum.Font.GothamBold
-        buildButton.TextSize = 17
-        buildButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        buildButton.Text = "🏠 Place Tent"
-        buildButton.AutoButtonColor = false
-        buildButton.Parent = self._buttonFrame
-
-        local buildCorner = Instance.new("UICorner")
-        buildCorner.CornerRadius = UDim.new(0, 10)
-        buildCorner.Parent = buildButton
-
-        local buildStroke = Instance.new("UIStroke")
-        buildStroke.Color = Color3.fromRGB(85, 139, 189)
-        buildStroke.Thickness = 2
-        buildStroke.Parent = buildButton
-
-        buildButton.MouseEnter:Connect(function()
-            buildButton.BackgroundColor3 = Color3.fromRGB(135, 189, 239)
-        end)
-
-        buildButton.MouseLeave:Connect(function()
-            buildButton.BackgroundColor3 = Color3.fromRGB(115, 169, 219)
-        end)
-
-        buildButton.MouseButton1Click:Connect(function()
-            self:buildHome()
-        end)
-
-        -- Continue button so the player is never blocked by placement timing
+        -- Only show a single "Continue" button - no more "place now" or "place later"
         local continueButton = Instance.new("TextButton")
         continueButton.Name = "ContinueButton"
-        continueButton.Size = UDim2.new(0, 160, 0, 45)
-        continueButton.BackgroundColor3 = Color3.fromRGB(144, 202, 119)
+        continueButton.Size = UDim2.new(0, 200, 0, 50)
+        continueButton.BackgroundColor3 = Color3.fromRGB(115, 169, 219)
         continueButton.BorderSizePixel = 0
         continueButton.Font = Enum.Font.GothamBold
-        continueButton.TextSize = 17
+        continueButton.TextSize = 18
         continueButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        continueButton.Text = "I'll Place Later →"
+        continueButton.Text = "Ready! →"
         continueButton.AutoButtonColor = false
         continueButton.Parent = self._buttonFrame
 
@@ -507,40 +474,19 @@ function OnboardingController:showStep(step)
         continueCorner.Parent = continueButton
 
         local continueStroke = Instance.new("UIStroke")
-        continueStroke.Color = Color3.fromRGB(100, 150, 85)
+        continueStroke.Color = Color3.fromRGB(85, 139, 189)
         continueStroke.Thickness = 2
-        continueStroke.Parent = continueButton
+        continueStroke.Parent = continueStroke
 
         continueButton.MouseEnter:Connect(function()
-            continueButton.BackgroundColor3 = Color3.fromRGB(164, 222, 139)
+            continueButton.BackgroundColor3 = Color3.fromRGB(135, 189, 239)
         end)
 
         continueButton.MouseLeave:Connect(function()
-            continueButton.BackgroundColor3 = Color3.fromRGB(144, 202, 119)
+            continueButton.BackgroundColor3 = Color3.fromRGB(115, 169, 219)
         end)
 
         continueButton.MouseButton1Click:Connect(function()
-            self:nextStep()
-        end)
-
-        -- Add skip button
-        local skipButton = Instance.new("TextButton")
-        skipButton.Name = "SkipButton"
-        skipButton.Size = UDim2.new(0, 100, 0, 45)
-        skipButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-        skipButton.BorderSizePixel = 0
-        skipButton.Font = Enum.Font.Gotham
-        skipButton.TextSize = 15
-        skipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        skipButton.Text = "Skip"
-        skipButton.AutoButtonColor = false
-        skipButton.Parent = self._buttonFrame
-
-        local skipCorner = Instance.new("UICorner")
-        skipCorner.CornerRadius = UDim.new(0, 10)
-        skipCorner.Parent = skipButton
-
-        skipButton.MouseButton1Click:Connect(function()
             self:complete()
         end)
     elseif step == STEPS.COMPLETE then

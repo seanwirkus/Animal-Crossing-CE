@@ -74,5 +74,19 @@ function HomePlacementController:startPlacement()
 	self.placementGUI:startPlacement(homeTemplate)
 end
 
+-- Request placement from Nook Phone or other UI
+function HomePlacementController:requestPlacement()
+	local remoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents")
+	local startPlacementRemote = remoteEvents:WaitForChild("StartHomePlacement")
+
+	print("[HomePlacementController] 📱 Requesting home placement from server...")
+	startPlacementRemote:FireServer()
+end
+
+-- Alias for different naming conventions
+function HomePlacementController:open()
+	self:requestPlacement()
+end
+
 -- Initialize singleton
 return HomePlacementController.new()
