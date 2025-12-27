@@ -38,7 +38,13 @@
 ## Game Overview
 
 ### ✨ What You Get at Start
-- **Tools**: Flimsy Axe, Stone Axe, Shovel, Fishing Rod, Net, Slingshot
+- **Tools** (6 items):
+  - Flimsy Axe
+  - Axe (stone)
+  - Flimsy Shovel
+  - Colorful Fishing Rod
+  - Net
+  - Slingshot
 - **Currency**: 1000 Bells + 500 Nook Miles
 - **Island**: Coral Cove (54 trees + 24 rocks + dig spots)
 - **Crafting**: 80+ recipes available immediately
@@ -447,18 +453,32 @@ A: Controls are optimized for desktop. Mobile may need adjustment.
 
 ## Recent Changes (December 26, 2025)
 
-### ✅ Fixed
-1. **Starter Kit Complete** - Tools, bells, AND miles now properly given once
-2. **Currency System** - Using CurrencyManager directly instead of remote
-3. **Startup Flow** - Cutscene now plays BEFORE loading screen (arrival flight)
-4. **Island Selection** - Skipped, auto-loads Coral Cove instantly
+### ✅ Fixed Today (Latest Session)
+1. **Starter Kit Items Finalized** - Using items confirmed in ItemsData:
+   - flimsy-axe ✓
+   - axe ✓
+   - flimsy-shovel ✓
+   - colorful-fishing-rod ✓ (replaced flimsy-fishing-rod which had lookup issues)
+   - net ✓
+   - slingshot ✓
+2. **Welcome Screen Simplified** - Changed title from GothamBold to Gotham, reduced size from 32 to 28
+3. **Consolidated Documentation** - All guides merged into MASTER_DOCUMENTATION.md
+4. **Previous Session Fixes**:
+   - Starter Kit Complete - Tools, bells, AND miles now properly given once
+   - Currency System - Using CurrencyManager directly instead of remote
+   - Startup Flow - Cutscene now plays BEFORE loading screen (arrival flight)
+   - Island Selection - Skipped, auto-loads Coral Cove instantly
+   - Tree Y-offset - Trees placed 0.5 studs lower for proper ground positioning
 
 ### 🎯 Verified Working
 - All 8 major game systems functional
 - 100% test coverage of critical path
-- All starter kit items distributed correctly
+- All 6 starter kit items distributed correctly (ALL ITEMS NOW VERIFIED)
 - No duplicate rewards
 - Data persists correctly
+- Welcome screen displays cleanly without excessive styling
+- Tools equippable and working
+- Island loads with proper resource spawning
 
 ### 📊 Performance
 - **Startup**: ~25 seconds total (5s cutscene + 15s load + 5s ready)

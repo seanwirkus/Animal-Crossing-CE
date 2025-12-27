@@ -38,10 +38,10 @@ The game is now fully functional! Follow these steps to play and test.
 
 ### Inventory Items (When You Open E)
 - Flimsy Axe
-- Stone Axe
-- Shovel
-- Fishing Rod
-- Net
+- Axe (stone)
+- Flimsy Shovel
+- Flimsy Fishing Rod
+- Flimsy Net
 - Slingshot
 
 ### Currency (HUD - top right)
