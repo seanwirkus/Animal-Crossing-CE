@@ -22,11 +22,12 @@ function OnboardingService.new()
     return self
 end
 
-function OnboardingService:initialize(playerIslandService, homeBuildingService, addItemFunc)
+function OnboardingService:initialize(playerIslandService, homeBuildingService, addItemFunc, currencyManager)
     print("[OnboardingService] 📚 Initializing...")
 
     self.playerIslandService = playerIslandService
     self.homeBuildingService = homeBuildingService
+    self.currencyManager = currencyManager
     if addItemFunc then
         self.addItemToInventory = addItemFunc
     end
@@ -106,7 +107,7 @@ end
 function OnboardingService:startTutorial(player)
     -- Give starter kit in background (waits for inventory system to be ready)
     task.spawn(function()
-        self:giveStarterKit(player)
+        self:giveStarterKit(player, self.currencyManager)
     end)
 
     -- Fire client event to start tutorial UI
@@ -158,7 +159,7 @@ function OnboardingService:_grantStarterItems(player)
     return true
 end
 
-function OnboardingService:giveStarterKit(player)
+function OnboardingService:giveStarterKit(player, currencyManager)
     -- Check if player already received starter kit
     if self.playersWhoReceivedRewards[player.UserId] then
         print(string.format("[OnboardingService] ⚠️ %s already received starter kit - skipping", player.Name))
@@ -177,7 +178,7 @@ function OnboardingService:giveStarterKit(player)
         self.playersWithActiveReward[player.UserId] = nil
         task.delay(5, function()
             if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
-                self:giveStarterKit(player)
+                self:giveStarterKit(player, currencyManager)
             end
         end)
         return
@@ -186,29 +187,35 @@ function OnboardingService:giveStarterKit(player)
     -- Give starter tools so player can gather resources
     local gaveItems = self:_grantStarterItems(player)
 
-    if gaveItems then
-        self.playersWhoReceivedRewards[player.UserId] = true
-        print("[OnboardingService] ✅ Gave starter tools to", player.Name)
-    else
-        warn("[OnboardingService] ⚠️ Starter kit failed to grant - will retry")
+    if not gaveItems then
+        warn("[OnboardingService] ⚠️ Starter kit items failed to grant - will retry")
         self.playersWithActiveReward[player.UserId] = nil
         task.delay(5, function()
             if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
-                self:giveStarterKit(player)
+                self:giveStarterKit(player, currencyManager)
             end
         end)
         return
     end
 
-    -- Give starting bells and miles
-    local currencyRemote = ReplicatedStorage:FindFirstChild("CurrencyEvent")
-    if currencyRemote then
-        currencyRemote:FireClient(player, "Grant", { bells = 1000, miles = 500 })
-        print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
+    print("[OnboardingService] ✅ Gave starter tools to", player.Name)
+
+    -- Give starting bells and miles DIRECTLY via CurrencyManager
+    if currencyManager then
+        local bellsSuccess = currencyManager.addBells(player, 1000)
+        local milesSuccess = currencyManager.addMiles(player, 500)
+
+        if bellsSuccess and milesSuccess then
+            print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
+        else
+            warn("[OnboardingService] ⚠️ Currency grant partially failed - bells:", bellsSuccess, "miles:", milesSuccess)
+        end
     else
-        warn("[OnboardingService] ⚠️ CurrencyEvent remote not found - currency may not be granted")
+        warn("[OnboardingService] ⚠️ CurrencyManager not provided - currency may not be granted")
     end
 
+    -- Mark as completed AFTER all items are given
+    self.playersWhoReceivedRewards[player.UserId] = true
     self.playersWithActiveReward[player.UserId] = nil
 end
 
