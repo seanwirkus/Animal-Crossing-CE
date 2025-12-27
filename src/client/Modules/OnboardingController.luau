@@ -220,8 +220,9 @@ function OnboardingController:createGUI()
 
     -- Create default next button
     self:createNextButton()
-    self:_setupBoardDisplay()
-    self:_updateBoardDisplay(self._textLabel.Text)
+    -- Whiteboard display removed per user request
+    -- self:_setupBoardDisplay()
+    -- self:_updateBoardDisplay(self._textLabel.Text)
 end
 
 function OnboardingController:clearButtons()

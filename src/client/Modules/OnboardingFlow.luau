@@ -85,12 +85,11 @@ end
 local function ensureController(): OnboardingController
     local controller = OnboardingFlow._controller
     if controller then
-        controller:setOnCompleteCallback(function()
-            OnboardingFlow.completeOnboarding()
-        end)
+        -- Controller already exists, just return it without re-setting callback
         return controller
     end
 
+    -- Create new controller and set callback only once
     controller = OnboardingController.new()
     controller:setOnCompleteCallback(function()
         OnboardingFlow.completeOnboarding()
@@ -407,32 +406,11 @@ end
 function OnboardingFlow.loadIsland(island: { name: string, theme: string }, onComplete: () -> ())
     print(string.format("[OnboardingFlow] 📦 Loading island: %s", island.name))
 
-    LoadingScreen.show(string.format("Flying to %s...", island.name), true)
-
+    -- Island loading happens asynchronously in background
+    -- Loading screen and progress are handled by the caller (in onboarding start)
     task.spawn(function()
-        task.wait(0.4)
-        LoadingScreen.setProgress(0.2)
-        LoadingScreen.setStatus("Charting the island layout...")
-
-        task.wait(0.6)
-        LoadingScreen.setProgress(0.45)
-        LoadingScreen.setStatus("Planting trees and flowers...")
-
-        task.wait(0.6)
-        LoadingScreen.setProgress(0.7)
-        LoadingScreen.setStatus("Building the airport...")
-
-        task.wait(0.6)
-        LoadingScreen.setProgress(0.9)
-        LoadingScreen.setStatus("Preparing your starter supplies...")
-
+        -- Simulate island initialization in background
         task.wait(0.5)
-        LoadingScreen.setProgress(1)
-        LoadingScreen.setStatus("Ready to land!")
-
-        task.wait(0.3)
-        LoadingScreen.hide()
-
         print("[OnboardingFlow] ✅ Island load sequence finished")
         onComplete()
     end)
@@ -611,24 +589,42 @@ function OnboardingFlow.start()
     local defaultIsland = ISLAND_OPTIONS[1] -- Coral Cove
     print("[OnboardingFlow] ⏭️ Skipping dialogue and island selection - loading Coral Cove")
 
-    -- DEBUG MODE: Skip cutscene and loading screen for faster testing
-    local skipCutsceneAndLoading = true
+    -- NORMAL FLOW: Show loading screen FIRST, then cutscene, then island
+    print("[OnboardingFlow] 📦 Showing loading screen first...")
+    LoadingScreen.show(string.format("Flying to %s...", defaultIsland.name), true)
 
-    if skipCutsceneAndLoading then
-        print("[OnboardingFlow] ⚡ DEBUG MODE: Skipping cutscene and loading screen for fast testing")
-        OnboardingFlow.loadIsland(defaultIsland, function()
+    task.spawn(function()
+        -- Show loading progress
+        task.wait(0.4)
+        LoadingScreen.setProgress(0.2)
+        LoadingScreen.setStatus("Charting the island layout...")
+
+        task.wait(0.6)
+        LoadingScreen.setProgress(0.45)
+        LoadingScreen.setStatus("Planting trees and flowers...")
+
+        task.wait(0.6)
+        LoadingScreen.setProgress(0.7)
+        LoadingScreen.setStatus("Building the airport...")
+
+        task.wait(0.6)
+        LoadingScreen.setProgress(0.9)
+        LoadingScreen.setStatus("Preparing your starter supplies...")
+
+        task.wait(0.5)
+        LoadingScreen.setProgress(1)
+        LoadingScreen.setStatus("Ready to land!")
+
+        task.wait(1)
+        LoadingScreen.hide()
+
+        -- After loading screen, play cutscene
+        print("[OnboardingFlow] 🎥 Now playing arrival cutscene...")
+        OnboardingFlow.playArrivalCutscene(function()
+            print("[OnboardingFlow] ✅ Cutscene complete, showing start day screen...")
             OnboardingFlow.showStartDayScreen()
         end)
-    else
-        -- NORMAL FLOW: Play cutscene FIRST (airplane arrival), THEN load island
-        print("[OnboardingFlow] 🎥 Starting with airplane arrival cutscene...")
-        OnboardingFlow.playArrivalCutscene(function()
-            print("[OnboardingFlow] ✅ Cutscene complete, now loading island...")
-            OnboardingFlow.loadIsland(defaultIsland, function()
-                OnboardingFlow.showStartDayScreen()
-            end)
-        end)
-    end
+    end)
 end
 
 --[[
