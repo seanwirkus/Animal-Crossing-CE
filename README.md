@@ -1,17 +1,13 @@
-# Animal Crossing CE
+# Animal Crossing CE - Roblox Game
 
-A polished Roblox recreation of Animal Crossing: New Horizons featuring inventory management, crafting, onboarding flows, island generation, and a unified GUI theme. This README consolidates every workflow, guide, and checklist that previously lived in `PROJECT_PLAN.md`, `QUICK_REFERENCE.md`, `STARTUP_GUIDE.md`, and the `gold mine of info/` folder—this file is now the canonical source of truth.
+A complete Roblox recreation of Animal Crossing: New Horizons with resource gathering, crafting, fishing, and home building.
 
-## 📚 Table of Contents
-1. [Project Overview](#project-overview)
-2. [Quick Start](#quick-start)
-3. [Project Structure & Runtime Layout](#project-structure--runtime-layout)
-4. [Documentation Portal](#documentation-portal)
-5. [Controls & Keybinds](#controls--keybinds)
-6. [GUI & UX Architecture](#gui--ux-architecture)
-7. [Core Gameplay Systems](#core-gameplay-systems)
-8. [Onboarding & Roadmap](#onboarding--roadmap)
-9. [Troubleshooting & References](#troubleshooting--references)
+**👉 [See MASTER_DOCUMENTATION.md for the complete gameplay guide](MASTER_DOCUMENTATION.md)**
+
+## 📚 Quick Links
+- **[MASTER_DOCUMENTATION.md](MASTER_DOCUMENTATION.md)** - Complete game guide, controls, systems reference
+- **[docs/](docs/)** - Technical architecture and system documentation
+- **[Project Structure](#project-structure--runtime-layout)** - How the code is organized
 
 ## Project Overview
 * **Tech stack:** Roblox + Luau, Rojo project structure, Stylua + Selene linting, Luau-LSP analysis, and GitHub Actions CI.
