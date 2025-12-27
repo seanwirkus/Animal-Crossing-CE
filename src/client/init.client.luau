@@ -47,7 +47,8 @@ local ToolRingGUIModule = require(script.Modules.ToolRingGUI)
 local ShopGUIModule = require(script.Modules.ShopGUI)
 local EmoteWheelModule = require(script.Modules.EmoteWheel)
 local BuildingGUIModule = require(script.Modules.BuildingGUI)
-local SimpleNookPhoneGUIModule = require(script.Modules.SimpleNookPhoneGUI)
+local HomeBuildingGUIModule = require(script.Modules.HomeBuildingGUI)
+local NookPhoneGUIModule = require(script.Modules.NookPhoneGUI)
 local NookShoppingGUIModule = require(script.Modules.NookShoppingGUI)
 local QuestGUIModule = require(script.Modules.QuestGUI)
 local TutorialManagerModule = require(script.Modules.TutorialManager)
@@ -227,6 +228,9 @@ guiManager:registerGUI("shop", shopGUI)
 local buildingGUI = BuildingGUIModule.new()
 guiManager:registerGUI("building", buildingGUI)
 
+local homeBuildingGUI = HomeBuildingGUIModule.new()
+guiManager:registerGUI("homeBuilding", homeBuildingGUI)
+
 -- Initialize NookShoppingGUI
 local nookShoppingGUI = NookShoppingGUIModule.new()
 guiManager:registerGUI("nookShopping", nookShoppingGUI)
@@ -234,8 +238,9 @@ guiManager:registerGUI("nookShopping", nookShoppingGUI)
 -- Initialize Minimap (needed for NookPhone map app)
 local MinimapModule = require(script.Modules.Minimap)
 
--- Initialize SimpleNookPhoneGUI
-local nookPhoneGUI = SimpleNookPhoneGUIModule.new()
+-- Initialize NookPhone GUI
+local nookPhoneGUI = NookPhoneGUIModule.new()
+nookPhoneGUI:init(guiManager, MinimapModule)
 guiManager:registerGUI("nookPhone", nookPhoneGUI)
 
 keybindManager:registerBind("NOOK_PHONE", function(inputState)
@@ -439,6 +444,7 @@ _G.DebugManager = DebugManager
 _G.DebugInventoryGrid = debugInventoryGrid
 _G.RecipesInventoryGUI = recipesInventoryGUI
 _G.GUIManager = guiManager
+_G.NookPhoneGUI = nookPhoneGUI
 
 -- Hook into inventory sync to refresh debug inventory when level changes
 inventoryClient.inventoryRemote.OnClientEvent:Connect(function(action, data)

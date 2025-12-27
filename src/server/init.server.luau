@@ -467,9 +467,8 @@ ShovelSystem.setAddItemFunction(addItemToInventory)
 logInfo("👤 Initializing character and tool fixes...")
 CharacterAndToolFixes.init()
 
--- Initialize tree shaking system (apples drop from trees)
--- TODO: Replace nil with actual apple asset ID when provided
-TreeShakingSystem.init(nil) -- Pass apple asset ID here when available
+-- Initialize tree shaking system (uses Workspace.Apple template if present)
+TreeShakingSystem.init(nil)
 
 -- Initialize player settings persistence service
 PlayerSettingsService.init()

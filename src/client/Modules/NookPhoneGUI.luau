@@ -1213,7 +1213,11 @@ function NookPhoneGUI:launchExternalApp(appId)
         elseif appId == "settings" and self.guiManager then
             self.guiManager:showGUI("settings")
         elseif appId == "nook_home" and self.guiManager then
-            self.guiManager:showGUI("building")
+            if self.guiManager:isVisible("homeBuilding") or self.guiManager:showGUI("homeBuilding") then
+                -- Home management UI opened
+            else
+                self.guiManager:showGUI("building")
+            end
         elseif appId == "map" then
             if self.minimapModule and self.minimapModule.toggle then
                 self.minimapModule:toggle()
@@ -2004,6 +2008,122 @@ function NookPhoneGUI:createActionButton(labelText, callback)
     end)
 
     return button
+end
+
+function NookPhoneGUI:showDialogueSequence(dialogues: { [number]: { villagerName: string, text: string } }, options)
+    options = options or {}
+    if not dialogues or #dialogues == 0 then
+        if options.onComplete then
+            options.onComplete()
+        end
+        return
+    end
+
+    local previousBackVisible = self.backButton and self.backButton.Visible or false
+    local previousCloseVisible = self.closeButton and self.closeButton.Visible or false
+
+    self:show()
+    self.appGrid.Visible = false
+    self.appContentContainer.Visible = true
+    self.appContentContainer.Position = UDim2.new(0, 0, 0, 0)
+    self.currentApp = "onboarding_dialogue"
+
+    if self.backButton then
+        self.backButton.Visible = false
+    end
+    if self.closeButton then
+        self.closeButton.Visible = false
+    end
+
+    self.appTitleLabel.Text = options.title or "Welcome"
+    self.appContentFrame:ClearAllChildren()
+
+    local content = self.appContentFrame
+    content.CanvasPosition = Vector2.new(0, 0)
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 20)
+    padding.PaddingLeft = UDim.new(0, 20)
+    padding.PaddingRight = UDim.new(0, 20)
+    padding.PaddingBottom = UDim.new(0, 20)
+    padding.Parent = content
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    local speakerLabel = Instance.new("TextLabel")
+    speakerLabel.BackgroundTransparency = 1
+    speakerLabel.Font = Enum.Font.GothamBold
+    speakerLabel.TextSize = 20
+    speakerLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    speakerLabel.TextXAlignment = Enum.TextXAlignment.Left
+    speakerLabel.Size = UDim2.new(1, 0, 0, 26)
+    speakerLabel.LayoutOrder = 1
+    speakerLabel.Parent = content
+
+    local bodyLabel = Instance.new("TextLabel")
+    bodyLabel.BackgroundTransparency = 1
+    bodyLabel.Font = Enum.Font.Gotham
+    bodyLabel.TextSize = 18
+    bodyLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    bodyLabel.TextWrapped = true
+    bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
+    bodyLabel.Size = UDim2.new(1, 0, 0, 140)
+    bodyLabel.LayoutOrder = 2
+    bodyLabel.Parent = content
+
+    local spacer = Instance.new("Frame")
+    spacer.BackgroundTransparency = 1
+    spacer.Size = UDim2.new(1, 0, 0, 10)
+    spacer.LayoutOrder = 3
+    spacer.Parent = content
+
+    local nextButton = self:createActionButton("Next →", nil)
+    nextButton.LayoutOrder = 4
+    nextButton.Parent = content
+
+    local index = 1
+
+    local function closeDialogue()
+        if self.backButton then
+            self.backButton.Visible = previousBackVisible
+        end
+        if self.closeButton then
+            self.closeButton.Visible = previousCloseVisible
+        end
+
+        self.appContentFrame:ClearAllChildren()
+        self.appContentContainer.Visible = false
+        self.appGrid.Visible = true
+        self.currentApp = nil
+
+        if options.onComplete then
+            options.onComplete()
+        end
+    end
+
+    local function renderDialogue()
+        local entry = dialogues[index]
+        if not entry then
+            closeDialogue()
+            return
+        end
+
+        speakerLabel.Text = entry.villagerName or "Guide"
+        bodyLabel.Text = entry.text or ""
+        nextButton.Text = index >= #dialogues and "Continue" or "Next →"
+        self:updateCanvasFromLayout(content, layout, 40)
+    end
+
+    nextButton.MouseButton1Click:Connect(function()
+        index += 1
+        renderDialogue()
+    end)
+
+    renderDialogue()
 end
 
 function NookPhoneGUI:updateTime()

@@ -59,6 +59,18 @@ local function getPlayerGui(): PlayerGui
     return Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 
+local function waitForNookPhone(timeoutSeconds: number)
+    local deadline = tick() + (timeoutSeconds or 5)
+    while tick() < deadline do
+        local phone = rawget(_G, "NookPhoneGUI")
+        if phone then
+            return phone
+        end
+        task.wait(0.1)
+    end
+    return nil
+end
+
 local function cleanupGui(gui: ScreenGui?)
     if gui and gui.Parent then
         gui:Destroy()
@@ -109,128 +121,18 @@ function OnboardingFlow.showDialogue(onComplete: () -> ())
 
     cleanupGui(OnboardingFlow._dialogueGui)
 
-    local playerGui = getPlayerGui()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "OnboardingDialogueGUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.DisplayOrder = 140
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.Parent = playerGui
-    OnboardingFlow._dialogueGui = screenGui
-
-    local overlay = Instance.new("Frame")
-    overlay.Name = "Overlay"
-    overlay.Size = UDim2.fromScale(1, 1)
-    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    overlay.BackgroundTransparency = 0.35
-    overlay.Parent = screenGui
-
-    local container = Instance.new("Frame")
-    container.Name = "Container"
-    container.AnchorPoint = Vector2.new(0.5, 1)
-    container.Position = UDim2.new(0.5, 0, 0.95, 0)
-    container.Size = UDim2.new(0.8, 0, 0, 180)
-    container.BackgroundColor3 = GUIContentManager.LoadingScreen.styling.backgroundColor
-    container.BorderSizePixel = 0
-    container.Parent = overlay
-
-    local containerCorner = Instance.new("UICorner")
-    containerCorner.CornerRadius = UDim.new(0, 14)
-    containerCorner.Parent = container
-
-    local containerStroke = Instance.new("UIStroke")
-    containerStroke.Color = GUIContentManager.LoadingScreen.styling.titleColor
-    containerStroke.Transparency = 0.2
-    containerStroke.Thickness = 2
-    containerStroke.Parent = container
-
-    local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 14)
-    padding.PaddingBottom = UDim.new(0, 14)
-    padding.PaddingLeft = UDim.new(0, 18)
-    padding.PaddingRight = UDim.new(0, 18)
-    padding.Parent = container
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "Speaker"
-    nameLabel.Size = UDim2.new(1, 0, 0, 28)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextSize = 20
-    nameLabel.TextColor3 = GUIContentManager.LoadingScreen.styling.titleColor
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Parent = container
-
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Name = "DialogueText"
-    textLabel.Size = UDim2.new(1, 0, 0, 80)
-    textLabel.Position = UDim2.new(0, 0, 0, 34)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Font = Enum.Font.Gotham
-    textLabel.TextSize = 18
-    textLabel.TextWrapped = true
-    textLabel.TextXAlignment = Enum.TextXAlignment.Left
-    textLabel.TextYAlignment = Enum.TextYAlignment.Top
-    textLabel.TextColor3 = GUIContentManager.LoadingScreen.styling.subtitleColor
-    textLabel.Parent = container
-
-    local buttonFrame = Instance.new("Frame")
-    buttonFrame.Name = "Buttons"
-    buttonFrame.Size = UDim2.new(1, 0, 0, 44)
-    buttonFrame.Position = UDim2.new(0, 0, 1, -44)
-    buttonFrame.BackgroundTransparency = 1
-    buttonFrame.Parent = container
-
-    local layout = Instance.new("UIListLayout")
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-    layout.VerticalAlignment = Enum.VerticalAlignment.Center
-    layout.Padding = UDim.new(0, 10)
-    layout.Parent = buttonFrame
-
-    local nextButton = Instance.new("TextButton")
-    nextButton.Name = "Next"
-    nextButton.Size = UDim2.new(0, 140, 0, 40)
-    nextButton.BackgroundColor3 = GUIContentManager.LoadingScreen.buttons.start.backgroundColor
-    nextButton.TextColor3 = GUIContentManager.LoadingScreen.buttons.start.textColor
-    nextButton.Font = Enum.Font.GothamBold
-    nextButton.TextSize = 18
-    nextButton.BorderSizePixel = 0
-    nextButton.AutoButtonColor = true
-    nextButton.Parent = buttonFrame
-
-    local nextCorner = Instance.new("UICorner")
-    nextCorner.CornerRadius = UDim.new(0, GUIContentManager.LoadingScreen.buttons.start.cornerRadius)
-    nextCorner.Parent = nextButton
-
-    local nextStroke = Instance.new("UIStroke")
-    nextStroke.Color = GUIContentManager.LoadingScreen.buttons.start.strokeColor
-    nextStroke.Transparency = 0.2
-    nextStroke.Thickness = GUIContentManager.LoadingScreen.buttons.start.strokeThickness
-    nextStroke.Parent = nextButton
-
-    local dialogueIndex = 1
-    local function renderDialogue()
-        local entry = ONBOARDING_DIALOGUE[dialogueIndex]
-        if not entry then
-            cleanupGui(screenGui)
-            OnboardingFlow._dialogueGui = nil
-            print("[OnboardingFlow] ✅ Dialogue complete")
-            onComplete()
-            return
-        end
-
-        nameLabel.Text = entry.villagerName
-        textLabel.Text = entry.text
-        nextButton.Text = dialogueIndex >= #ONBOARDING_DIALOGUE and "Continue" or "Next →"
+    local nookPhone = waitForNookPhone(10)
+    if nookPhone and nookPhone.showDialogueSequence then
+        nookPhone:showDialogueSequence(ONBOARDING_DIALOGUE, {
+            title = "Welcome",
+            onComplete = onComplete,
+        })
+        return
     end
-
-    nextButton.MouseButton1Click:Connect(function()
-        dialogueIndex += 1
-        renderDialogue()
-    end)
-
-    renderDialogue()
+    warn("[OnboardingFlow] ⚠️ NookPhoneGUI not ready; skipping dialogue sequence")
+    if onComplete then
+        onComplete()
+    end
 end
 
 --[[

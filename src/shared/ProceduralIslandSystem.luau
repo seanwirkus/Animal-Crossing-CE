@@ -23,6 +23,7 @@ local IslandGenerator = require(script.Parent.IslandGenerator)
 local IslandAuditor = require(script.Parent.IslandAuditor)
 
 local OAK_TREE_TEMPLATE: Model? = ReplicatedStorage:FindFirstChild("OakTree")
+local TREE_GROUND_OFFSET = -1
 
 local function getOakTreeTemplate(): Model?
     if OAK_TREE_TEMPLATE and OAK_TREE_TEMPLATE.Parent then
@@ -334,7 +335,7 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
         end
 
     if lowestPoint < math.huge then
-        local deltaY = terrainHeight - lowestPoint
+        local deltaY = terrainHeight - lowestPoint + TREE_GROUND_OFFSET
         local currentPivot = tree:GetPivot()
         tree:PivotTo(currentPivot + Vector3.new(0, deltaY, 0))
     end
@@ -344,10 +345,12 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
         warn("[ProceduralIslandSystem] ❌ OakTree template missing - using fallback tree")
 
         -- Fallback: Simple part-based tree
+        local groundedPosition = Vector3.new(proposal.position.X, terrainHeight + TREE_GROUND_OFFSET, proposal.position.Z)
+
         local tree = Instance.new("Part")
         tree.Name = "TreeModel"
         tree.Size = Vector3.new(2, 8, 2)
-        tree.Position = Vector3.new(proposal.position.X, terrainHeight + 4, proposal.position.Z)
+        tree.Position = groundedPosition + Vector3.new(0, 4, 0)
         tree.Anchored = true
         tree.Material = Enum.Material.Wood
         tree.BrickColor = BrickColor.new("Brown")
@@ -358,7 +361,7 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
         local leaves = Instance.new("Part")
         leaves.Name = "Leaves"
         leaves.Size = Vector3.new(6, 6, 6)
-        leaves.Position = tree.Position + Vector3.new(0, 6, 0)
+        leaves.Position = groundedPosition + Vector3.new(0, 10, 0)
         leaves.Anchored = true
         leaves.Material = Enum.Material.Grass
         leaves.BrickColor = BrickColor.new("Dark green")

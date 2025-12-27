@@ -22,7 +22,10 @@ local CONFIG = {
 	MAX_TREES_PER_ISLAND = 25,
 	MIN_ROCKS_PER_ISLAND = 6,
 	MAX_ROCKS_PER_ISLAND = 12,
+	RESOURCE_MAINTENANCE_INTERVAL = 120, -- Periodic check to repopulate resources
 }
+
+local TREE_GROUND_OFFSET = -1
 
 function ResourceSpawner.new()
 	local self = setmetatable({}, ResourceSpawner)
@@ -47,6 +50,14 @@ function ResourceSpawner:initialize()
 	-- Scan existing islands
 	self:scanExistingIslands()
 
+	-- Periodic maintenance to repopulate resources as needed
+	task.spawn(function()
+		while true do
+			task.wait(CONFIG.RESOURCE_MAINTENANCE_INTERVAL)
+			self:scanExistingIslands()
+		end
+	end)
+
 	-- Auto-populate terrain with initial resources
 	task.spawn(function()
 		task.wait(3) -- Wait for terrain to load
@@ -63,13 +74,18 @@ function ResourceSpawner:scanExistingIslands()
 	local islands = {
 		Workspace:FindFirstChild("Islands"),
 		Workspace:FindFirstChild("PlayerIslands"),
+		Workspace:FindFirstChild("Resources"),
 	}
 
 	for _, islandsFolder in ipairs(islands) do
 		if islandsFolder then
-			for _, islandFolder in ipairs(islandsFolder:GetChildren()) do
-				if islandFolder:IsA("Folder") or islandFolder:IsA("Model") then
-					self:scanIsland(islandFolder)
+			if islandsFolder.Name == "Resources" then
+				self:scanIsland(islandsFolder)
+			else
+				for _, islandFolder in ipairs(islandsFolder:GetChildren()) do
+					if islandFolder:IsA("Folder") or islandFolder:IsA("Model") then
+						self:scanIsland(islandFolder)
+					end
 				end
 			end
 		end
@@ -90,6 +106,8 @@ function ResourceSpawner:scanIsland(islandFolder)
 	end
 
 	local resources = self.islandResources[islandName]
+	resources.trees = {}
+	resources.rocks = {}
 
 	-- Find trees
 	for _, obj in ipairs(islandFolder:GetDescendants()) do
@@ -333,11 +351,13 @@ function ResourceSpawner:spawnTree(islandFolder, position)
 	local tree = Instance.new("Model")
 	tree.Name = "Tree"
 
+	local groundedPosition = position + Vector3.new(0, TREE_GROUND_OFFSET, 0)
+
 	-- Tree trunk
 	local trunk = Instance.new("Part")
 	trunk.Name = "Trunk"
 	trunk.Size = Vector3.new(2, 8, 2)
-	trunk.Position = position + Vector3.new(0, 4, 0)
+	trunk.Position = groundedPosition + Vector3.new(0, 4, 0)
 	trunk.Anchored = true
 	trunk.Material = Enum.Material.Wood
 	trunk.BrickColor = BrickColor.new("Brown")
@@ -347,7 +367,7 @@ function ResourceSpawner:spawnTree(islandFolder, position)
 	local foliage = Instance.new("Part")
 	foliage.Name = "Foliage"
 	foliage.Size = Vector3.new(6, 6, 6)
-	foliage.Position = position + Vector3.new(0, 10, 0)
+	foliage.Position = groundedPosition + Vector3.new(0, 10, 0)
 	foliage.Anchored = true
 	foliage.Material = Enum.Material.Grass
 	foliage.BrickColor = BrickColor.new("Dark green")
@@ -562,11 +582,13 @@ function ResourceSpawner:createSimpleTree(position)
 		local tree = Instance.new("Model")
 		tree.Name = "Tree"
 
+		local groundedPosition = position + Vector3.new(0, TREE_GROUND_OFFSET, 0)
+
 		-- Tree trunk
 		local trunk = Instance.new("Part")
 		trunk.Name = "Trunk"
 		trunk.Size = Vector3.new(2, 8, 2)
-		trunk.Position = position + Vector3.new(0, 4, 0)
+		trunk.Position = groundedPosition + Vector3.new(0, 4, 0)
 		trunk.Anchored = true
 		trunk.Material = Enum.Material.Wood
 		trunk.BrickColor = BrickColor.new("Brown")
@@ -576,7 +598,7 @@ function ResourceSpawner:createSimpleTree(position)
 		local foliage = Instance.new("Part")
 		foliage.Name = "Foliage"
 		foliage.Size = Vector3.new(6, 6, 6)
-		foliage.Position = position + Vector3.new(0, 10, 0)
+		foliage.Position = groundedPosition + Vector3.new(0, 10, 0)
 		foliage.Anchored = true
 		foliage.Material = Enum.Material.Grass
 		foliage.BrickColor = BrickColor.new("Dark green")
@@ -631,7 +653,7 @@ function ResourceSpawner:createSimpleTree(position)
 	end
 
 	if lowestPoint < math.huge then
-		local deltaY = position.Y - lowestPoint
+		local deltaY = position.Y - lowestPoint + TREE_GROUND_OFFSET
 		tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
 	end
 

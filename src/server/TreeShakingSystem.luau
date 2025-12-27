@@ -7,12 +7,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local TreeShakingSystem = {}
 TreeShakingSystem.__index = TreeShakingSystem
 
--- Apple asset ID (update this with the actual asset ID the user provided)
-local APPLE_ASSET_ID = nil -- Will be set via init parameter
+-- Apple asset ID (legacy fallback if no Workspace.Apple template is present)
+local APPLE_ASSET_ID = nil -- Optional legacy fallback
 
 -- Configuration
 local CONFIG = {
@@ -34,10 +35,12 @@ local playerCooldowns = {} -- [player] = lastShakeTime
 function TreeShakingSystem.init(appleAssetId: number?)
     APPLE_ASSET_ID = appleAssetId
     print("[TreeShakingSystem] 🌳 Initialized tree shaking system")
-    if APPLE_ASSET_ID then
+    if Workspace:FindFirstChild("Apple") then
+        print("[TreeShakingSystem] 🍎 Apple template found in Workspace")
+    elseif APPLE_ASSET_ID then
         print("[TreeShakingSystem] 🍎 Apple asset ID:", APPLE_ASSET_ID)
     else
-        warn("[TreeShakingSystem] ⚠️ No apple asset ID provided - apples will not spawn")
+        warn("[TreeShakingSystem] ⚠️ No apple template found - apples will use fallback parts")
     end
 
     -- Find or create RemoteEvent for tree shaking
@@ -119,40 +122,52 @@ end
 	Animate tree shaking
 ]]
 function TreeShakingSystem._animateTreeShake(treeModel: Model)
-    local rootPart = treeModel.PrimaryPart or treeModel:FindFirstChildOfClass("BasePart")
-    if not rootPart then
+    local leafParts = {}
+    for _, desc in ipairs(treeModel:GetDescendants()) do
+        if desc:IsA("BasePart") then
+            local name = desc.Name:lower()
+            local parentName = desc.Parent and desc.Parent.Name:lower() or ""
+            if name:find("leaf") or name:find("foliage") or parentName:find("leaf") or parentName:find("foliage") then
+                table.insert(leafParts, desc)
+            end
+        end
+    end
+
+    if #leafParts == 0 then
         return
     end
 
-    local originalCFrame = rootPart.CFrame
-    local shakeOffsets = {
-        Vector3.new(CONFIG.SHAKE_INTENSITY, 0, 0),
-        Vector3.new(-CONFIG.SHAKE_INTENSITY, 0, 0),
-        Vector3.new(0, 0, CONFIG.SHAKE_INTENSITY),
-        Vector3.new(0, 0, -CONFIG.SHAKE_INTENSITY),
-    }
+    local originalCFrames = {}
+    for _, part in ipairs(leafParts) do
+        originalCFrames[part] = part.CFrame
+    end
 
-    -- Create shake animation
+    -- Create vertical shake animation (leaves only)
     local shakeSteps = 8
     for i = 1, shakeSteps do
-        local offset = shakeOffsets[((i - 1) % 4) + 1]
-        rootPart.CFrame = originalCFrame * CFrame.new(offset)
+        local direction = (i % 2 == 0) and 1 or -1
+        local offset = Vector3.new(0, CONFIG.SHAKE_INTENSITY * direction, 0)
+        for _, part in ipairs(leafParts) do
+            local original = originalCFrames[part]
+            if original then
+                part.CFrame = original * CFrame.new(offset)
+            end
+        end
         task.wait(CONFIG.SHAKE_DURATION / shakeSteps)
     end
 
     -- Return to original position
-    rootPart.CFrame = originalCFrame
+    for part, original in pairs(originalCFrames) do
+        if part and part.Parent then
+            part.CFrame = original
+        end
+    end
 end
 
 --[[
 	Drop apples from tree
 ]]
 function TreeShakingSystem._dropApples(treeModel: Model, count: number, player: Player)
-    if not APPLE_ASSET_ID then
-        warn("[TreeShakingSystem] ⚠️ Cannot drop apples - no asset ID set")
-        return
-    end
-
     local rootPart = treeModel.PrimaryPart or treeModel:FindFirstChildOfClass("BasePart")
     if not rootPart then
         return
@@ -161,15 +176,9 @@ function TreeShakingSystem._dropApples(treeModel: Model, count: number, player: 
     local treePosition = rootPart.Position
     local treeTop = treePosition + Vector3.new(0, 10, 0) -- Drop from top of tree
 
-    -- Load apple model
-    local success, appleModel = pcall(function()
-        local InsertService = game:GetService("InsertService")
-        return InsertService:LoadAsset(APPLE_ASSET_ID)
-    end)
-
-    if not success or not appleModel then
-        warn("[TreeShakingSystem] ⚠️ Failed to load apple model from asset ID:", APPLE_ASSET_ID)
-        -- Fallback: create simple apple part
+    local appleTemplate = Workspace:FindFirstChild("Apple")
+    if not appleTemplate then
+        warn("[TreeShakingSystem] ⚠️ Apple template not found in Workspace - using fallback apples")
         for i = 1, count do
             TreeShakingSystem._createFallbackApple(treeTop, player)
         end
@@ -178,56 +187,72 @@ function TreeShakingSystem._dropApples(treeModel: Model, count: number, player: 
 
     -- Clone and drop apples
     for i = 1, count do
-        local apple = appleModel:GetChildren()[1]
-        if apple then
-            apple = apple:Clone()
-            apple.Name = "Apple"
+        local apple = appleTemplate:Clone()
+        apple.Name = "Apple"
 
-            -- Position apple at tree top with random offset
-            local offset = Vector3.new((math.random() - 0.5) * 4, 0, (math.random() - 0.5) * 4)
-            apple:SetPrimaryPartCFrame(CFrame.new(treeTop + offset))
+        -- Position apple at tree top with random offset
+        local offset = Vector3.new((math.random() - 0.5) * 4, 0, (math.random() - 0.5) * 4)
+        local spawnPosition = treeTop + offset
 
-            -- Make apple fall with physics
-            for _, part in ipairs(apple:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = false
-                    part.CanCollide = true
-                    part.Massless = false
-                    -- Add initial velocity for realistic drop
-                    part.AssemblyLinearVelocity = Vector3.new((math.random() - 0.5) * 5, -5, (math.random() - 0.5) * 5)
+        if apple:IsA("Model") then
+            local primary = apple.PrimaryPart or apple:FindFirstChildWhichIsA("BasePart", true)
+            if primary then
+                apple.PrimaryPart = primary
+                apple:PivotTo(CFrame.new(spawnPosition))
+            else
+                apple:MoveTo(spawnPosition)
+            end
+        elseif apple:IsA("BasePart") then
+            apple.CFrame = CFrame.new(spawnPosition)
+        end
+
+        -- Make apple fall with physics
+        for _, part in ipairs(apple:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+                part.CanCollide = true
+                part.Massless = false
+                -- Add initial velocity for realistic drop
+                part.AssemblyLinearVelocity = Vector3.new((math.random() - 0.5) * 5, -5, (math.random() - 0.5) * 5)
+            end
+        end
+        if apple:IsA("BasePart") then
+            apple.Anchored = false
+            apple.CanCollide = true
+            apple.Massless = false
+            apple.AssemblyLinearVelocity = Vector3.new((math.random() - 0.5) * 5, -5, (math.random() - 0.5) * 5)
+        end
+
+        apple.Parent = workspace
+
+        -- Add ProximityPrompt for pickup
+        local prompt = Instance.new("ProximityPrompt")
+        prompt.Name = "PickupApple"
+        prompt.ActionText = "Pick Up"
+        prompt.ObjectText = "Apple"
+        prompt.HoldDuration = 0
+        prompt.MaxActivationDistance = 8
+        prompt.RequiresLineOfSight = false
+
+        -- Attach to primary part or first part
+        local applePart = apple:IsA("Model") and (apple.PrimaryPart or apple:FindFirstChildOfClass("BasePart"))
+            or (apple:IsA("BasePart") and apple)
+        if applePart then
+            prompt.Parent = applePart
+
+            -- Handle pickup
+            prompt.Triggered:Connect(function(pickingPlayer)
+                -- Add apple to inventory
+                local inventoryEvent = ReplicatedStorage:FindFirstChild("RemoteEvents")
+                    :FindFirstChild("InventoryEvent")
+                if inventoryEvent then
+                    inventoryEvent:FireServer(pickingPlayer, "add_item", "apple", 1)
+                    print("[TreeShakingSystem] 🍎", pickingPlayer.Name, "picked up an apple")
                 end
-            end
 
-            apple.Parent = workspace
-
-            -- Add ProximityPrompt for pickup
-            local prompt = Instance.new("ProximityPrompt")
-            prompt.Name = "PickupApple"
-            prompt.ActionText = "Pick Up"
-            prompt.ObjectText = "Apple"
-            prompt.HoldDuration = 0
-            prompt.MaxActivationDistance = 8
-            prompt.RequiresLineOfSight = false
-
-            -- Attach to primary part or first part
-            local applePart = apple.PrimaryPart or apple:FindFirstChildOfClass("BasePart")
-            if applePart then
-                prompt.Parent = applePart
-
-                -- Handle pickup
-                prompt.Triggered:Connect(function(pickingPlayer)
-                    -- Add apple to inventory
-                    local inventoryEvent = ReplicatedStorage:FindFirstChild("RemoteEvents")
-                        :FindFirstChild("InventoryEvent")
-                    if inventoryEvent then
-                        inventoryEvent:FireServer(pickingPlayer, "add_item", "apple", 1)
-                        print("[TreeShakingSystem] 🍎", pickingPlayer.Name, "picked up an apple")
-                    end
-
-                    -- Destroy apple
-                    apple:Destroy()
-                end)
-            end
+                -- Destroy apple
+                apple:Destroy()
+            end)
         else
             -- Fallback if model structure is unexpected
             TreeShakingSystem._createFallbackApple(treeTop, player)

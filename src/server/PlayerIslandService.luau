@@ -20,6 +20,7 @@ PlayerIslandService.__index = PlayerIslandService
 local ISLAND_SPACING = 1000 -- Studs between islands
 local ISLAND_SIZE = Vector3.new(200, 50, 200) -- Size of each island
 local SEA_LEVEL = 50
+local TREE_GROUND_OFFSET = -1
 
 -- DataStore
 local IslandDataStore = DataStoreService:GetDataStore("PlayerIslands_v1")
@@ -765,6 +766,8 @@ function PlayerIslandService:placeTree(folder, position, treeType)
             tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
         end
 
+        tree:PivotTo(tree:GetPivot() + Vector3.new(0, TREE_GROUND_OFFSET, 0))
+
         tree.Parent = treesFolder
     else
         -- Fallback simple tree
@@ -774,7 +777,7 @@ function PlayerIslandService:placeTree(folder, position, treeType)
         local trunk = Instance.new("Part")
         trunk.Name = "Trunk"
         trunk.Size = Vector3.new(2, 8, 2)
-        trunk.Position = position + Vector3.new(0, 4, 0)
+        trunk.Position = position + Vector3.new(0, 4 + TREE_GROUND_OFFSET, 0)
         trunk.Anchored = true
         trunk.Material = Enum.Material.Wood
         trunk.BrickColor = BrickColor.new("Brown")
@@ -783,7 +786,7 @@ function PlayerIslandService:placeTree(folder, position, treeType)
         local leaves = Instance.new("Part")
         leaves.Name = "Leaves"
         leaves.Size = Vector3.new(6, 6, 6)
-        leaves.Position = position + Vector3.new(0, 9, 0)
+        leaves.Position = position + Vector3.new(0, 9 + TREE_GROUND_OFFSET, 0)
         leaves.Anchored = true
         leaves.Material = Enum.Material.Grass
         leaves.BrickColor = BrickColor.new("Dark green")

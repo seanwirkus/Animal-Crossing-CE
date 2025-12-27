@@ -149,9 +149,9 @@ OnboardingFlow.testCutscene()
 
 ---
 
-## Dialogue Handling (No DialogueGUI Required)
+## Dialogue Handling (NookPhone)
 
-`OnboardingFlow` now renders its own lightweight dialogue overlay. You only need to call:
+`OnboardingFlow` now routes onboarding dialogue through the NookPhone UI (with a lightweight overlay fallback if the phone isn't ready). You only need to call:
 
 ```lua
 OnboardingFlow.start()

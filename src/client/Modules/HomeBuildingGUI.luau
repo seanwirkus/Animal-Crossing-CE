@@ -288,13 +288,91 @@ function HomeBuildingGUI:createUpgradeButtons()
 
     local currentSize = self._currentHomeData and self._currentHomeData.size or "None"
 
+    if currentSize == "None" then
+        local buttonFrame = self:createPlacementButton()
+        buttonFrame.LayoutOrder = 1
+        buttonFrame.Parent = self._upgradeContainer
+        return
+    end
+
     for i, upgrade in ipairs(upgrades) do
-        if currentSize == upgrade.from or (currentSize == "None" and i == 1) then
+        if currentSize == upgrade.from then
             local buttonFrame = self:createUpgradeButton(upgrade)
             buttonFrame.LayoutOrder = i
             buttonFrame.Parent = self._upgradeContainer
         end
     end
+end
+
+function HomeBuildingGUI:createPlacementButton()
+    local buttonFrame = Instance.new("Frame")
+    buttonFrame.Name = "PlaceTentButton"
+    buttonFrame.Size = UDim2.new(1, 0, 0, 90)
+    buttonFrame.BackgroundColor3 = COLORS.BG_SECONDARY
+    buttonFrame.BorderSizePixel = 0
+
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 8)
+    buttonCorner.Parent = buttonFrame
+
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Thickness = 2
+    buttonStroke.Color = COLORS.BORDER
+    buttonStroke.Parent = buttonFrame
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(0.6, 0, 0, 30)
+    nameLabel.Position = UDim2.fromOffset(10, 10)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = "Starter Tent"
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 18
+    nameLabel.TextColor3 = COLORS.TEXT_DARK
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = buttonFrame
+
+    local costLabel = Instance.new("TextLabel")
+    costLabel.Name = "CostLabel"
+    costLabel.Size = UDim2.new(0.6, 0, 0, 25)
+    costLabel.Position = UDim2.fromOffset(10, 40)
+    costLabel.BackgroundTransparency = 1
+    costLabel.Text = "💰 Free placement"
+    costLabel.Font = Enum.Font.Gotham
+    costLabel.TextSize = 14
+    costLabel.TextColor3 = COLORS.TEXT_DARK
+    costLabel.TextXAlignment = Enum.TextXAlignment.Left
+    costLabel.Parent = buttonFrame
+
+    local placeButton = Instance.new("TextButton")
+    placeButton.Name = "PlaceButton"
+    placeButton.Size = UDim2.fromOffset(140, 40)
+    placeButton.Position = UDim2.new(1, -150, 0, 25)
+    placeButton.BackgroundColor3 = COLORS.CAN_UPGRADE
+    placeButton.Text = "Place Home"
+    placeButton.Font = Enum.Font.GothamBold
+    placeButton.TextSize = 16
+    placeButton.TextColor3 = COLORS.TEXT_LIGHT
+    placeButton.BorderSizePixel = 0
+    placeButton.Parent = buttonFrame
+
+    local placeCorner = Instance.new("UICorner")
+    placeCorner.CornerRadius = UDim.new(0, 8)
+    placeCorner.Parent = placeButton
+
+    placeButton.MouseButton1Click:Connect(function()
+        local success, controller = pcall(function()
+            return require(script.Parent.HomePlacementController)
+        end)
+        if success and controller and controller.requestPlacement then
+            controller:requestPlacement()
+            self:close()
+        else
+            warn("[HomeBuildingGUI] HomePlacementController not available")
+        end
+    end)
+
+    return buttonFrame
 end
 
 function HomeBuildingGUI:createUpgradeButton(upgrade)
