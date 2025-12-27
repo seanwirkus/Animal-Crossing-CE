@@ -606,13 +606,14 @@ function OnboardingFlow.start()
     ensureController()
 
     print("[OnboardingFlow] 🎬 Starting onboarding sequence...")
-    OnboardingFlow.showDialogue(function()
-        OnboardingFlow.showIslandSelection(function(selectedIsland)
-            OnboardingFlow.loadIsland(selectedIsland, function()
-                OnboardingFlow.playArrivalCutscene(function()
-                    OnboardingFlow.showStartDayScreen()
-                end)
-            end)
+
+    -- Skip dialogue and island selection - go straight to Coral Cove
+    local defaultIsland = ISLAND_OPTIONS[1] -- Coral Cove
+    print("[OnboardingFlow] ⏭️ Skipping dialogue and island selection - loading Coral Cove")
+
+    OnboardingFlow.loadIsland(defaultIsland, function()
+        OnboardingFlow.playArrivalCutscene(function()
+            OnboardingFlow.showStartDayScreen()
         end)
     end)
 end

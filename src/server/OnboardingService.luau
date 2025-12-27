@@ -201,13 +201,12 @@ function OnboardingService:giveStarterKit(player)
     end
 
     -- Give starting bells and miles
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if remotes then
-        local currencyRemote = remotes:FindFirstChild("CurrencyUpdate")
-        if currencyRemote then
-            currencyRemote:FireClient(player, "Grant", { bells = 1000, miles = 500 })
-            print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
-        end
+    local currencyRemote = ReplicatedStorage:FindFirstChild("CurrencyEvent")
+    if currencyRemote then
+        currencyRemote:FireClient(player, "Grant", { bells = 1000, miles = 500 })
+        print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
+    else
+        warn("[OnboardingService] ⚠️ CurrencyEvent remote not found - currency may not be granted")
     end
 
     self.playersWithActiveReward[player.UserId] = nil
