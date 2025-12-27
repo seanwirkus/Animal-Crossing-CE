@@ -611,14 +611,24 @@ function OnboardingFlow.start()
     local defaultIsland = ISLAND_OPTIONS[1] -- Coral Cove
     print("[OnboardingFlow] ⏭️ Skipping dialogue and island selection - loading Coral Cove")
 
-    -- NEW FLOW: Play cutscene FIRST (airplane arrival), THEN load island
-    print("[OnboardingFlow] 🎥 Starting with airplane arrival cutscene...")
-    OnboardingFlow.playArrivalCutscene(function()
-        print("[OnboardingFlow] ✅ Cutscene complete, now loading island...")
+    -- DEBUG MODE: Skip cutscene and loading screen for faster testing
+    local skipCutsceneAndLoading = true
+
+    if skipCutsceneAndLoading then
+        print("[OnboardingFlow] ⚡ DEBUG MODE: Skipping cutscene and loading screen for fast testing")
         OnboardingFlow.loadIsland(defaultIsland, function()
             OnboardingFlow.showStartDayScreen()
         end)
-    end)
+    else
+        -- NORMAL FLOW: Play cutscene FIRST (airplane arrival), THEN load island
+        print("[OnboardingFlow] 🎥 Starting with airplane arrival cutscene...")
+        OnboardingFlow.playArrivalCutscene(function()
+            print("[OnboardingFlow] ✅ Cutscene complete, now loading island...")
+            OnboardingFlow.loadIsland(defaultIsland, function()
+                OnboardingFlow.showStartDayScreen()
+            end)
+        end)
+    end
 end
 
 --[[
