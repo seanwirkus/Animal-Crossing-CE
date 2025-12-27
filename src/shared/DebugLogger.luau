@@ -1,15 +1,39 @@
+local RunService = game:GetService("RunService")
+
 local DebugLogger = {}
 
 local LOG_LEVELS = {
-    INFO = "INFO",
-    WARN = "WARN",
-    ERROR = "ERROR",
-    DEBUG = "DEBUG",
+    ERROR = 1,
+    WARN = 2,
+    INFO = 3,
+    DEBUG = 4,
 }
 
-local function formatPrefix(moduleName, level)
-    local timeStamp = os.date("%X")
-    return string.format("[%s] [%s] [%s]", timeStamp, moduleName or "unknown", level)
+-- Default: Only show INFO and above in production, DEBUG in Studio
+local currentLogLevel = RunService:IsStudio() and LOG_LEVELS.DEBUG or LOG_LEVELS.INFO
+
+-- Set to true to completely disable all logging
+local loggingDisabled = false
+
+function DebugLogger.setLogLevel(level)
+    if LOG_LEVELS[level] then
+        currentLogLevel = LOG_LEVELS[level]
+    end
+end
+
+function DebugLogger.disableLogging()
+    loggingDisabled = true
+end
+
+function DebugLogger.enableLogging()
+    loggingDisabled = false
+end
+
+local function shouldLog(level)
+    if loggingDisabled then
+        return false
+    end
+    return LOG_LEVELS[level] <= currentLogLevel
 end
 
 local function tryStringify(value)
@@ -29,28 +53,36 @@ local function tryStringify(value)
 end
 
 function DebugLogger.log(moduleName, level, message, context)
-    local prefix = formatPrefix(moduleName, level)
+    if not shouldLog(level) then
+        return
+    end
+
     local body = message or "<no message>"
     if context ~= nil then
         body = body .. " | " .. tryStringify(context)
     end
-    print(string.format("%s %s", prefix, body))
+
+    if level == "ERROR" then
+        warn(string.format("[%s] %s", moduleName or "unknown", body))
+    else
+        print(string.format("[%s] %s", moduleName or "unknown", body))
+    end
 end
 
 function DebugLogger.info(moduleName, message, context)
-    DebugLogger.log(moduleName, LOG_LEVELS.INFO, message, context)
+    DebugLogger.log(moduleName, "INFO", message, context)
 end
 
 function DebugLogger.warn(moduleName, message, context)
-    DebugLogger.log(moduleName, LOG_LEVELS.WARN, message, context)
+    DebugLogger.log(moduleName, "WARN", message, context)
 end
 
 function DebugLogger.error(moduleName, message, context)
-    DebugLogger.log(moduleName, LOG_LEVELS.ERROR, message, context)
+    DebugLogger.log(moduleName, "ERROR", message, context)
 end
 
 function DebugLogger.debug(moduleName, message, context)
-    DebugLogger.log(moduleName, LOG_LEVELS.DEBUG, message, context)
+    DebugLogger.log(moduleName, "DEBUG", message, context)
 end
 
 function DebugLogger.activity(moduleName, activity, state)

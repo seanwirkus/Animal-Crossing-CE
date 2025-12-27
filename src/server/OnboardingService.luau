@@ -1,6 +1,6 @@
 --[[
 	OnboardingService.luau
-	
+
 	Server-side onboarding/tutorial management.
 	Tracks player tutorial progress and handles home building.
 ]]
@@ -16,7 +16,7 @@ function OnboardingService.new()
 
     self.playerIslandService = nil -- Will be set during init
     self.homeBuildingService = nil -- Will be set during init
-    self.playersWhoReceivedRewards = {} -- Track who got tutorial rewards to prevent duplicates
+    self.playersWhoReceivedRewards = {} -- Track who got tutorial rewards to prevent duplicates (session-based)
     self.playersWithActiveReward = {} -- Track in-progress grants to avoid double work
     self.playerRetryAttempts = {} -- Track retry attempts per player to prevent spam
 
@@ -24,7 +24,7 @@ function OnboardingService.new()
 end
 
 function OnboardingService:initialize(playerIslandService, homeBuildingService, addItemFunc, currencyManager)
-    print("[OnboardingService] 📚 Initializing...")
+    print("[OnboardingService] Initializing...")
 
     self.playerIslandService = playerIslandService
     self.homeBuildingService = homeBuildingService
@@ -79,11 +79,30 @@ function OnboardingService:initialize(playerIslandService, homeBuildingService, 
         self:onPlayerJoined(player)
     end)
 
-    print("[OnboardingService] ✅ Initialized")
+    print("[OnboardingService] Initialized")
 end
 
 function OnboardingService:setAddItemFunction(addItemFunc)
     self.addItemToInventory = addItemFunc
+end
+
+function OnboardingService:_hasReceivedStarterKit(player)
+    -- Check session-based tracking first
+    if self.playersWhoReceivedRewards[player.UserId] then
+        return true
+    end
+
+    -- Check DataStore-based tracking via PlayerIslandService
+    if self.playerIslandService then
+        local islandData = self.playerIslandService:getPlayerIsland(player.UserId)
+        if islandData and islandData.hasReceivedStarterKit then
+            -- Sync session state with DataStore state
+            self.playersWhoReceivedRewards[player.UserId] = true
+            return true
+        end
+    end
+
+    return false
 end
 
 function OnboardingService:onPlayerJoined(player)
@@ -95,11 +114,9 @@ function OnboardingService:onPlayerJoined(player)
         local islandData = self.playerIslandService:getPlayerIsland(player.UserId)
 
         if islandData and not islandData.hasCompletedTutorial then
-            print(string.format("[OnboardingService] Starting tutorial for %s", player.Name))
             self:startTutorial(player)
         elseif not islandData then
             -- New player without island data - still start tutorial
-            print(string.format("[OnboardingService] New player detected: %s - starting tutorial anyway", player.Name))
             self:startTutorial(player)
         end
     end
@@ -149,18 +166,13 @@ function OnboardingService:_waitForAddItemFunction()
 end
 
 function OnboardingService:_grantStarterItems(player)
-    print(string.format("[OnboardingService] 🛠️ _grantStarterItems called for %s", player.Name))
-    print(string.format("[OnboardingService] Debug: addItemToInventory is nil: %s", tostring(self.addItemToInventory == nil)))
-
     -- Wait for the addItemToInventory function to be set (if not already set)
     if not self.addItemToInventory then
-        print("[OnboardingService] ⏳ Waiting for addItemToInventory function to be set...")
         local ready = self:_waitForAddItemFunction()
         if not ready then
-            warn("[OnboardingService] ⚠️ addItemToInventory function not set after waiting - items cannot be granted")
+            warn("[OnboardingService] addItemToInventory function not set - items cannot be granted")
             return false
         end
-        print("[OnboardingService] ✅ addItemToInventory function is now available")
     end
 
     local starterItems = {
@@ -182,19 +194,21 @@ function OnboardingService:_grantStarterItems(player)
         local success, err = self.addItemToInventory(player, item)
         if success then
             anySuccess = true
-            print(string.format("[OnboardingService] ✅ Gave %s to %s", item.itemId, player.Name))
         else
-            -- Log warning but continue trying other items
-            warn(string.format("[OnboardingService] ⚠️ Failed to add %s: %s (will use placeholder if item doesn't exist)", item.itemId, tostring(err)))
+            warn(string.format("[OnboardingService] Failed to add %s: %s", item.itemId, tostring(err)))
         end
+    end
+
+    if anySuccess then
+        print(string.format("[OnboardingService] Gave starter tools to %s", player.Name))
     end
 
     return anySuccess
 end
 
 function OnboardingService:giveStarterKit(player, currencyManager)
-    -- Check if player already received starter kit
-    if self.playersWhoReceivedRewards[player.UserId] then
+    -- Check if player already received starter kit (checks both session and DataStore)
+    if self:_hasReceivedStarterKit(player) then
         return
     end
 
@@ -209,7 +223,7 @@ function OnboardingService:giveStarterKit(player, currencyManager)
 
     -- Max 3 retries to prevent infinite spam
     if self.playerRetryAttempts[player.UserId] >= 3 then
-        warn("[OnboardingService] ⚠️ Max retries reached for starter kit for", player.Name, "- giving up")
+        warn("[OnboardingService] Max retries reached for starter kit for", player.Name)
         self.playersWhoReceivedRewards[player.UserId] = true
         self.playersWithActiveReward[player.UserId] = nil
         return
@@ -218,14 +232,12 @@ function OnboardingService:giveStarterKit(player, currencyManager)
     self.playersWithActiveReward[player.UserId] = true
     self.playerRetryAttempts[player.UserId] = self.playerRetryAttempts[player.UserId] + 1
 
-    print(string.format("[OnboardingService] 🎁 Starting starter kit grant for %s (attempt %d)", player.Name, self.playerRetryAttempts[player.UserId]))
-
     local ready = self:_waitForInventory(player)
     if not ready then
         self.playersWithActiveReward[player.UserId] = nil
         if self.playerRetryAttempts[player.UserId] < 3 then
             task.delay(2, function()
-                if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
+                if player and player.Parent and not self:_hasReceivedStarterKit(player) then
                     self:giveStarterKit(player, currencyManager)
                 end
             end)
@@ -240,7 +252,7 @@ function OnboardingService:giveStarterKit(player, currencyManager)
         self.playersWithActiveReward[player.UserId] = nil
         if self.playerRetryAttempts[player.UserId] < 3 then
             task.delay(2, function()
-                if player and player.Parent and not self.playersWhoReceivedRewards[player.UserId] then
+                if player and player.Parent and not self:_hasReceivedStarterKit(player) then
                     self:giveStarterKit(player, currencyManager)
                 end
             end)
@@ -248,34 +260,36 @@ function OnboardingService:giveStarterKit(player, currencyManager)
         return
     end
 
-    if gaveItems then
-        print("[OnboardingService] ✅ Gave starter tools to", player.Name)
-    end
-
-    -- Give starting bells and miles DIRECTLY via CurrencyManager (ALWAYS give even if items failed)
+    -- Give starting bells and miles via CurrencyManager
     if currencyManager then
-        print("[OnboardingService] 💰 Granting currency to", player.Name)
         local bellsSuccess = currencyManager.addBells(player, 1000)
         local milesSuccess = currencyManager.addMiles(player, 500)
 
         if bellsSuccess and milesSuccess then
-            print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
+            print(string.format("[OnboardingService] Gave currency to %s", player.Name))
         else
-            warn("[OnboardingService] ⚠️ Currency grant partially failed")
+            warn("[OnboardingService] Currency grant partially failed")
         end
     else
-        warn("[OnboardingService] ⚠️ CurrencyManager is nil - cannot grant currency")
+        warn("[OnboardingService] CurrencyManager is nil - cannot grant currency")
     end
 
-    -- Mark as completed AFTER all items are given
+    -- Mark as completed in session
     self.playersWhoReceivedRewards[player.UserId] = true
     self.playersWithActiveReward[player.UserId] = nil
     self.playerRetryAttempts[player.UserId] = nil
+
+    -- Persist to DataStore via PlayerIslandService
+    if self.playerIslandService then
+        local islandData = self.playerIslandService:getPlayerIsland(player.UserId)
+        if islandData then
+            islandData.hasReceivedStarterKit = true
+            self.playerIslandService:saveIsland(player.UserId, islandData)
+        end
+    end
 end
 
 function OnboardingService:onTutorialComplete(player)
-    print(string.format("[OnboardingService] Tutorial completed by %s", player.Name))
-
     -- Mark tutorial as complete in island data
     if self.playerIslandService then
         local islandData = self.playerIslandService:getPlayerIsland(player.UserId)
@@ -286,8 +300,7 @@ function OnboardingService:onTutorialComplete(player)
         end
     end
 
-    -- Starter kit is already given at tutorial START, so just log completion
-    print(string.format("[OnboardingService] ✅ %s finished tutorial!", player.Name))
+    print(string.format("[OnboardingService] %s finished tutorial", player.Name))
 end
 
 function OnboardingService:buildPlayerHome(player)

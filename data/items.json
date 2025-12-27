@@ -2822,25 +2822,73 @@
     {
       "id": "flimsy-axe",
       "name": "flimsy axe",
-      "category": "material",
+      "category": "tool",
       "series": null,
       "set": null,
-      "tag": null,
-      "sell": null,
+      "tag": "Tool",
+      "sell": 200,
       "buy": null,
-      "source": [],
+      "source": ["crafting"],
       "themes": []
     },
     {
       "id": "flimsy-shovel",
       "name": "flimsy shovel",
-      "category": "material",
+      "category": "tool",
       "series": null,
       "set": null,
-      "tag": null,
-      "sell": null,
+      "tag": "Tool",
+      "sell": 200,
       "buy": null,
-      "source": [],
+      "source": ["crafting"],
+      "themes": []
+    },
+    {
+      "id": "flimsy-pickaxe",
+      "name": "flimsy pickaxe",
+      "category": "tool",
+      "series": null,
+      "set": null,
+      "tag": "Tool",
+      "sell": 200,
+      "buy": null,
+      "source": ["crafting"],
+      "themes": []
+    },
+    {
+      "id": "flimsy-net",
+      "name": "flimsy net",
+      "category": "tool",
+      "series": null,
+      "set": null,
+      "tag": "Tool",
+      "sell": 200,
+      "buy": null,
+      "source": ["crafting"],
+      "themes": []
+    },
+    {
+      "id": "flimsy-fishing-rod",
+      "name": "flimsy fishing rod",
+      "category": "tool",
+      "series": null,
+      "set": null,
+      "tag": "Tool",
+      "sell": 200,
+      "buy": null,
+      "source": ["crafting"],
+      "themes": []
+    },
+    {
+      "id": "fishing-rod",
+      "name": "fishing rod",
+      "category": "tool",
+      "series": null,
+      "set": null,
+      "tag": "Tool",
+      "sell": 600,
+      "buy": null,
+      "source": ["crafting"],
       "themes": []
     },
     {
@@ -2940,6 +2988,18 @@
       "themes": []
     },
     {
+      "id": "net",
+      "name": "net",
+      "category": "tool",
+      "series": null,
+      "set": null,
+      "tag": "Tool",
+      "sell": 600,
+      "buy": null,
+      "source": ["crafting"],
+      "themes": []
+    },
+    {
       "id": "pine-bonsai-tree",
       "name": "pine bonsai tree",
       "category": "material",
@@ -2973,6 +3033,18 @@
       "sell": null,
       "buy": null,
       "source": [],
+      "themes": []
+    },
+    {
+      "id": "shovel",
+      "name": "shovel",
+      "category": "tool",
+      "series": null,
+      "set": null,
+      "tag": "Tool",
+      "sell": 600,
+      "buy": null,
+      "source": ["crafting"],
       "themes": []
     },
     {

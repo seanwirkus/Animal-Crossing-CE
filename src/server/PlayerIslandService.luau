@@ -146,6 +146,7 @@ function PlayerIslandService:createNewIsland(userId)
         -- Player progress
         hasCompletedTutorial = false,
         hasBuiltHome = false,
+        hasReceivedStarterKit = false,
     }
 
     -- Save immediately
