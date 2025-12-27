@@ -134,12 +134,32 @@ function OnboardingService:_waitForInventory(player)
     return false
 end
 
+function OnboardingService:_waitForAddItemFunction()
+    -- Wait up to 10 seconds for the addItemToInventory function to be set
+    local maxWait = 100
+    local waited = 0
+
+    while not self.addItemToInventory and waited < maxWait do
+        task.wait(0.1)
+        waited = waited + 1
+    end
+
+    return self.addItemToInventory ~= nil
+end
+
 function OnboardingService:_grantStarterItems(player)
     print(string.format("[OnboardingService] 🛠️ _grantStarterItems called for %s", player.Name))
     print(string.format("[OnboardingService] Debug: addItemToInventory is nil: %s", tostring(self.addItemToInventory == nil)))
+
+    -- Wait for the addItemToInventory function to be set (if not already set)
     if not self.addItemToInventory then
-        warn("[OnboardingService] ⚠️ addItemToInventory function not set - items cannot be granted")
-        return false
+        print("[OnboardingService] ⏳ Waiting for addItemToInventory function to be set...")
+        local ready = self:_waitForAddItemFunction()
+        if not ready then
+            warn("[OnboardingService] ⚠️ addItemToInventory function not set after waiting - items cannot be granted")
+            return false
+        end
+        print("[OnboardingService] ✅ addItemToInventory function is now available")
     end
 
     local starterItems = {

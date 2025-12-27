@@ -10,6 +10,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 print("[OnboardingTrigger] 🎬 Initializing...")
 
+-- Get OnboardingService instance from _G (set by init.server)
+-- Define this early so we can use it in startTutorialForPlayer
+local function getOnboardingService()
+	-- Wait up to 5 seconds for the service to become available
+	local attempts = 0
+	while not _G.onboardingService and attempts < 50 do
+		task.wait(0.1)
+		attempts = attempts + 1
+	end
+	return _G.onboardingService
+end
+
 -- Wait for remotes folder
 local remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
 if not remotes then
@@ -63,11 +75,6 @@ local function startTutorialForPlayer(player)
 		print(string.format("[OnboardingTrigger] ⚠️ OnboardingService not available, using client fallback for %s", player.Name))
 		startOnboardingRemote:FireClient(player)
 	end
-end
-
--- Get OnboardingService instance from _G (set by init.server)
-local function getOnboardingService()
-	return _G.onboardingService
 end
 
 -- Listen for tutorial completion
