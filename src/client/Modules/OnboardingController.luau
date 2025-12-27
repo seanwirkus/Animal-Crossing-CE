@@ -476,7 +476,7 @@ function OnboardingController:showStep(step)
         local continueStroke = Instance.new("UIStroke")
         continueStroke.Color = Color3.fromRGB(85, 139, 189)
         continueStroke.Thickness = 2
-        continueStroke.Parent = continueStroke
+        continueStroke.Parent = continueButton
 
         continueButton.MouseEnter:Connect(function()
             continueButton.BackgroundColor3 = Color3.fromRGB(135, 189, 239)
