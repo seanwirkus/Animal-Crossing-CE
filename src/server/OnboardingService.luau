@@ -167,20 +167,19 @@ function OnboardingService:_grantStarterItems(player)
         { itemId = "flimsy-axe", count = 1 },
         { itemId = "axe", count = 1 },
         { itemId = "flimsy-shovel", count = 1 },
-        { itemId = "colorful-fishing-rod", count = 1 },
-        { itemId = "net", count = 1 },
-        { itemId = "slingshot", count = 1 },
     }
 
+    local anySuccess = false
     for _, item in ipairs(starterItems) do
         local success, err = self.addItemToInventory(player, item)
-        if not success then
+        if success then
+            anySuccess = true
+        else
             warn(string.format("[OnboardingService] ⚠️ Failed to add %s: %s", item.itemId, tostring(err)))
-            return false
         end
     end
 
-    return true
+    return anySuccess
 end
 
 function OnboardingService:giveStarterKit(player, currencyManager)
@@ -239,10 +238,13 @@ function OnboardingService:giveStarterKit(player, currencyManager)
         return
     end
 
-    print("[OnboardingService] ✅ Gave starter tools to", player.Name)
+    if gaveItems then
+        print("[OnboardingService] ✅ Gave starter tools to", player.Name)
+    end
 
-    -- Give starting bells and miles DIRECTLY via CurrencyManager
+    -- Give starting bells and miles DIRECTLY via CurrencyManager (ALWAYS give even if items failed)
     if currencyManager then
+        print("[OnboardingService] 💰 Granting currency to", player.Name)
         local bellsSuccess = currencyManager.addBells(player, 1000)
         local milesSuccess = currencyManager.addMiles(player, 500)
 
@@ -251,6 +253,8 @@ function OnboardingService:giveStarterKit(player, currencyManager)
         else
             warn("[OnboardingService] ⚠️ Currency grant partially failed")
         end
+    else
+        warn("[OnboardingService] ⚠️ CurrencyManager is nil - cannot grant currency")
     end
 
     -- Mark as completed AFTER all items are given
