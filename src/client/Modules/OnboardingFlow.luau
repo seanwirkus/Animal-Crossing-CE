@@ -531,9 +531,9 @@ function OnboardingFlow.showStartDayScreen()
     titleLabel.Name = "Title"
     titleLabel.Size = UDim2.new(1, 0, 0, 40)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Font = Enum.Font.Gotham
     titleLabel.TextColor3 = GUIContentManager.LoadingScreen.styling.titleColor
-    titleLabel.TextSize = 32
+    titleLabel.TextSize = 28
     titleLabel.Text = "Welcome to Your Island!"
     titleLabel.Parent = container
 

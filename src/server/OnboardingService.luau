@@ -166,9 +166,9 @@ function OnboardingService:_grantStarterItems(player)
     local starterItems = {
         { itemId = "flimsy-axe", count = 1 },
         { itemId = "axe", count = 1 },
-        { itemId = "shovel", count = 1 },
+        { itemId = "flimsy-shovel", count = 1 },
         { itemId = "flimsy-fishing-rod", count = 1 },
-        { itemId = "net", count = 1 },
+        { itemId = "flimsy-net", count = 1 },
         { itemId = "slingshot", count = 1 },
     }
 
