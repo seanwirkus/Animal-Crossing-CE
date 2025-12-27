@@ -11,6 +11,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local OnboardingService = {}
 OnboardingService.__index = OnboardingService
 
+local MAX_STARTER_KIT_RETRIES = 3
+local BASE_RETRY_DELAY = 2
+
 function OnboardingService.new()
     local self = setmetatable({}, OnboardingService)
 
@@ -19,6 +22,7 @@ function OnboardingService.new()
     self.playersWhoReceivedRewards = {} -- Track who got tutorial rewards to prevent duplicates (session-based)
     self.playersWithActiveReward = {} -- Track in-progress grants to avoid double work
     self.playerRetryAttempts = {} -- Track retry attempts per player to prevent spam
+    self.hasStarterKit = nil -- Optional inventory check callback
 
     return self
 end
@@ -79,6 +83,12 @@ function OnboardingService:initialize(playerIslandService, homeBuildingService, 
         self:onPlayerJoined(player)
     end)
 
+    Players.PlayerRemoving:Connect(function(player)
+        local userId = player.UserId
+        self.playersWithActiveReward[userId] = nil
+        self.playerRetryAttempts[userId] = nil
+    end)
+
     print("[OnboardingService] Initialized")
 end
 
@@ -86,7 +96,18 @@ function OnboardingService:setAddItemFunction(addItemFunc)
     self.addItemToInventory = addItemFunc
 end
 
+function OnboardingService:setStarterKitCheckFunction(checkFunc)
+    self.hasStarterKit = checkFunc
+end
+
 function OnboardingService:_hasReceivedStarterKit(player)
+    if self.hasStarterKit then
+        local ok, hasKit = pcall(self.hasStarterKit, player)
+        if ok and not hasKit then
+            return false
+        end
+    end
+
     -- Check session-based tracking first
     if self.playersWhoReceivedRewards[player.UserId] then
         return true
@@ -118,6 +139,11 @@ function OnboardingService:onPlayerJoined(player)
         elseif not islandData then
             -- New player without island data - still start tutorial
             self:startTutorial(player)
+        elseif islandData and not islandData.hasReceivedStarterKit then
+            -- Tutorial already complete but kit missing; grant without restarting onboarding UI.
+            task.spawn(function()
+                self:giveStarterKit(player, self.currencyManager)
+            end)
         end
     end
 end
@@ -141,7 +167,7 @@ function OnboardingService:_waitForInventory(player)
     while player and player.Parent and waited < maxWait do
         local hasInventoryAttributes = player:GetAttribute("InventoryMaxSlots") ~= nil
             or player:GetAttribute("InventoryLevel") ~= nil
-        if self.addItemToInventory and hasInventoryAttributes then
+        if hasInventoryAttributes then
             return true
         end
 
@@ -153,8 +179,8 @@ function OnboardingService:_waitForInventory(player)
 end
 
 function OnboardingService:_waitForAddItemFunction()
-    -- Wait up to 10 seconds for the addItemToInventory function to be set
-    local maxWait = 100
+    -- Wait up to 30 seconds for the addItemToInventory function to be set
+    local maxWait = 300
     local waited = 0
 
     while not self.addItemToInventory and waited < maxWait do
@@ -163,6 +189,23 @@ function OnboardingService:_waitForAddItemFunction()
     end
 
     return self.addItemToInventory ~= nil
+end
+
+function OnboardingService:_scheduleStarterKitRetry(player, currencyManager)
+    local userId = player.UserId
+    self.playersWithActiveReward[userId] = nil
+
+    if self.playerRetryAttempts[userId] >= MAX_STARTER_KIT_RETRIES then
+        warn("[OnboardingService] Max retries reached for starter kit for", player.Name)
+        return
+    end
+
+    local delaySeconds = BASE_RETRY_DELAY * (2 ^ (self.playerRetryAttempts[userId] - 1))
+    task.delay(delaySeconds, function()
+        if player and player.Parent and not self:_hasReceivedStarterKit(player) then
+            self:giveStarterKit(player, currencyManager)
+        end
+    end)
 end
 
 function OnboardingService:_grantStarterItems(player)
@@ -222,9 +265,8 @@ function OnboardingService:giveStarterKit(player, currencyManager)
     end
 
     -- Max 3 retries to prevent infinite spam
-    if self.playerRetryAttempts[player.UserId] >= 3 then
+    if self.playerRetryAttempts[player.UserId] >= MAX_STARTER_KIT_RETRIES then
         warn("[OnboardingService] Max retries reached for starter kit for", player.Name)
-        self.playersWhoReceivedRewards[player.UserId] = true
         self.playersWithActiveReward[player.UserId] = nil
         return
     end
@@ -234,14 +276,7 @@ function OnboardingService:giveStarterKit(player, currencyManager)
 
     local ready = self:_waitForInventory(player)
     if not ready then
-        self.playersWithActiveReward[player.UserId] = nil
-        if self.playerRetryAttempts[player.UserId] < 3 then
-            task.delay(2, function()
-                if player and player.Parent and not self:_hasReceivedStarterKit(player) then
-                    self:giveStarterKit(player, currencyManager)
-                end
-            end)
-        end
+        self:_scheduleStarterKitRetry(player, currencyManager)
         return
     end
 
@@ -249,14 +284,7 @@ function OnboardingService:giveStarterKit(player, currencyManager)
     local gaveItems = self:_grantStarterItems(player)
 
     if not gaveItems then
-        self.playersWithActiveReward[player.UserId] = nil
-        if self.playerRetryAttempts[player.UserId] < 3 then
-            task.delay(2, function()
-                if player and player.Parent and not self:_hasReceivedStarterKit(player) then
-                    self:giveStarterKit(player, currencyManager)
-                end
-            end)
-        end
+        self:_scheduleStarterKitRetry(player, currencyManager)
         return
     end
 

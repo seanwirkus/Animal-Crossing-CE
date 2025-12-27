@@ -4,6 +4,7 @@ This plan focuses on making the starter kit reliable, calming home placement, an
 
 ## Current State (what just landed)
 - Starter kit waits for inventory attributes before granting and retries instead of silently failing.
+- Starter kit retries use exponential backoff and can still grant even if the tutorial UI is skipped.
 - Tent placement uses an in-house primitive template (no OBJ dependencies) and smoother ghost movement with grid snapping.
 - Onboarding UI lets players proceed even if they place their tent later; auto-completes once a home is registered.
 

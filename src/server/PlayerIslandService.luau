@@ -93,11 +93,82 @@ function PlayerIslandService:onPlayerJoined(player)
         print("[PlayerIslandService] ✅ Created island data for player (using existing world terrain)")
     end
 
+    islandData.trees = islandData.trees or {}
+    islandData.rocks = islandData.rocks or {}
+    islandData.holes = islandData.holes or {}
+    islandData.buildings = islandData.buildings or {}
+
     self.playerIslands[player.UserId] = islandData
+
+    task.spawn(function()
+        self:ensureIslandFolder(player.UserId)
+        self:ensureTreesForIsland(player.UserId, islandData)
+    end)
 
     -- DON'T generate new terrain - use existing island
     -- Just spawn player on the existing island
     self:spawnPlayerOnIsland(player, islandData)
+end
+
+function PlayerIslandService:ensureIslandFolder(userId)
+    if self.islandFolders[userId] and self.islandFolders[userId].Parent then
+        return self.islandFolders[userId]
+    end
+
+    if not self.islandsFolder or not self.islandsFolder.Parent then
+        local islandsFolder = workspace:FindFirstChild("PlayerIslands")
+        if not islandsFolder then
+            islandsFolder = Instance.new("Folder")
+            islandsFolder.Name = "PlayerIslands"
+            islandsFolder.Parent = workspace
+        end
+        self.islandsFolder = islandsFolder
+    end
+
+    local islandName = "Island_" .. userId
+    local islandFolder = self.islandsFolder:FindFirstChild(islandName)
+    if not islandFolder then
+        islandFolder = Instance.new("Folder")
+        islandFolder.Name = islandName
+        islandFolder.Parent = self.islandsFolder
+    end
+
+    self.islandFolders[userId] = islandFolder
+    return islandFolder
+end
+
+function PlayerIslandService:ensureTreesForIsland(userId, islandData)
+    local folder = self:ensureIslandFolder(userId)
+    if not folder then
+        return
+    end
+
+    local treesFolder = folder:FindFirstChild("Trees")
+    local existingTreeCount = 0
+    if treesFolder then
+        for _, child in ipairs(treesFolder:GetChildren()) do
+            if child:IsA("Model") or child:IsA("BasePart") then
+                existingTreeCount += 1
+            end
+        end
+    end
+
+    if existingTreeCount > 0 then
+        return
+    end
+
+    if islandData.trees and #islandData.trees > 0 then
+        for _, treeData in ipairs(islandData.trees) do
+            local pos = Vector3.new(treeData.X, treeData.Y, treeData.Z)
+            self:placeTree(folder, pos, treeData.type)
+        end
+        return
+    end
+
+    local center = Vector3.new(islandData.center.X, islandData.center.Y, islandData.center.Z)
+    local size = Vector3.new(islandData.size.X, islandData.size.Y, islandData.size.Z)
+    self:generateInitialTrees(userId, center, size)
+    self:saveIsland(userId, islandData)
 end
 
 function PlayerIslandService:onPlayerLeaving(player)
@@ -345,13 +416,54 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
         usedGridCells[key] = (usedGridCells[key] or 0) + 1
     end
 
-    -- ONLY allow grass material for trees
+    -- Preferred materials for trees (fallback allows non-water surfaces)
     local validTreeMaterials = {
-        [Enum.Material.Grass] = true, -- Only grass allowed
+        [Enum.Material.Grass] = true,
+        [Enum.Material.LeafyGrass] = true,
+        [Enum.Material.Ground] = true,
     }
 
-    -- Scan entire terrain for grass material to find all valid tree positions
+    local function isValidTreeSurface(material, allowAnySurface)
+        if validTreeMaterials[material] then
+            return true
+        end
+
+        if allowAnySurface then
+            return material ~= Enum.Material.Water
+        end
+
+        return false
+    end
+
+    local function buildGroundRaycastParams()
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+
+        local excludes = {}
+        local resourcesFolder = workspace:FindFirstChild("Resources")
+        if resourcesFolder then
+            table.insert(excludes, resourcesFolder)
+        end
+
+        local generatedFolder = workspace:FindFirstChild("GeneratedObjects")
+        if generatedFolder then
+            table.insert(excludes, generatedFolder)
+        end
+
+        local treesFolder = islandFolder:FindFirstChild("Trees")
+        if treesFolder then
+            table.insert(excludes, treesFolder)
+        end
+
+        params.FilterDescendantsInstances = excludes
+        params.IgnoreWater = false
+        params.RespectCanCollide = false
+        return params
+    end
+
+    -- Scan terrain for viable tree positions
     local candidatePositions = {}
+    local fallbackPositions = {}
     local islandRadius = math.min(size.X, size.Z) * 0.95 -- Use 95% of island size (cover entire area)
     local minDistanceFromCenter = 5 -- Allow trees very close to center
     
@@ -362,42 +474,47 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
     local scanStartZ = center.Z - islandRadius
     local scanEndZ = center.Z + islandRadius
     
-    print(string.format("[PlayerIslandService] 🌳 Scanning terrain for grass: X[%.1f to %.1f] Z[%.1f to %.1f]", 
+    print(string.format("[PlayerIslandService] 🌳 Scanning terrain for tree surfaces: X[%.1f to %.1f] Z[%.1f to %.1f]", 
         scanStartX, scanEndX, scanStartZ, scanEndZ))
     
-    -- Scan entire terrain grid for grass material
+    local groundRaycastParams = buildGroundRaycastParams()
+
+    -- Scan entire terrain grid for viable materials
     for x = scanStartX, scanEndX, scanStep do
         for z = scanStartZ, scanEndZ, scanStep do
             local distanceFromCenter = math.sqrt((x - center.X)^2 + (z - center.Z)^2)
             if distanceFromCenter <= islandRadius then
-                -- Raycast to check if this position has grass
+                -- Raycast to check if this position has a valid surface
                 -- Start raycast higher to ensure we catch terrain
                 local rayOrigin = Vector3.new(x, math.max(center.Y, 0) + 150, z)
                 local rayDirection = Vector3.new(0, -300, 0) -- Cast further down
-                
-                local raycastParams = RaycastParams.new()
-                raycastParams.FilterType = Enum.RaycastFilterType.Include
-                raycastParams.FilterDescendantsInstances = { workspace.Terrain }
-                raycastParams.IgnoreWater = false
-                raycastParams.RespectCanCollide = false -- Allow passing through non-collidable parts
-                
-                local ray = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+                local ray = workspace:Raycast(rayOrigin, rayDirection, groundRaycastParams)
                 if ray then
-                    local hitMaterial = ray.Material
-                    if hitMaterial == Enum.Material.Grass then
-                        -- Found grass! Add as candidate position
+                    if validTreeMaterials[ray.Material] then
+                        -- Found preferred ground
                         table.insert(candidatePositions, ray.Position)
+                    elseif ray.Material ~= Enum.Material.Water then
+                        -- Track fallback surfaces if no grass is found
+                        table.insert(fallbackPositions, ray.Position)
                     end
                 end
             end
         end
     end
     
-    print(string.format("[PlayerIslandService] 🌳 Found %d grass positions across terrain", #candidatePositions))
+    local allowAnySurface = false
+    if #candidatePositions == 0 and #fallbackPositions > 0 then
+        candidatePositions = fallbackPositions
+        allowAnySurface = true
+    end
+
+    print(string.format("[PlayerIslandService] 🌳 Found %d viable positions across terrain", #candidatePositions))
     
     -- If we found grass positions, use them. Otherwise fall back to random sampling
     if #candidatePositions == 0 then
-        warn("[PlayerIslandService] ⚠️ No grass found in terrain scan, using random sampling fallback")
+        warn("[PlayerIslandService] ⚠️ No preferred surfaces found, using random sampling fallback")
+        allowAnySurface = true
         -- Fallback: Generate random candidate positions
         local numCandidates = treeCount * 8
         for i = 1, numCandidates do
@@ -407,7 +524,7 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
             local z = math.sin(angle) * distance
             x = x + (self.random:NextNumber() - 0.5) * 10
             z = z + (self.random:NextNumber() - 0.5) * 10
-            local pos = center + Vector3.new(x, 20, z)
+            local pos = center + Vector3.new(x, 0, z)
             table.insert(candidatePositions, pos)
         end
     end
@@ -446,20 +563,20 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
         if candidatePos then
             -- Check if grid cell is already used
             if not isGridCellUsed(candidatePos) then
-                -- Since we already scanned for grass, candidatePos should be on grass
+                -- Since we already scanned, candidatePos should be on a valid surface
                 -- But verify with a quick raycast to get exact position
-                local rayOrigin = candidatePos + Vector3.new(0, 10, 0)
-                local rayDirection = Vector3.new(0, -20, 0)
+                local rayOrigin = candidatePos + Vector3.new(0, 100, 0)
+                local rayDirection = Vector3.new(0, -200, 0)
 
-                local raycastParams = RaycastParams.new()
-                raycastParams.FilterType = Enum.RaycastFilterType.Include
-                raycastParams.FilterDescendantsInstances = { workspace.Terrain }
-                raycastParams.IgnoreWater = false
+                local ray = workspace:Raycast(rayOrigin, rayDirection, groundRaycastParams)
+                local pos = nil
+                if ray and isValidTreeSurface(ray.Material, allowAnySurface) then
+                    pos = ray.Position
+                elseif allowAnySurface and not ray then
+                    pos = candidatePos
+                end
 
-                local ray = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                if ray and ray.Material == Enum.Material.Grass then
-                    local pos = ray.Position
-
+                if pos then
                     -- Check spacing from already placed trees
                     local tooClose = false
                     for _, placedPos in ipairs(placedTreePositions) do
@@ -521,7 +638,7 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
     if treesPlaced == 0 then
         warn(string.format("[PlayerIslandService] ⚠️ WARNING: No trees were placed! Island center: %s, size: %s", 
             tostring(center), tostring(size)))
-        warn(string.format("[PlayerIslandService] ⚠️ Found %d grass candidate positions", #candidatePositions))
+        warn(string.format("[PlayerIslandService] ⚠️ Found %d candidate positions", #candidatePositions))
     end
 end
 
@@ -609,15 +726,43 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
     if treeTemplate and treeTemplate:IsA("Model") then
         tree = treeTemplate:Clone()
-        -- Offset tree down by 0.5 studs so it sits into the ground
-        local offsetPosition = position + Vector3.new(0, -0.5, 0)
-        tree:SetPrimaryPartCFrame(CFrame.new(offsetPosition))
+        if not tree.PrimaryPart then
+            local preferredRoot = tree:FindFirstChild("TreeRoot t", true) or tree:FindFirstChild("Root", true)
+            if preferredRoot and preferredRoot:IsA("BasePart") then
+                tree.PrimaryPart = preferredRoot
+            else
+                local firstPart = tree:FindFirstChildWhichIsA("BasePart", true)
+                if firstPart then
+                    tree.PrimaryPart = firstPart
+                end
+            end
+        end
+        if tree.PrimaryPart then
+            tree:PivotTo(CFrame.new(position))
+        else
+            tree:MoveTo(position)
+        end
 
         -- Anchor all parts
         for _, part in ipairs(tree:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.Anchored = true
             end
+        end
+
+        local lowestPoint = math.huge
+        for _, part in ipairs(tree:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local partBottomY = (part.CFrame.Position - (part.CFrame.UpVector * (part.Size.Y * 0.5))).Y
+                if partBottomY < lowestPoint then
+                    lowestPoint = partBottomY
+                end
+            end
+        end
+
+        if lowestPoint < math.huge then
+            local deltaY = position.Y - lowestPoint
+            tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
         end
 
         tree.Parent = treesFolder
@@ -651,6 +796,19 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
     -- Add ProximityPrompt for tree shaking
     if tree then
+        if not tree:FindFirstChild("ResourceTag") then
+            local tag = Instance.new("StringValue")
+            tag.Name = "ResourceTag"
+            tag.Value = "tree"
+            tag.Parent = tree
+        end
+
+        if not tree:FindFirstChild("TreeTag") then
+            local treeTag = Instance.new("BoolValue")
+            treeTag.Name = "TreeTag"
+            treeTag.Parent = tree
+        end
+
         local rootPart = tree.PrimaryPart or tree:FindFirstChildOfClass("BasePart")
         if rootPart then
             -- Set attribute for tree identification

@@ -534,10 +534,14 @@ function ToolInteractionSystem:findIslandName(resource)
 
 	while current and current ~= Workspace do
 		-- Check if this is an island folder
-		if current.Parent and current.Parent.Name == "Islands" then
+		if current.Parent and (current.Parent.Name == "Islands" or current.Parent.Name == "PlayerIslands") then
 			return current.Name
 		end
 		current = current.Parent
+	end
+
+	if resource.Parent and resource.Parent.Name == "Resources" then
+		return "Resources"
 	end
 
 	return "Unknown"

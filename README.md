@@ -62,7 +62,7 @@ This executes Stylua (format), Selene (lint), Luau-LSP (analyze), RemoteEvent va
 ### World authoring notes
 * Add scene markers (Parts/Attachments/Nodes) with `CollectionService` tags that match villager schedule `locationTag` values (e.g., `Plaza`, `Pier`, `ForestWalk`) to guide NPC movement.
 * Replace placeholder villager models inside `Workspace/Villagers` with rigged characters and retain the `ChatPrompt` proximity prompt on each root part.
-* Tag gatherable props with `ResourceTree`, `ResourceRock`, `FishingWater`, or `Bug` (or set a `HarvestType` attribute) so `ToolService` can award crafting mats, fish, and bugs into the shared inventory.
+* Tag gatherable props with `ResourceTag` (`tree`/`rock`) plus optional `TreeTag`/`RockTag`, or set `HarvestType`/`ResourceType` attributes (`tree`, `rock`, `bug`, `plant`) so tool interactions award crafting mats, fish, and bugs into the shared inventory.
 * Adjust lighting, weather, and economy tuning in `src/shared/Config.luau`.
 
 ## Project Structure & Runtime Layout
@@ -149,9 +149,10 @@ This update adopts the new pipeline in `GameMenu`, `RecipesInventoryGUI`, `Emote
 
 ## Onboarding & Roadmap
 ### Current Flow
-1. **Loading screen** – tips/assets pulled from `GUIContentManager.LoadingScreen`.
-2. **Cutscene + Dialogue** – `DialogueGUI` handles Nook/Isabelle conversation before island selection.
-3. **First steps** – Keybind Guide (disabled by default) and the Game Menu highlight the upgrades tab so players learn about pockets/stations before onboarding quests begin.
+1. **Dialogue + island selection** – `OnboardingFlow` shows Tom Nook dialogue and island cards.
+2. **Loading screen + arrival cutscene** – progress + arrival camera sequence.
+3. **Start-of-day screen → OnboardingController** – handoff into the stepper (movement, home placement, completion).
+4. **First steps** – Keybind Guide (disabled by default) and the Game Menu highlight the upgrades tab so players learn about pockets/stations before onboarding quests begin.
 
 ### Housing prerequisites
 * **Server-gated placement** – `HomeBuildingService:RequestPlacement` now blocks the placement GUI unless the player has island data **and** the required tent materials (30 wood, 30 softwood, 15 stone). Clients receive a notification instead of entering placement when resources are missing.
@@ -167,6 +168,7 @@ This update adopts the new pipeline in `GameMenu`, `RecipesInventoryGUI`, `Emote
 * **Need a quick command?** Everything that used to live in `QUICK_REFERENCE.md`, `QUICK_START_GUIDE.md`, `SETUP_CHECKLIST.md`, and the `gold mine of info` folder is now represented above. The legacy files now simply link back here.
 * **Static checks failing?** Run `aftman install` once, then re-run `bash tools/run_static_checks.sh`. Most issues are Stylua formatting or Selene lint errors.
 * **Inventory or crafting remotes missing?** Verify `ReplicatedStorage/Remotes/InventoryEvent`, `CraftingEvent`, and `RecipeDiscoveryEvent` exist; `init.server.luau` now creates all three during boot.
+* **Need more logs?** `DebugLogger` defaults to WARN. Call `DebugLogger.setLogLevel("INFO")` or `"DEBUG"` in Studio to increase verbosity.
 * **Where is feature X?**
   * `src/client/Modules/GameMenu.luau` – upgrades UI + station unlocks.
   * `src/server/init.server.luau` – inventory upgrade handling, recipe discovery hooks.

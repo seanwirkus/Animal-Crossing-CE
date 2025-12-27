@@ -6,7 +6,7 @@ Three new modules for creating cinematic experiences in your Animal Crossing gam
 
 1. **CutsceneManager** - Camera control, transitions, sequence orchestration
 2. **LoadingScreen** - ACNH-style loading with spinner, tips, progress
-3. **OnboardingFlow** - Complete integration example
+3. **OnboardingFlow** - Complete integration example (dialogue → island selection → loading → arrival cutscene → start-of-day → onboarding stepper)
 
 ---
 
@@ -138,7 +138,8 @@ local OnboardingFlow = require(path.to.OnboardingFlow)
 -- 2. Island selection
 -- 3. Loading screen with progress
 -- 4. Arrival cutscene
--- 5. Player spawn
+-- 5. Start-of-day screen
+-- 6. OnboardingController stepper
 OnboardingFlow.start()
 
 -- Or test individual systems:
@@ -148,29 +149,12 @@ OnboardingFlow.testCutscene()
 
 ---
 
-## Integration with DialogueGUI
+## Dialogue Handling (No DialogueGUI Required)
 
-Your existing DialogueGUI already works! Just connect it with cutscenes:
+`OnboardingFlow` now renders its own lightweight dialogue overlay. You only need to call:
 
 ```lua
-local dialogue = DialogueGUI.new()
-local cutscene = CutsceneManager.new()
-
--- Start with fade in
-cutscene:fade("in", 1)
-
--- Show dialogue
-dialogue:showDialogueSequence(myDialogue, function()
-    -- After dialogue, play cutscene
-    cutscene:startSequence({
-        {type = "camera", target = workspace.Airport, duration = 3},
-        {type = "fade", direction = "out", duration = 1},
-        {type = "reset"}
-    }, function()
-        -- Give player control
-        print("Ready to play!")
-    end)
-end)
+OnboardingFlow.start()
 ```
 
 ---
@@ -240,9 +224,7 @@ cutscene:startSequence({
     {type = "camera", target = workspace.Blathers.Head, duration = 1.5},
     {type = "reset"}
 }, function()
-    -- Show dialogue
-    local dialogue = DialogueGUI.new()
-    dialogue:showDialogueSequence(blathersDialogue)
+    -- Show dialogue using your custom overlay
 end)
 ```
 

@@ -73,15 +73,6 @@ if not HUDSuccess then
     warn("[Client] Failed to initialize HUD:", tostring(HUDErr))
 end
 
--- Dialogue GUI for onboarding/debug dialogues
-local DialogueGUI
-local dialogueGUISuccess, dialogueGUIErr = pcall(function()
-    DialogueGUI = require(script.Modules.DialogueGUI)
-end)
-if not dialogueGUISuccess then
-    warn("[Client] Failed to load DialogueGUI:", tostring(dialogueGUIErr))
-end
-
 -- Create GUI structures
 InventoryGuiSetup.createInventoryGui()
 InventoryGuiSetup.createDebugInventoryGui()
@@ -413,71 +404,6 @@ keybindManager:registerBind("DEBUG_DELETE", function(inputState)
     end
 end)
 
--- Register START_ONBOARDING debug keybind (N key)
-if dialogueGUISuccess and DialogueGUI then
-    keybindManager:registerBind("START_ONBOARDING", function(inputState)
-        if inputState == "began" then
-            if DialogueGUI and DialogueGUI.showToast then
-                DialogueGUI.showToast("Starting Onboarding Sequence...", 2)
-            end
-
-            local dialogue = DialogueGUI.new()
-            local ok = dialogue:Init()
-            if not ok then
-                warn("[Client] DialogueGUI not found in PlayerGui")
-                return
-            end
-
-            local playerName = _Players.LocalPlayer.Name
-            local seq = {
-                { villagerName = "Tom Nook", text = "Ah, " .. playerName .. "! Welcome, welcome! Yes, yes!" },
-                {
-                    villagerName = "Tom Nook",
-                    text = "Thanks for choosing the Deserted Island Getaway Package! We'll get you all set up.",
-                },
-                {
-                    villagerName = "Tom Nook",
-                    text = "First, we'll choose an island layout. Take your time—there's no wrong choice, yes, yes!",
-                },
-                {
-                    villagerName = "Tom Nook",
-                    text = "Next, we'll give your island a perfect name. Something truly charming!",
-                },
-                {
-                    villagerName = "Orville",
-                    text = "Dodo Airlines! Orville here. We'll handle your flight arrangements. When you're ready, we fly!",
-                },
-                {
-                    villagerName = "Tom Nook",
-                    text = "Very good! We'll get everything ready. Please enjoy the short flight to your new home!",
-                },
-                {
-                    villagerName = "Isabelle",
-                    text = "Hello! I'm Isabelle. I'll be here to help with announcements and island life once you arrive.",
-                },
-            }
-
-            local function onComplete()
-                if DialogueGUI and DialogueGUI.showToast then
-                    DialogueGUI.showToast("Opening Island Selection...", 2)
-                end
-
-                pcall(function()
-                    local onboardingPath = script:FindFirstChild("OnboardingGUI")
-                        or _ReplicatedStorage:FindFirstChild("OnboardingGUI")
-                    if onboardingPath then
-                        local _OnboardingGUI = require(onboardingPath)
-                    end
-                end)
-            end
-
-            dialogue:ShowSequence(seq, {
-                autoAdvance = false,
-                onComplete = onComplete,
-            })
-        end
-    end)
-end
 
 keybindManager:registerBind("SETTINGS", function(inputState)
     if inputState == "began" then

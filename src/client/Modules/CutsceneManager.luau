@@ -250,11 +250,11 @@ function CutsceneManager:startSequence(sequence: { { [string]: any } }, onComple
             elseif step.type == "wait" then
                 self:wait(step.duration or 1)
             elseif step.type == "dialogue" then
-                -- Dialogue integration (requires DialogueGUI module)
+                -- Dialogue integration (hook your custom overlay here)
                 print(
                     string.format("[CutsceneManager] 💬 Dialogue: %s - '%s'", step.speaker or "???", step.text or "")
                 )
-                -- TODO: Integrate with DialogueGUI module
+                -- TODO: Integrate with your dialogue overlay
             elseif step.type == "callback" then
                 if step.func and type(step.func) == "function" then
                     local success, err = pcall(step.func)

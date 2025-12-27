@@ -13,7 +13,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -32,39 +31,6 @@ local STEPS = {
     COMPLETE = 4,
 }
 
-local function findLargestPart(model: Model?): BasePart?
-    if not model then
-        return nil
-    end
-
-    local chosen: BasePart? = nil
-    local bestScore = -math.huge
-
-    for _, descendant in ipairs(model:GetDescendants()) do
-        if descendant:IsA("BasePart") then
-            local nameLower = descendant.Name:lower()
-            local preferred = 0
-            if nameLower == "front" or nameLower == "back" then
-                preferred = 3
-            elseif nameLower:find("board") then
-                preferred = 2
-            elseif nameLower:find("stand") then
-                preferred = -1
-            end
-
-            local area = descendant.Size.X * descendant.Size.Y
-            local score = preferred * 1e6 + area
-
-            if score > bestScore then
-                chosen = descendant
-                bestScore = score
-            end
-        end
-    end
-
-    return chosen
-end
-
 function OnboardingController.new()
     if _instance then
         return _instance
@@ -79,9 +45,6 @@ function OnboardingController.new()
     self._titleLabel = nil
     self._iconLabel = nil
     self._buttonFrame = nil
-    self._boardSurfaceGui = nil
-    self._boardTextLabel = nil
-    self._boardHeaderLabel = nil
     self._onCompleteCallback = nil
     self.homePlaced = false
 
@@ -220,7 +183,6 @@ function OnboardingController:createGUI()
 
     -- Create default next button
     self:createNextButton()
-    -- Whiteboard display removed per user request
     -- self:_setupBoardDisplay()
     -- self:_updateBoardDisplay(self._textLabel.Text)
 end
@@ -238,121 +200,15 @@ function OnboardingController:clearButtons()
 end
 
 function OnboardingController:_setupBoardDisplay()
-    local function findBoardModel(): Model?
-        local nameCandidates = { "Whiteboard", "whiteboard", "WHITEBOARD", "TutorialBoard" }
-        for _, candidate in ipairs(nameCandidates) do
-            local board = Workspace:FindFirstChild(candidate)
-            if board and board:IsA("Model") then
-                return board
-            end
-        end
-
-        for _, child in ipairs(Workspace:GetChildren()) do
-            if child:IsA("Model") and string.find(string.lower(child.Name), "board") then
-                return child
-            end
-        end
-
-        for _, descendant in ipairs(Workspace:GetDescendants()) do
-            if descendant:IsA("Model") and string.find(string.lower(descendant.Name), "board") then
-                return descendant
-            end
-        end
-
-        return nil
-    end
-
-    local boardModel = findBoardModel()
-    if not boardModel then
-        warn("[OnboardingController] ⚠️ Whiteboard model not found - board display disabled")
-        return
-    end
-
-    local targetPart = findLargestPart(boardModel)
-    if not targetPart then
-        warn("[OnboardingController] ⚠️ Board model found but no BasePart detected")
-        return
-    end
-
-    local existingGui = targetPart:FindFirstChildOfClass("SurfaceGui")
-    if existingGui and existingGui.Name == "OnboardingBoard" then
-        existingGui:Destroy()
-    end
-
-    local surfaceGui = Instance.new("SurfaceGui")
-    surfaceGui.Name = "OnboardingBoard"
-    surfaceGui.Adornee = targetPart
-    surfaceGui.Face = Enum.NormalId.Front
-    surfaceGui.CanvasSize = Vector2.new(1024, 640)
-    surfaceGui.LightInfluence = 1
-    surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    surfaceGui.PixelsPerStud = 50
-    surfaceGui.Enabled = false
-    surfaceGui.Parent = targetPart
-
-    local container = Instance.new("Frame")
-    container.Size = UDim2.fromScale(1, 1)
-    container.BackgroundColor3 = Color3.fromRGB(255, 253, 243)
-    container.BackgroundTransparency = 0.08
-    container.BorderSizePixel = 0
-    container.Parent = surfaceGui
-
-    local border = Instance.new("UIStroke")
-    border.Color = Color3.fromRGB(120, 95, 72)
-    border.Thickness = 4
-    border.Parent = container
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 24)
-    corner.Parent = container
-
-    local header = Instance.new("TextLabel")
-    header.Name = "Header"
-    header.Size = UDim2.new(1, -40, 0, 70)
-    header.Position = UDim2.new(0, 20, 0, 20)
-    header.BackgroundTransparency = 1
-    header.Font = Enum.Font.GothamBold
-    header.TextSize = 40
-    header.TextColor3 = Color3.fromRGB(86, 60, 40)
-    header.TextXAlignment = Enum.TextXAlignment.Left
-    header.Text = "Onboarding"
-    header.Parent = container
-
-    local body = Instance.new("TextLabel")
-    body.Name = "Body"
-    body.Size = UDim2.new(1, -40, 1, -120)
-    body.Position = UDim2.new(0, 20, 0, 100)
-    body.BackgroundTransparency = 1
-    body.Font = Enum.Font.Gotham
-    body.TextSize = 24
-    body.TextWrapped = true
-    body.TextColor3 = Color3.fromRGB(70, 55, 45)
-    body.TextXAlignment = Enum.TextXAlignment.Left
-    body.TextYAlignment = Enum.TextYAlignment.Top
-    body.Text = ""
-    body.Parent = container
-
-    self._boardSurfaceGui = surfaceGui
-    self._boardTextLabel = body
-    self._boardHeaderLabel = header
+    return
 end
 
 function OnboardingController:_setBoardDisplayVisible(isVisible: boolean)
-    if self._boardSurfaceGui then
-        self._boardSurfaceGui.Enabled = isVisible
-    end
+    return
 end
 
 function OnboardingController:_updateBoardDisplay(text: string, headerText: string?)
-    if not self._boardTextLabel then
-        return
-    end
-
-    if self._boardHeaderLabel then
-        self._boardHeaderLabel.Text = headerText or "Onboarding"
-    end
-
-    self._boardTextLabel.Text = text or ""
+    return
 end
 
 function OnboardingController:createNextButton()
@@ -406,7 +262,6 @@ function OnboardingController:start()
     self.isActive = true
     self.currentStep = STEPS.WELCOME
     self._gui.Enabled = true
-    self:_setBoardDisplayVisible(true)
 
     self:showStep(STEPS.WELCOME)
 end
@@ -523,7 +378,6 @@ function OnboardingController:showStep(step)
     end
 
     self:_updateBoardDisplay(self._textLabel.Text, headerTitle)
-    self:_setBoardDisplayVisible(true)
 end
 
 function OnboardingController:nextStep()
@@ -577,7 +431,6 @@ end
 function OnboardingController:finish()
     self.isActive = false
     self._gui.Enabled = false
-    self:_setBoardDisplayVisible(false)
 
     print("[OnboardingController] Tutorial finished!")
 end
@@ -606,11 +459,11 @@ function OnboardingController:_connectHomePlacementUpdates()
 end
 
 function OnboardingController:showBoard()
-    self:_setBoardDisplayVisible(true)
+    return
 end
 
 function OnboardingController:hideBoard()
-    self:_setBoardDisplayVisible(false)
+    return
 end
 
 function OnboardingController:setOnCompleteCallback(callback: (() -> ())?)
@@ -621,14 +474,12 @@ function OnboardingController:hide()
     if self._gui then
         self._gui.Enabled = false
     end
-    self:_setBoardDisplayVisible(false)
 end
 
 function OnboardingController:show()
     if self._gui then
         self._gui.Enabled = true
     end
-    self:_setBoardDisplayVisible(self.isActive)
 end
 
 return OnboardingController

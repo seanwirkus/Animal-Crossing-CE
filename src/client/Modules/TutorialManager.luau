@@ -93,6 +93,11 @@ function TutorialManager:_setupRemotes()
 	if self.tutorialRemote then
 		-- Listen for server telling us to start tutorial
 		self.tutorialRemote.OnClientEvent:Connect(function()
+			if OnboardingFlow and OnboardingFlow.start then
+				print("[TutorialManager] ℹ️ OnboardingFlow handles StartOnboarding; skipping TutorialManager flow")
+				return
+			end
+
 			print("[TutorialManager] 🎬 Server requested tutorial start")
 			self:startTutorial()
 		end)

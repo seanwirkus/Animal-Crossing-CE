@@ -14,7 +14,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 -- Modules
-local DialogueGUI = require(script.Parent.DialogueGUI)
 local CutsceneManager = require(script.Parent.CutsceneManager)
 local LoadingScreen = require(script.Parent.LoadingScreen)
 local GUIContentManager = require(script.Parent.GUIContentManager)
@@ -25,6 +24,7 @@ local OnboardingFlow = {
     _isRunning = false,
     _islandSelectionGui = nil,
     _startDayGui = nil,
+    _dialogueGui = nil,
 }
 
 -- Dialogue beats
@@ -107,21 +107,130 @@ end
 function OnboardingFlow.showDialogue(onComplete: () -> ())
     print("[OnboardingFlow] 💬 Showing onboarding dialogue...")
 
-    local dialogue = DialogueGUI.new()
-    local ok = dialogue:Init()
-    if not ok then
-        warn("[OnboardingFlow] ⚠️ DialogueGUI not found - skipping dialogue step")
-        onComplete()
-        return
-    end
+    cleanupGui(OnboardingFlow._dialogueGui)
 
-    dialogue:ShowSequence(ONBOARDING_DIALOGUE, {
-        autoAdvance = false,
-        onComplete = function()
+    local playerGui = getPlayerGui()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "OnboardingDialogueGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 140
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    OnboardingFlow._dialogueGui = screenGui
+
+    local overlay = Instance.new("Frame")
+    overlay.Name = "Overlay"
+    overlay.Size = UDim2.fromScale(1, 1)
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundTransparency = 0.35
+    overlay.Parent = screenGui
+
+    local container = Instance.new("Frame")
+    container.Name = "Container"
+    container.AnchorPoint = Vector2.new(0.5, 1)
+    container.Position = UDim2.new(0.5, 0, 0.95, 0)
+    container.Size = UDim2.new(0.8, 0, 0, 180)
+    container.BackgroundColor3 = GUIContentManager.LoadingScreen.styling.backgroundColor
+    container.BorderSizePixel = 0
+    container.Parent = overlay
+
+    local containerCorner = Instance.new("UICorner")
+    containerCorner.CornerRadius = UDim.new(0, 14)
+    containerCorner.Parent = container
+
+    local containerStroke = Instance.new("UIStroke")
+    containerStroke.Color = GUIContentManager.LoadingScreen.styling.titleColor
+    containerStroke.Transparency = 0.2
+    containerStroke.Thickness = 2
+    containerStroke.Parent = container
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 14)
+    padding.PaddingBottom = UDim.new(0, 14)
+    padding.PaddingLeft = UDim.new(0, 18)
+    padding.PaddingRight = UDim.new(0, 18)
+    padding.Parent = container
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "Speaker"
+    nameLabel.Size = UDim2.new(1, 0, 0, 28)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 20
+    nameLabel.TextColor3 = GUIContentManager.LoadingScreen.styling.titleColor
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = container
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Name = "DialogueText"
+    textLabel.Size = UDim2.new(1, 0, 0, 80)
+    textLabel.Position = UDim2.new(0, 0, 0, 34)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Font = Enum.Font.Gotham
+    textLabel.TextSize = 18
+    textLabel.TextWrapped = true
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.TextYAlignment = Enum.TextYAlignment.Top
+    textLabel.TextColor3 = GUIContentManager.LoadingScreen.styling.subtitleColor
+    textLabel.Parent = container
+
+    local buttonFrame = Instance.new("Frame")
+    buttonFrame.Name = "Buttons"
+    buttonFrame.Size = UDim2.new(1, 0, 0, 44)
+    buttonFrame.Position = UDim2.new(0, 0, 1, -44)
+    buttonFrame.BackgroundTransparency = 1
+    buttonFrame.Parent = container
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    layout.VerticalAlignment = Enum.VerticalAlignment.Center
+    layout.Padding = UDim.new(0, 10)
+    layout.Parent = buttonFrame
+
+    local nextButton = Instance.new("TextButton")
+    nextButton.Name = "Next"
+    nextButton.Size = UDim2.new(0, 140, 0, 40)
+    nextButton.BackgroundColor3 = GUIContentManager.LoadingScreen.buttons.start.backgroundColor
+    nextButton.TextColor3 = GUIContentManager.LoadingScreen.buttons.start.textColor
+    nextButton.Font = Enum.Font.GothamBold
+    nextButton.TextSize = 18
+    nextButton.BorderSizePixel = 0
+    nextButton.AutoButtonColor = true
+    nextButton.Parent = buttonFrame
+
+    local nextCorner = Instance.new("UICorner")
+    nextCorner.CornerRadius = UDim.new(0, GUIContentManager.LoadingScreen.buttons.start.cornerRadius)
+    nextCorner.Parent = nextButton
+
+    local nextStroke = Instance.new("UIStroke")
+    nextStroke.Color = GUIContentManager.LoadingScreen.buttons.start.strokeColor
+    nextStroke.Transparency = 0.2
+    nextStroke.Thickness = GUIContentManager.LoadingScreen.buttons.start.strokeThickness
+    nextStroke.Parent = nextButton
+
+    local dialogueIndex = 1
+    local function renderDialogue()
+        local entry = ONBOARDING_DIALOGUE[dialogueIndex]
+        if not entry then
+            cleanupGui(screenGui)
+            OnboardingFlow._dialogueGui = nil
             print("[OnboardingFlow] ✅ Dialogue complete")
             onComplete()
-        end,
-    })
+            return
+        end
+
+        nameLabel.Text = entry.villagerName
+        textLabel.Text = entry.text
+        nextButton.Text = dialogueIndex >= #ONBOARDING_DIALOGUE and "Continue" or "Next →"
+    end
+
+    nextButton.MouseButton1Click:Connect(function()
+        dialogueIndex += 1
+        renderDialogue()
+    end)
+
+    renderDialogue()
 end
 
 --[[
@@ -585,44 +694,56 @@ function OnboardingFlow.start()
 
     print("[OnboardingFlow] 🎬 Starting onboarding sequence...")
 
-    -- Skip dialogue and island selection - go straight to Coral Cove
-    local defaultIsland = ISLAND_OPTIONS[1] -- Coral Cove
-    print("[OnboardingFlow] ⏭️ Skipping dialogue and island selection - loading Coral Cove")
+    local function runIslandArrival(island: { name: string, theme: string })
+        print("[OnboardingFlow] 📦 Showing loading screen first...")
+        LoadingScreen.show(string.format("Flying to %s...", island.name), true)
 
-    -- NORMAL FLOW: Show loading screen FIRST, then cutscene, then island
-    print("[OnboardingFlow] 📦 Showing loading screen first...")
-    LoadingScreen.show(string.format("Flying to %s...", defaultIsland.name), true)
+        local loadComplete = false
+        OnboardingFlow.loadIsland(island, function()
+            loadComplete = true
+        end)
 
-    task.spawn(function()
-        -- Show loading progress
-        task.wait(0.4)
-        LoadingScreen.setProgress(0.2)
-        LoadingScreen.setStatus("Charting the island layout...")
+        task.spawn(function()
+            -- Show loading progress
+            task.wait(0.4)
+            LoadingScreen.setProgress(0.2)
+            LoadingScreen.setStatus("Charting the island layout...")
 
-        task.wait(0.6)
-        LoadingScreen.setProgress(0.45)
-        LoadingScreen.setStatus("Planting trees and flowers...")
+            task.wait(0.6)
+            LoadingScreen.setProgress(0.45)
+            LoadingScreen.setStatus("Planting trees and flowers...")
 
-        task.wait(0.6)
-        LoadingScreen.setProgress(0.7)
-        LoadingScreen.setStatus("Building the airport...")
+            task.wait(0.6)
+            LoadingScreen.setProgress(0.7)
+            LoadingScreen.setStatus("Building the airport...")
 
-        task.wait(0.6)
-        LoadingScreen.setProgress(0.9)
-        LoadingScreen.setStatus("Preparing your starter supplies...")
+            task.wait(0.6)
+            LoadingScreen.setProgress(0.9)
+            LoadingScreen.setStatus("Preparing your starter supplies...")
 
-        task.wait(0.5)
-        LoadingScreen.setProgress(1)
-        LoadingScreen.setStatus("Ready to land!")
+            -- Wait for island load to complete if still running
+            while not loadComplete do
+                task.wait(0.1)
+            end
 
-        task.wait(1)
-        LoadingScreen.hide()
+            LoadingScreen.setProgress(1)
+            LoadingScreen.setStatus("Ready to land!")
 
-        -- After loading screen, play cutscene
-        print("[OnboardingFlow] 🎥 Now playing arrival cutscene...")
-        OnboardingFlow.playArrivalCutscene(function()
-            print("[OnboardingFlow] ✅ Cutscene complete, onboarding done!")
-            OnboardingFlow.completeOnboarding()
+            task.wait(1)
+            LoadingScreen.hide()
+
+            -- After loading screen, play cutscene then start day screen
+            print("[OnboardingFlow] 🎥 Now playing arrival cutscene...")
+            OnboardingFlow.playArrivalCutscene(function()
+                print("[OnboardingFlow] ✅ Cutscene complete, showing start-of-day screen")
+                OnboardingFlow.showStartDayScreen()
+            end)
+        end)
+    end
+
+    OnboardingFlow.showDialogue(function()
+        OnboardingFlow.showIslandSelection(function(island)
+            runIslandArrival(island)
         end)
     end)
 end
@@ -635,8 +756,10 @@ function OnboardingFlow.completeOnboarding()
 
     cleanupGui(OnboardingFlow._islandSelectionGui)
     cleanupGui(OnboardingFlow._startDayGui)
+    cleanupGui(OnboardingFlow._dialogueGui)
     OnboardingFlow._islandSelectionGui = nil
     OnboardingFlow._startDayGui = nil
+    OnboardingFlow._dialogueGui = nil
     OnboardingFlow._isRunning = false
 
     local controller = OnboardingFlow._controller

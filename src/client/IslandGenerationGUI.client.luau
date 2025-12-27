@@ -2,7 +2,7 @@
 	IslandGenerationGUI.client.luau
 	
 	Client-side GUI for island generation system.
-	Attaches to NooksTent model in Workspace as a SurfaceGui.
+	Uses a ScreenGui attached to PlayerGui.
 	
 	Features:
 	- Generate button to create island layout
@@ -13,8 +13,8 @@
 	- ACNH-themed styling
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 -- Wait for RemoteEvents to be created by server
 local remoteFolder = ReplicatedStorage:WaitForChild("IslandGenRemotes", 10)
@@ -41,108 +41,28 @@ local COLORS = {
     },
 }
 
--- Find Whiteboard model (tries multiple name variations and locations)
-local function findWhiteboard(): Model?
-    -- First, try to find it directly in Workspace
-    local whiteboard = Workspace:FindFirstChild("Whiteboard")
-    if whiteboard and whiteboard:IsA("Model") then
-        print("[IslandGenerationGUI] ✅ Found Whiteboard in Workspace")
-        return whiteboard
-    end
-
-    -- Try case variations in Workspace
-    whiteboard = Workspace:FindFirstChild("whiteboard")
-    if whiteboard and whiteboard:IsA("Model") then
-        print("[IslandGenerationGUI] ✅ Found whiteboard in Workspace")
-        return whiteboard
-    end
-
-    whiteboard = Workspace:FindFirstChild("WHITEBOARD")
-    if whiteboard and whiteboard:IsA("Model") then
-        print("[IslandGenerationGUI] ✅ Found WHITEBOARD in Workspace")
-        return whiteboard
-    end
-
-    -- Search inside Nook's Tent (common location)
-    local tentNames = { "NooksTent", "Nooks Tent", "NookTent", "Tent", "Nook's Tent", "NookTent" }
-    for _, tentName in ipairs(tentNames) do
-        local tent = Workspace:FindFirstChild(tentName)
-        if tent and tent:IsA("Model") then
-            print("[IslandGenerationGUI] 🔍 Found tent model:", tentName)
-
-            -- Search for Whiteboard inside the tent
-            whiteboard = tent:FindFirstChild("Whiteboard")
-            if whiteboard and whiteboard:IsA("Model") then
-                print("[IslandGenerationGUI] ✅ Found Whiteboard inside", tentName)
-                return whiteboard
-            end
-
-            -- Try case variations inside tent
-            whiteboard = tent:FindFirstChild("whiteboard")
-            if whiteboard and whiteboard:IsA("Model") then
-                print("[IslandGenerationGUI] ✅ Found whiteboard inside", tentName)
-                return whiteboard
-            end
-
-            -- Search recursively for any model with "board" in the name
-            for _, descendant in ipairs(tent:GetDescendants()) do
-                if descendant:IsA("Model") and string.find(string.lower(descendant.Name), "board") then
-                    print(
-                        "[IslandGenerationGUI] ✅ Found model with 'board' in name inside",
-                        tentName .. ":",
-                        descendant.Name
-                    )
-                    return descendant
-                end
-            end
-        end
-    end
-
-    -- Try to find any model with "board" in the name in Workspace
-    for _, child in ipairs(Workspace:GetChildren()) do
-        if child:IsA("Model") and string.find(string.lower(child.Name), "board") then
-            print("[IslandGenerationGUI] ℹ️ Found model with 'board' in name:", child.Name)
-            return child
-        end
-    end
-
-    -- Last resort: search all descendants of Workspace for "board"
-    for _, descendant in ipairs(Workspace:GetDescendants()) do
-        if descendant:IsA("Model") and string.find(string.lower(descendant.Name), "board") then
-            print(
-                "[IslandGenerationGUI] ✅ Found model with 'board' in name (deep search):",
-                descendant.Name,
-                "at path:",
-                descendant:GetFullName()
-            )
-            return descendant
-        end
-    end
-
-    return nil
+local function getPlayerGui(): PlayerGui
+    return Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 
 -- Create GUI elements
-local function createGUI(whiteboard: Model)
-    -- Create SurfaceGui
-    local surfaceGui = Instance.new("SurfaceGui")
-    surfaceGui.Name = "IslandGeneratorGUI"
-    surfaceGui.Face = Enum.NormalId.Front
-    surfaceGui.Adornee = whiteboard:FindFirstChildWhichIsA("BasePart") -- Attach to whiteboard surface
-    surfaceGui.AlwaysOnTop = false -- Draw on the actual surface
-    surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    surfaceGui.PixelsPerStud = 50 -- Lower value = bigger UI relative to surface
-    surfaceGui.Parent = whiteboard
+local function createGUI(playerGui: PlayerGui)
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "IslandGeneratorGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.DisplayOrder = 120
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
 
-    -- Main frame - FILL THE ENTIRE WHITEBOARD SURFACE
+    -- Main frame
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(1, 0, 1, 0) -- FILL 100% of surface
-    mainFrame.Position = UDim2.new(0, 0, 0, 0)
+    mainFrame.Size = UDim2.new(0, 480, 0, 420)
+    mainFrame.AnchorPoint = Vector2.new(1, 0.5)
+    mainFrame.Position = UDim2.new(0.98, 0, 0.5, 0)
     mainFrame.BackgroundColor3 = COLORS.background
     mainFrame.BorderSizePixel = 0
-    mainFrame.Rotation = 180 -- Flip GUI 180 degrees so it's right-side up
-    mainFrame.Parent = surfaceGui
+    mainFrame.Parent = screenGui
 
     -- Rounded corners
     local corner = Instance.new("UICorner")
@@ -300,7 +220,7 @@ local function createGUI(whiteboard: Model)
 
     -- Return GUI references
     return {
-        gui = surfaceGui,
+        gui = screenGui,
         statusLabel = statusLabel,
         progressFill = progressFill,
         statsText = statsText,
@@ -345,90 +265,24 @@ local function initialize()
     print("[IslandGenerationGUI] 🎨 Initializing GUI...")
 
     -- Wait for game to fully load
-    task.wait(3) -- Increased wait time
-
-    -- Retry finding Whiteboard multiple times
-    local whiteboard = nil
-    local maxRetries = 15 -- Increased retries
-    local retryDelay = 3 -- Increased delay
-
-    for attempt = 1, maxRetries do
-        print(
-            string.format("[IslandGenerationGUI] 🔍 Searching for whiteboard (attempt %d/%d)...", attempt, maxRetries)
-        )
-        whiteboard = findWhiteboard()
-        if whiteboard then
-            print("[IslandGenerationGUI] ✅ Whiteboard found:", whiteboard:GetFullName())
-            print("[IslandGenerationGUI] 📍 Whiteboard location:", whiteboard:GetFullName())
-
-            -- Verify whiteboard has a BasePart
-            local basePart = whiteboard:FindFirstChildWhichIsA("BasePart")
-            if not basePart then
-                warn("[IslandGenerationGUI] ⚠️ Whiteboard found but has no BasePart! Searching for another...")
-                whiteboard = nil
-            else
-                print("[IslandGenerationGUI] ✅ Whiteboard has BasePart:", basePart.Name)
-                break
-            end
-        end
-
-        if attempt < maxRetries then
-            -- List what we found in Workspace for debugging
-            if attempt == 1 then
-                print("[IslandGenerationGUI] 📋 Workspace contents:")
-                for _, child in ipairs(Workspace:GetChildren()) do
-                    if child:IsA("Model") then
-                        print(string.format("  - %s (Model)", child.Name))
-                        -- Also check inside models
-                        for _, descendant in ipairs(child:GetDescendants()) do
-                            if descendant:IsA("Model") and string.find(string.lower(descendant.Name), "board") then
-                                print(string.format("    └─ %s (inside %s)", descendant.Name, child.Name))
-                            end
-                        end
-                    end
-                end
-            end
-            print(
-                string.format("[IslandGenerationGUI] ⏳ Whiteboard not found, retrying in %d seconds...", retryDelay)
-            )
-            task.wait(retryDelay)
-        else
-            warn("[IslandGenerationGUI] ❌ Whiteboard model not found after " .. maxRetries .. " attempts!")
-            warn("[IslandGenerationGUI] Searched in Workspace and inside tent models.")
-            warn(
-                "[IslandGenerationGUI] Please ensure a model named 'Whiteboard' exists in Workspace or inside Nook's Tent."
-            )
-            warn("[IslandGenerationGUI] The GUI will not be displayed until a whiteboard is found.")
-            return
-        end
-    end
-
-    if not whiteboard then
-        warn("[IslandGenerationGUI] ❌ Failed to find Whiteboard model")
-        return
-    end
-
-    -- Wait a bit more to ensure the model is fully loaded
     task.wait(1)
 
+    local playerGui = getPlayerGui()
+
     -- Check if GUI already exists (prevent duplicates)
-    local existingGui = whiteboard:FindFirstChild("IslandGeneratorGUI")
+    local existingGui = playerGui:FindFirstChild("IslandGeneratorGUI")
     if existingGui then
-        print("[IslandGenerationGUI] ✅ GUI already exists, destroying old one...")
         existingGui:Destroy()
         task.wait(0.1)
     end
 
     -- Create GUI
-    local gui = createGUI(whiteboard)
+    local gui = createGUI(playerGui)
     if not gui then
         warn("[IslandGenerationGUI] ❌ Failed to create GUI")
         return
     end
-
-    print("[IslandGenerationGUI] ✅ GUI created and attached to", whiteboard.Name)
-    print("[IslandGenerationGUI] ✅ SurfaceGui parent:", gui.Parent and gui.Parent.Name or "nil")
-    print("[IslandGenerationGUI] ✅ SurfaceGui Adornee:", gui.Adornee and gui.Adornee.Name or "nil")
+    print("[IslandGenerationGUI] ✅ GUI created and attached to PlayerGui")
 
     -- Connect buttons
     gui.generateBtn.MouseButton1Click:Connect(function()

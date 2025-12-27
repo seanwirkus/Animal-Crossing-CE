@@ -60,14 +60,18 @@ end
 	Scan workspace for existing islands and catalog their resources
 ]]
 function ResourceSpawner:scanExistingIslands()
-	local islands = Workspace:FindFirstChild("Islands")
-	if not islands then
-		return
-	end
+	local islands = {
+		Workspace:FindFirstChild("Islands"),
+		Workspace:FindFirstChild("PlayerIslands"),
+	}
 
-	for _, islandFolder in ipairs(islands:GetChildren()) do
-		if islandFolder:IsA("Folder") or islandFolder:IsA("Model") then
-			self:scanIsland(islandFolder)
+	for _, islandsFolder in ipairs(islands) do
+		if islandsFolder then
+			for _, islandFolder in ipairs(islandsFolder:GetChildren()) do
+				if islandFolder:IsA("Folder") or islandFolder:IsA("Model") then
+					self:scanIsland(islandFolder)
+				end
+			end
 		end
 	end
 end
@@ -293,12 +297,23 @@ end
 	Respawn a resource
 ]]
 function ResourceSpawner:respawnResource(entry)
+	local islandFolder = nil
 	local islands = Workspace:FindFirstChild("Islands")
-	if not islands then
-		return
+	if islands then
+		islandFolder = islands:FindFirstChild(entry.islandName)
 	end
 
-	local islandFolder = islands:FindFirstChild(entry.islandName)
+	if not islandFolder then
+		local playerIslands = Workspace:FindFirstChild("PlayerIslands")
+		if playerIslands then
+			islandFolder = playerIslands:FindFirstChild(entry.islandName)
+		end
+	end
+
+	if not islandFolder and entry.islandName == "Resources" then
+		islandFolder = Workspace:FindFirstChild("Resources")
+	end
+
 	if not islandFolder then
 		return
 	end
@@ -351,6 +366,9 @@ function ResourceSpawner:spawnTree(islandFolder, position)
 	local treeTag = Instance.new("BoolValue")
 	treeTag.Name = "TreeTag"
 	treeTag.Parent = tree
+
+	tree:SetAttribute("HarvestType", "tree")
+	tree:SetAttribute("ResourceType", "tree")
 
 	tree.Parent = islandFolder
 
@@ -540,83 +558,106 @@ end
 	Create a tree model for terrain population
 ]]
 function ResourceSpawner:createSimpleTree(position)
-	-- Try to use existing tree template if available
-	local template = self:findTreeTemplate()
+	local function buildFallbackTree()
+		local tree = Instance.new("Model")
+		tree.Name = "Tree"
 
-	if template then
-		local tree = template:Clone()
+		-- Tree trunk
+		local trunk = Instance.new("Part")
+		trunk.Name = "Trunk"
+		trunk.Size = Vector3.new(2, 8, 2)
+		trunk.Position = position + Vector3.new(0, 4, 0)
+		trunk.Anchored = true
+		trunk.Material = Enum.Material.Wood
+		trunk.BrickColor = BrickColor.new("Brown")
+		trunk.Parent = tree
 
-		-- Offset the tree down by 0.5 studs so it sits into the ground
-		local offsetPosition = position + Vector3.new(0, -0.5, 0)
+		-- Tree foliage
+		local foliage = Instance.new("Part")
+		foliage.Name = "Foliage"
+		foliage.Size = Vector3.new(6, 6, 6)
+		foliage.Position = position + Vector3.new(0, 10, 0)
+		foliage.Anchored = true
+		foliage.Material = Enum.Material.Grass
+		foliage.BrickColor = BrickColor.new("Dark green")
+		foliage.Shape = Enum.PartType.Ball
+		foliage.Parent = tree
 
-		-- Position the tree at the spawn location
-		if tree.PrimaryPart then
-			tree:SetPrimaryPartCFrame(CFrame.new(offsetPosition))
-		else
-			tree:MoveTo(offsetPosition)
-		end
+		tree.PrimaryPart = trunk
 
-		-- Ensure all parts are anchored
-		for _, part in ipairs(tree:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.Anchored = true
-			end
-		end
+		-- Add resource tag
+		local tag = Instance.new("StringValue")
+		tag.Name = "ResourceTag"
+		tag.Value = "tree"
+		tag.Parent = tree
 
-		-- Add resource tags if not already present
-		if not tree:FindFirstChild("ResourceTag") then
-			local tag = Instance.new("StringValue")
-			tag.Name = "ResourceTag"
-			tag.Value = "tree"
-			tag.Parent = tree
-		end
+		-- Add tree tag for identification
+		local treeTag = Instance.new("BoolValue")
+		treeTag.Name = "TreeTag"
+		treeTag.Parent = tree
 
-		if not tree:FindFirstChild("TreeTag") then
-			local treeTag = Instance.new("BoolValue")
-			treeTag.Name = "TreeTag"
-			treeTag.Parent = tree
-		end
+		tree:SetAttribute("HarvestType", "tree")
+		tree:SetAttribute("ResourceType", "tree")
 
 		return tree
 	end
 
-	-- Fallback: Create simple tree model
-	local tree = Instance.new("Model")
-	tree.Name = "Tree"
+	-- Try to use existing tree template if available
+	local template = self:findTreeTemplate()
+	if not template then
+		return buildFallbackTree()
+	end
 
-	-- Tree trunk
-	local trunk = Instance.new("Part")
-	trunk.Name = "Trunk"
-	trunk.Size = Vector3.new(2, 8, 2)
-	trunk.Position = position + Vector3.new(0, 4, 0)
-	trunk.Anchored = true
-	trunk.Material = Enum.Material.Wood
-	trunk.BrickColor = BrickColor.new("Brown")
-	trunk.Parent = tree
+	local tree = template:Clone()
+	local primaryPart = tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart", true)
+	if not primaryPart then
+		warn("[ResourceSpawner] ⚠️ Tree template has no BasePart - using fallback tree")
+		return buildFallbackTree()
+	end
+	tree.PrimaryPart = primaryPart
 
-	-- Tree foliage
-	local foliage = Instance.new("Part")
-	foliage.Name = "Foliage"
-	foliage.Size = Vector3.new(6, 6, 6)
-	foliage.Position = position + Vector3.new(0, 10, 0)
-	foliage.Anchored = true
-	foliage.Material = Enum.Material.Grass
-	foliage.BrickColor = BrickColor.new("Dark green")
-	foliage.Shape = Enum.PartType.Ball
-	foliage.Parent = tree
+	-- Position the tree at the spawn location
+	tree:PivotTo(CFrame.new(position))
 
-	tree.PrimaryPart = trunk
+	-- Align tree so its lowest point sits on terrain
+	local lowestPoint = math.huge
+	for _, part in ipairs(tree:GetDescendants()) do
+		if part:IsA("BasePart") then
+			local partBottomY = (part.CFrame.Position - (part.CFrame.UpVector * (part.Size.Y * 0.5))).Y
+			if partBottomY < lowestPoint then
+				lowestPoint = partBottomY
+			end
+		end
+	end
 
-	-- Add resource tag
-	local tag = Instance.new("StringValue")
-	tag.Name = "ResourceTag"
-	tag.Value = "tree"
-	tag.Parent = tree
+	if lowestPoint < math.huge then
+		local deltaY = position.Y - lowestPoint
+		tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
+	end
 
-	-- Add tree tag for identification
-	local treeTag = Instance.new("BoolValue")
-	treeTag.Name = "TreeTag"
-	treeTag.Parent = tree
+	-- Ensure all parts are anchored
+	for _, part in ipairs(tree:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+		end
+	end
+
+	-- Add resource tags if not already present
+	if not tree:FindFirstChild("ResourceTag") then
+		local tag = Instance.new("StringValue")
+		tag.Name = "ResourceTag"
+		tag.Value = "tree"
+		tag.Parent = tree
+	end
+
+	if not tree:FindFirstChild("TreeTag") then
+		local treeTag = Instance.new("BoolValue")
+		treeTag.Name = "TreeTag"
+		treeTag.Parent = tree
+	end
+
+	tree:SetAttribute("HarvestType", "tree")
+	tree:SetAttribute("ResourceType", "tree")
 
 	return tree
 end

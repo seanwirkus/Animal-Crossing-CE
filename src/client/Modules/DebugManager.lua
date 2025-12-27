@@ -408,7 +408,6 @@ function DebugManager:CreateGraphicsTab(parentFrame)
     label.Parent = parentFrame
 end
 
--- Whiteboard tab removed - whiteboard system deleted
 
 function DebugManager:CreateInventoryTab(parentFrame)
     local label = Instance.new("TextLabel")

@@ -9,8 +9,8 @@ local LOG_LEVELS = {
     DEBUG = 4,
 }
 
--- Default: Only show INFO and above in production, DEBUG in Studio
-local currentLogLevel = RunService:IsStudio() and LOG_LEVELS.DEBUG or LOG_LEVELS.INFO
+-- Default: Keep logs quiet unless explicitly enabled.
+local currentLogLevel = LOG_LEVELS.WARN
 
 -- Set to true to completely disable all logging
 local loggingDisabled = false

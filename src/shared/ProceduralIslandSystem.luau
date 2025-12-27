@@ -333,21 +333,21 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
             end
         end
 
-        if lowestPoint < math.huge then
-            local deltaY = terrainHeight - lowestPoint
-            local currentPivot = tree:GetPivot()
-            tree:PivotTo(currentPivot + Vector3.new(0, deltaY, 0))
-        end
+    if lowestPoint < math.huge then
+        local deltaY = terrainHeight - lowestPoint
+        local currentPivot = tree:GetPivot()
+        tree:PivotTo(currentPivot + Vector3.new(0, deltaY, 0))
+    end
 
-        tree.Parent = treeContainer
+    tree.Parent = treeContainer
     else
         warn("[ProceduralIslandSystem] ❌ OakTree template missing - using fallback tree")
 
         -- Fallback: Simple part-based tree
         local tree = Instance.new("Part")
         tree.Name = "TreeModel"
-        tree.Size = Vector3.new(0.4, 1.6, 0.4) -- 0.2x scale of 2,8,2
-        tree.Position = Vector3.new(proposal.position.X, terrainHeight - 1, proposal.position.Z)
+        tree.Size = Vector3.new(2, 8, 2)
+        tree.Position = Vector3.new(proposal.position.X, terrainHeight + 4, proposal.position.Z)
         tree.Anchored = true
         tree.Material = Enum.Material.Wood
         tree.BrickColor = BrickColor.new("Brown")
@@ -357,14 +357,37 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
         -- Add leaves
         local leaves = Instance.new("Part")
         leaves.Name = "Leaves"
-        leaves.Size = Vector3.new(1.2, 1.2, 1.2) -- 0.2x scale of 6,6,6
-        leaves.Position = tree.Position + Vector3.new(0, 1.4, 0)
+        leaves.Size = Vector3.new(6, 6, 6)
+        leaves.Position = tree.Position + Vector3.new(0, 6, 0)
         leaves.Anchored = true
         leaves.Material = Enum.Material.Grass
         leaves.BrickColor = BrickColor.new("Dark green")
         leaves.Shape = Enum.PartType.Ball
         leaves.Parent = treeContainer
     end
+
+    if not treeContainer.PrimaryPart then
+        local primary = treeContainer:FindFirstChildWhichIsA("BasePart", true)
+        if primary then
+            treeContainer.PrimaryPart = primary
+        end
+    end
+
+    if not treeContainer:FindFirstChild("ResourceTag") then
+        local tag = Instance.new("StringValue")
+        tag.Name = "ResourceTag"
+        tag.Value = "tree"
+        tag.Parent = treeContainer
+    end
+
+    if not treeContainer:FindFirstChild("TreeTag") then
+        local treeTag = Instance.new("BoolValue")
+        treeTag.Name = "TreeTag"
+        treeTag.Parent = treeContainer
+    end
+
+    treeContainer:SetAttribute("HarvestType", "tree")
+    treeContainer:SetAttribute("ResourceType", "tree")
 
     -- Add hole model (dug up ground)
     local holeSuccess, holeModel = pcall(function()

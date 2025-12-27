@@ -202,15 +202,17 @@ local function handleAxeChop(player, payload)
     
     -- Search for trees in workspace
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Tree" or 
-            obj:GetAttribute("ResourceType") == "Tree" or 
-            obj.Name:lower():find("tree")) then
-            local treePart = obj:FindFirstChildWhichIsA("BasePart")
-            if treePart then
-                local distance = (treePart.Position - playerPosition).Magnitude
-                if distance < closestDistance then
-                    closestDistance = distance
-                    nearbyTree = obj
+        if obj:IsA("Model") then
+            local harvestType = tostring(obj:GetAttribute("HarvestType") or ""):lower()
+            local resourceType = tostring(obj:GetAttribute("ResourceType") or ""):lower()
+            if harvestType == "tree" or resourceType == "tree" or obj.Name:lower():find("tree") then
+                local treePart = obj:FindFirstChildWhichIsA("BasePart")
+                if treePart then
+                    local distance = (treePart.Position - playerPosition).Magnitude
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        nearbyTree = obj
+                    end
                 end
             end
         end
@@ -268,15 +270,17 @@ local function handleNetSwing(player, payload)
     
     -- Search for bugs in workspace
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Bug" or 
-            obj:GetAttribute("ResourceType") == "Bug" or 
-            obj.Name:lower():find("bug")) then
-            local bugPart = obj:FindFirstChildWhichIsA("BasePart")
-            if bugPart then
-                local distance = (bugPart.Position - playerPosition).Magnitude
-                if distance < closestDistance then
-                    closestDistance = distance
-                    nearbyBug = obj
+        if obj:IsA("Model") then
+            local harvestType = tostring(obj:GetAttribute("HarvestType") or ""):lower()
+            local resourceType = tostring(obj:GetAttribute("ResourceType") or ""):lower()
+            if harvestType == "bug" or resourceType == "bug" or obj.Name:lower():find("bug") then
+                local bugPart = obj:FindFirstChildWhichIsA("BasePart")
+                if bugPart then
+                    local distance = (bugPart.Position - playerPosition).Magnitude
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        nearbyBug = obj
+                    end
                 end
             end
         end
@@ -340,16 +344,21 @@ local function handleWateringCan(player, payload)
     
     -- Search for plants in workspace
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and (obj:GetAttribute("HarvestType") == "Plant" or 
-            obj:GetAttribute("ResourceType") == "Plant" or 
-            obj.Name:lower():find("flower") or 
-            obj.Name:lower():find("plant")) then
-            local plantPart = obj:FindFirstChildWhichIsA("BasePart")
-            if plantPart then
-                local distance = (plantPart.Position - playerPosition).Magnitude
-                if distance < closestDistance then
-                    closestDistance = distance
-                    nearbyPlant = obj
+        if obj:IsA("Model") then
+            local harvestType = tostring(obj:GetAttribute("HarvestType") or ""):lower()
+            local resourceType = tostring(obj:GetAttribute("ResourceType") or ""):lower()
+            if harvestType == "plant"
+                or resourceType == "plant"
+                or obj.Name:lower():find("flower")
+                or obj.Name:lower():find("plant")
+            then
+                local plantPart = obj:FindFirstChildWhichIsA("BasePart")
+                if plantPart then
+                    local distance = (plantPart.Position - playerPosition).Magnitude
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        nearbyPlant = obj
+                    end
                 end
             end
         end
@@ -1168,6 +1177,33 @@ local function addItemToInventory(player, payload, count, maxStack, metadata)
     return true
 end
 
+local STARTER_KIT_ITEM_IDS = {
+    ["flimsy-axe"] = true,
+    ["flimsy-shovel"] = true,
+    ["flimsy-pickaxe"] = true,
+    ["flimsy-net"] = true,
+    ["flimsy-fishing-rod"] = true,
+    axe = true,
+    shovel = true,
+    net = true,
+    ["fishing-rod"] = true,
+}
+
+local function hasStarterKit(player)
+    local inventory = playerInventories[player.UserId]
+    if not inventory then
+        return false
+    end
+
+    for _, slot in ipairs(inventory.slots or {}) do
+        if slot and slot.itemId and STARTER_KIT_ITEM_IDS[slot.itemId] then
+            return true
+        end
+    end
+
+    return false
+end
+
 local function hasCraftingMaterials(player, materials, quantity)
     local inventory = getInventoryForPlayer(player)
     if not inventory then
@@ -1420,6 +1456,7 @@ _HomeBuildingService:SetInventoryFunctions(hasCraftingMaterials, consumeCrafting
 -- Connect OnboardingService to Inventory system
 logInfo("📚 Connecting OnboardingService to Inventory system...")
 onboardingService:setAddItemFunction(addItemToInventory)
+onboardingService:setStarterKitCheckFunction(hasStarterKit)
 
 -- FishingSystem is ready to use (no init needed)
 
@@ -2751,6 +2788,10 @@ Players.PlayerAdded:Connect(function(player)
         -- Initialize empty inventory
         logInfo("Initializing new inventory", { player = player.Name })
         initializePlayerInventory(player)
+    end
+
+    if onboardingService then
+        onboardingService:giveStarterKit(player, CurrencyManager)
     end
 
     local inventory = playerInventories[player.UserId]
