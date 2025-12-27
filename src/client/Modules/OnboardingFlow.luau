@@ -621,8 +621,8 @@ function OnboardingFlow.start()
         -- After loading screen, play cutscene
         print("[OnboardingFlow] 🎥 Now playing arrival cutscene...")
         OnboardingFlow.playArrivalCutscene(function()
-            print("[OnboardingFlow] ✅ Cutscene complete, showing start day screen...")
-            OnboardingFlow.showStartDayScreen()
+            print("[OnboardingFlow] ✅ Cutscene complete, onboarding done!")
+            OnboardingFlow.completeOnboarding()
         end)
     end)
 end

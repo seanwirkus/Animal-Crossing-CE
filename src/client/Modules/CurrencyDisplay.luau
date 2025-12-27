@@ -112,7 +112,7 @@ function CurrencyDisplay:updateBells(amount)
     self.currentBells = amount
 
     if self.bellsCount then
-        self.bellsCount.Text = "Bells: " .. formatNumber(amount)
+        self.bellsCount.Text = formatNumber(amount)
         print("[CurrencyDisplay] ✅ Bells label updated to:", formatNumber(amount))
 
         -- Pulse animation
@@ -140,7 +140,7 @@ function CurrencyDisplay:updateMiles(amount)
     self.currentMiles = amount
 
     if self.milesCount then
-        self.milesCount.Text = "Miles: " .. formatNumber(amount)
+        self.milesCount.Text = formatNumber(amount)
         print("[CurrencyDisplay] ✅ Miles label updated to:", formatNumber(amount))
 
         -- Pulse animation
