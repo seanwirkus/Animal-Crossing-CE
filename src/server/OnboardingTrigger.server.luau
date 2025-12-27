@@ -50,30 +50,25 @@ local function startTutorialForPlayer(player)
 	-- Mark as having tutorial
 	playersWithTutorial[player.UserId] = true
 
-	-- Wait a moment for client to load
+	-- Wait a moment for servers to load
 	task.wait(3)
 
-	-- Fire to client to start tutorial
-	print(string.format("[OnboardingTrigger] 🎬 Starting tutorial for %s", player.Name))
-	startOnboardingRemote:FireClient(player)
+	-- Call the server-side OnboardingService to start tutorial (which gives starter kit, etc.)
+	local onboardingService = getOnboardingService()
+	if onboardingService then
+		print(string.format("[OnboardingTrigger] 🎬 Starting tutorial for %s (via OnboardingService)", player.Name))
+		onboardingService:startTutorial(player)
+	else
+		-- Fallback: just fire to client
+		print(string.format("[OnboardingTrigger] ⚠️ OnboardingService not available, using client fallback for %s", player.Name))
+		startOnboardingRemote:FireClient(player)
+	end
 end
 
--- Get OnboardingService (will be set by init.server after it loads)
-local OnboardingService = nil
-task.spawn(function()
-	task.wait(5) -- Wait for server init to complete
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local onboardingModule = ServerScriptService:FindFirstChild("OnboardingService")
-	if onboardingModule then
-		local success, result = pcall(function()
-			return require(onboardingModule)
-		end)
-		if success and result then
-			-- OnboardingService is a class, look for instance in _G or get from init
-			print("[OnboardingTrigger] ⚠️ OnboardingService module found but instance needed from init.server")
-		end
-	end
-end)
+-- Get OnboardingService instance from _G (set by init.server)
+local function getOnboardingService()
+	return _G.onboardingService
+end
 
 -- Listen for tutorial completion
 tutorialCompleteRemote.OnServerEvent:Connect(function(player)

@@ -491,6 +491,9 @@ logInfo("📚 Initializing Onboarding service...")
 local onboardingService = OnboardingService.new()
 onboardingService:initialize(islandService, _HomeBuildingService, nil, CurrencyManager)
 
+-- Export to _G for OnboardingTrigger to access
+_G.onboardingService = onboardingService
+
 -- Create RemoteEvent
 local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent") or Instance.new("RemoteEvent")
 inventoryRemote.Name = "InventoryEvent"
