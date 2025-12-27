@@ -608,7 +608,9 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
     if treeTemplate and treeTemplate:IsA("Model") then
         tree = treeTemplate:Clone()
-        tree:SetPrimaryPartCFrame(CFrame.new(position))
+        -- Offset tree down by 0.5 studs so it sits into the ground
+        local offsetPosition = position + Vector3.new(0, -0.5, 0)
+        tree:SetPrimaryPartCFrame(CFrame.new(offsetPosition))
 
         -- Anchor all parts
         for _, part in ipairs(tree:GetDescendants()) do

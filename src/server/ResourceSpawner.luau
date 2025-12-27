@@ -546,11 +546,14 @@ function ResourceSpawner:createSimpleTree(position)
 	if template then
 		local tree = template:Clone()
 
+		-- Offset the tree down by 0.5 studs so it sits into the ground
+		local offsetPosition = position + Vector3.new(0, -0.5, 0)
+
 		-- Position the tree at the spawn location
 		if tree.PrimaryPart then
-			tree:SetPrimaryPartCFrame(CFrame.new(position))
+			tree:SetPrimaryPartCFrame(CFrame.new(offsetPosition))
 		else
-			tree:MoveTo(position)
+			tree:MoveTo(offsetPosition)
 		end
 
 		-- Ensure all parts are anchored
