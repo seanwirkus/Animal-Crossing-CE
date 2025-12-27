@@ -135,7 +135,10 @@ function OnboardingService:_waitForInventory(player)
 end
 
 function OnboardingService:_grantStarterItems(player)
+    print(string.format("[OnboardingService] 🛠️ _grantStarterItems called for %s", player.Name))
+    print(string.format("[OnboardingService] Debug: addItemToInventory is nil: %s", tostring(self.addItemToInventory == nil)))
     if not self.addItemToInventory then
+        warn("[OnboardingService] ⚠️ addItemToInventory function not set - items cannot be granted")
         return false
     end
 
@@ -172,6 +175,9 @@ function OnboardingService:giveStarterKit(player, currencyManager)
 
     self.playersWithActiveReward[player.UserId] = true
 
+    print(string.format("[OnboardingService] 🎁 Starting starter kit grant for %s", player.Name))
+    print(string.format("[OnboardingService] Debug: addItemToInventory available: %s", tostring(self.addItemToInventory ~= nil)))
+
     local ready = self:_waitForInventory(player)
     if not ready then
         warn(string.format("[OnboardingService] ⚠️ Inventory not ready for %s - retrying later", player.Name))
@@ -202,8 +208,11 @@ function OnboardingService:giveStarterKit(player, currencyManager)
 
     -- Give starting bells and miles DIRECTLY via CurrencyManager
     if currencyManager then
+        print("[OnboardingService] 💰 CurrencyManager available, granting currency...")
         local bellsSuccess = currencyManager.addBells(player, 1000)
         local milesSuccess = currencyManager.addMiles(player, 500)
+
+        print(string.format("[OnboardingService] Currency grant results - Bells: %s, Miles: %s", tostring(bellsSuccess), tostring(milesSuccess)))
 
         if bellsSuccess and milesSuccess then
             print("[OnboardingService] ✅ Gave 1000 bells and 500 miles to", player.Name)
