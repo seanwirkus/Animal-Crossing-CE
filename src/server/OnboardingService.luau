@@ -163,10 +163,10 @@ function OnboardingService:_grantStarterItems(player)
     end
 
     local starterItems = {
-        { itemId = "flimsy_axe", count = 1 },
-        { itemId = "stone_axe", count = 1 },
+        { itemId = "flimsy-axe", count = 1 },
+        { itemId = "axe", count = 1 },
         { itemId = "shovel", count = 1 },
-        { itemId = "fishing_rod", count = 1 },
+        { itemId = "flimsy-fishing-rod", count = 1 },
         { itemId = "net", count = 1 },
         { itemId = "slingshot", count = 1 },
     }
