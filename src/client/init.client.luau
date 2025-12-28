@@ -8,6 +8,41 @@ local UserInputService = game:GetService("UserInputService")
 local _RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 
+local INVALID_SOUND_IDS = {
+    ["rbxassetid://131961723"] = true,
+    ["rbxassetid://131094181"] = true,
+    ["131961723"] = true,
+    ["131094181"] = true,
+}
+
+local function scrubInvalidSound(sound)
+    local soundId = sound.SoundId
+    if not soundId or soundId == "" then
+        return
+    end
+
+    local rawId = soundId:gsub("rbxassetid://", "")
+    if INVALID_SOUND_IDS[soundId] or INVALID_SOUND_IDS[rawId] then
+        sound.SoundId = ""
+        sound.Volume = 0
+        pcall(function()
+            sound:Stop()
+        end)
+    end
+end
+
+for _, instance in ipairs(game:GetDescendants()) do
+    if instance:IsA("Sound") then
+        scrubInvalidSound(instance)
+    end
+end
+
+game.DescendantAdded:Connect(function(instance)
+    if instance:IsA("Sound") then
+        scrubInvalidSound(instance)
+    end
+end)
+
 -- Disable Roblox Studio UI interference
 pcall(function()
     StarterGui:SetCore("TopbarEnabled", true)
@@ -169,6 +204,25 @@ ParticleEffectsModule.initialize()
 -- Custom ProximityPrompt UI for Bell Bags (gold-colored prompt)
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local TweenService = game:GetService("TweenService")
+local remoteEventsFolder = _ReplicatedStorage:WaitForChild("RemoteEvents", 10)
+local bellBagPickupRemote = remoteEventsFolder and remoteEventsFolder:FindFirstChild("BellBagPickup")
+
+local function requestBellBagPickup(prompt, mode)
+    if not bellBagPickupRemote then
+        warn("[Client] BellBagPickup remote missing")
+        return
+    end
+
+    local worldItemId = prompt:GetAttribute("WorldItemId")
+    if not worldItemId then
+        return
+    end
+
+    bellBagPickupRemote:FireServer({
+        worldItemId = worldItemId,
+        mode = mode,
+    })
+end
 
 local function createBellBagPromptUI(prompt, inputType)
     -- Create a BillboardGui for custom bell bag prompt
@@ -195,7 +249,7 @@ local function createBellBagPromptUI(prompt, inputType)
     local billboardGui = Instance.new("BillboardGui")
     billboardGui.Name = "BellBagPromptUI"
     billboardGui.Adornee = adornee
-    billboardGui.Size = UDim2.fromOffset(220, 100)
+    billboardGui.Size = UDim2.fromOffset(240, 130)
     billboardGui.StudsOffset = Vector3.new(0, 3.5, 0)
     billboardGui.AlwaysOnTop = true
     billboardGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -239,14 +293,14 @@ local function createBellBagPromptUI(prompt, inputType)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
     titleLabel.TextColor3 = Color3.fromRGB(100, 60, 20)
-    titleLabel.Text = "Collect Bells"
+    titleLabel.Text = "Bell Bag"
     titleLabel.Parent = mainFrame
 
     -- Big bells amount display
     local bellsLabel = Instance.new("TextLabel")
     bellsLabel.Name = "BellsAmount"
-    bellsLabel.Size = UDim2.new(1, 0, 0.38, 0)
-    bellsLabel.Position = UDim2.new(0, 0, 0.26, 0)
+    bellsLabel.Size = UDim2.new(1, 0, 0.34, 0)
+    bellsLabel.Position = UDim2.new(0, 0, 0.24, 0)
     bellsLabel.BackgroundTransparency = 1
     bellsLabel.Font = Enum.Font.GothamBlack
     bellsLabel.TextSize = isLarge and 26 or isMedium and 24 or 22
@@ -268,34 +322,68 @@ local function createBellBagPromptUI(prompt, inputType)
     shadowLabel.ZIndex = bellsLabel.ZIndex - 1
     shadowLabel.Parent = mainFrame
 
-    -- Key prompt frame
-    local keyFrame = Instance.new("Frame")
-    keyFrame.Size = UDim2.fromOffset(32, 32)
-    keyFrame.Position = UDim2.new(0.5, -16, 0.66, 2)
-    keyFrame.BackgroundColor3 = Color3.fromRGB(70, 40, 15)
-    keyFrame.BorderSizePixel = 0
-    keyFrame.Parent = mainFrame
+    local actionsFrame = Instance.new("Frame")
+    actionsFrame.Name = "Actions"
+    actionsFrame.Size = UDim2.new(1, -16, 0, 34)
+    actionsFrame.Position = UDim2.new(0, 8, 1, -38)
+    actionsFrame.BackgroundTransparency = 1
+    actionsFrame.Parent = mainFrame
 
-    local keyCorner = Instance.new("UICorner")
-    keyCorner.CornerRadius = UDim.new(0, 8)
-    keyCorner.Parent = keyFrame
+    local actionsLayout = Instance.new("UIListLayout")
+    actionsLayout.FillDirection = Enum.FillDirection.Horizontal
+    actionsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    actionsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    actionsLayout.Padding = UDim.new(0, 8)
+    actionsLayout.Parent = actionsFrame
 
-    local keyStroke = Instance.new("UIStroke")
-    keyStroke.Thickness = 2
-    keyStroke.Color = Color3.fromRGB(50, 25, 10)
-    keyStroke.Parent = keyFrame
+    local function createActionButton(labelText, bgColor, textColor, strokeColor)
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.fromOffset(108, 30)
+        button.BackgroundColor3 = bgColor
+        button.BorderSizePixel = 0
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 11
+        button.TextColor3 = textColor or Color3.fromRGB(70, 40, 10)
+        button.TextWrapped = true
+        button.TextXAlignment = Enum.TextXAlignment.Center
+        button.TextYAlignment = Enum.TextYAlignment.Center
+        button.Text = labelText
+        button.AutoButtonColor = false
+        button.Parent = actionsFrame
 
-    local keyLabel = Instance.new("TextLabel")
-    keyLabel.Size = UDim2.fromScale(1, 1)
-    keyLabel.BackgroundTransparency = 1
-    keyLabel.Font = Enum.Font.GothamBlack
-    keyLabel.TextSize = 16
-    keyLabel.TextColor3 = Color3.fromRGB(255, 215, 100)
-    keyLabel.Text = "E"
-    keyLabel.Parent = keyFrame
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 8)
+        buttonCorner.Parent = button
+
+        local buttonStroke = Instance.new("UIStroke")
+        buttonStroke.Thickness = 1
+        buttonStroke.Color = strokeColor or Color3.fromRGB(140, 90, 20)
+        buttonStroke.Parent = button
+
+        return button
+    end
+
+    local useKeyboardHints = inputType == Enum.ProximityPromptInputType.Keyboard
+    local bellsLabelText = useKeyboardHints and "E Collect Bells" or "Collect Bells"
+    local itemLabelText = useKeyboardHints and "Q Add to Inventory" or "Add to Inventory"
+
+    local bellsButton = createActionButton(
+        bellsLabelText,
+        Color3.fromRGB(255, 214, 92),
+        Color3.fromRGB(80, 45, 10),
+        Color3.fromRGB(140, 90, 20)
+    )
+    local itemButton = createActionButton(
+        itemLabelText,
+        Color3.fromRGB(72, 160, 120),
+        Color3.fromRGB(255, 255, 255),
+        Color3.fromRGB(40, 90, 60)
+    )
 
     -- Sparkle animation for large bags
     local sparkleTime = 0
+    local connections = {}
+
     local pulseConnection
     pulseConnection = _RunService.Heartbeat:Connect(function(dt)
         if not billboardGui.Parent then
@@ -320,7 +408,42 @@ local function createBellBagPromptUI(prompt, inputType)
         end
     end)
 
-    return billboardGui
+    table.insert(connections, pulseConnection)
+
+    local function disableActions()
+        bellsButton.Active = false
+        itemButton.Active = false
+        bellsButton.Text = "Collecting..."
+        itemButton.Text = "Collecting..."
+    end
+
+    table.insert(connections, bellsButton.MouseButton1Click:Connect(function()
+        disableActions()
+        requestBellBagPickup(prompt, "bells")
+    end))
+
+    table.insert(connections, itemButton.MouseButton1Click:Connect(function()
+        disableActions()
+        requestBellBagPickup(prompt, "item")
+    end))
+
+    if useKeyboardHints then
+        table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if gameProcessed then
+                return
+            end
+
+            if input.KeyCode == Enum.KeyCode.Q then
+                disableActions()
+                requestBellBagPickup(prompt, "item")
+            end
+        end))
+    end
+
+    return {
+        gui = billboardGui,
+        connections = connections,
+    }
 end
 
 -- Handle custom ProximityPrompt UI for bell bags
@@ -336,9 +459,25 @@ ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 end)
 
 ProximityPromptService.PromptHidden:Connect(function(prompt)
-    if bellBagPromptUIs[prompt] then
-        bellBagPromptUIs[prompt]:Destroy()
+    local entry = bellBagPromptUIs[prompt]
+    if entry then
+        if entry.connections then
+            for _, connection in ipairs(entry.connections) do
+                if connection and connection.Disconnect then
+                    connection:Disconnect()
+                end
+            end
+        end
+        if entry.gui then
+            entry.gui:Destroy()
+        end
         bellBagPromptUIs[prompt] = nil
+    end
+end)
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt)
+    if prompt:GetAttribute("IsBellBag") then
+        requestBellBagPickup(prompt, "bells")
     end
 end)
 

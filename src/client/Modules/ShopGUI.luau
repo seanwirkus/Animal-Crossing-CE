@@ -56,14 +56,14 @@ function ShopGUI.new()
     self.currencyRemote = ReplicatedStorage:WaitForChild("CurrencyEvent")
 
     -- Shop remote (for buying/selling)
-    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    local remoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
     if remoteEventsFolder then
-        self.shopRemote = remoteEventsFolder:FindFirstChild("ShopTransaction")
+        self.shopRemote = remoteEventsFolder:WaitForChild("ShopTransaction", 10)
         if not self.shopRemote then
-            self.shopRemote = Instance.new("RemoteEvent")
-            self.shopRemote.Name = "ShopTransaction"
-            self.shopRemote.Parent = remoteEventsFolder
+            warn("[ShopGUI] ShopTransaction remote not found")
         end
+    else
+        warn("[ShopGUI] RemoteEvents folder not found")
     end
 
     self:buildGui()

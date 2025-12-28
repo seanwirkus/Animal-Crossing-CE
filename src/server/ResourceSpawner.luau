@@ -24,12 +24,54 @@ local CONFIG = {
 	MIN_ROCKS_PER_ISLAND = 6,
 	MAX_ROCKS_PER_ISLAND = 12,
 	RESOURCE_MAINTENANCE_INTERVAL = 120, -- Periodic check to repopulate resources
+	TREE_CLEARANCE = 10,
 }
 
 local OAK_TREE_TEMPLATE_NAME = "OakTree"
 
-local TREE_GROUND_OFFSET = -1
-local TREE_SCALE = 1.2 -- Scale factor for trees
+local TREE_GROUND_OFFSET = -1.5
+local TREE_TARGET_HEIGHT = 32 -- Target height (studs) for tree models
+
+local function getModelScale(model)
+	local ok, scale = pcall(function()
+		return model:GetScale()
+	end)
+	if ok and type(scale) == "number" and scale > 0 then
+		return scale
+	end
+	return 1
+end
+
+local function getGroundPosition(position)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Include
+	raycastParams.FilterDescendantsInstances = { Workspace.Terrain }
+	raycastParams.IgnoreWater = false
+
+	local rayOrigin = Vector3.new(position.X, position.Y + 150, position.Z)
+	local rayDirection = Vector3.new(0, -300, 0)
+	local result = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+	if not result then
+		return nil
+	end
+
+	if result.Material == Enum.Material.Water or result.Position.Y <= 5 then
+		return nil
+	end
+
+	return result.Position
+end
+
+local function isSpawnAreaClear(position)
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = {}
+	params.RespectCanCollide = false
+
+	local parts = Workspace:GetPartBoundsInRadius(position, CONFIG.TREE_CLEARANCE, params)
+	return #parts == 0
+end
 
 local function ensureTreeShakePrompt(tree)
 	local rootPart = tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart", true)
@@ -136,6 +178,13 @@ function ResourceSpawner:scanIsland(islandFolder)
 		if obj:IsA("Model") and (obj.Name:lower():find("tree") or obj:FindFirstChild("TreeTag")) then
 			table.insert(resources.trees, obj)
 
+			local originalLowest = getLowestTreePointY(obj)
+			scaleTreeToTargetHeight(obj, TREE_TARGET_HEIGHT)
+			local newLowest = getLowestTreePointY(obj)
+			if originalLowest < math.huge and newLowest < math.huge then
+				obj:PivotTo(obj:GetPivot() + Vector3.new(0, originalLowest - newLowest, 0))
+			end
+
 			-- Tag for easy identification
 			if not obj:FindFirstChild("ResourceTag") then
 				local tag = Instance.new("StringValue")
@@ -229,25 +278,18 @@ function ResourceSpawner:findSpawnPosition(islandFolder)
 	local basePosition = if origin then origin.Position else Vector3.new(0, 50, 0)
 
 	-- Try random positions around the island center
-	for _ = 1, 10 do
+	for _ = 1, 20 do
 		local offsetX = math.random(-80, 80)
 		local offsetZ = math.random(-80, 80)
-		local testPosition = Vector3.new(basePosition.X + offsetX, 100, basePosition.Z + offsetZ)
+		local testPosition = Vector3.new(basePosition.X + offsetX, basePosition.Y, basePosition.Z + offsetZ)
 
-		-- Raycast down to find ground
-		local raycastParams = RaycastParams.new()
-		raycastParams.FilterType = Enum.RaycastFilterType.Include
-		raycastParams.FilterDescendantsInstances = { Workspace.Terrain }
-
-		local result = Workspace:Raycast(testPosition, Vector3.new(0, -200, 0), raycastParams)
-
-		if result and result.Position.Y > 5 then
-			return result.Position
+		local groundPosition = getGroundPosition(testPosition)
+		if groundPosition and isSpawnAreaClear(groundPosition) then
+			return groundPosition
 		end
 	end
 
-	-- Fallback: return a position near base
-	return basePosition + Vector3.new(math.random(-30, 30), 0, math.random(-30, 30))
+	return nil
 end
 
 --[[
@@ -372,7 +414,16 @@ end
 	Spawn a new tree at position
 ]]
 function ResourceSpawner:spawnTree(islandFolder, position)
-	local tree = self:createOakTree(position)
+	local spawnPosition = position and getGroundPosition(position)
+	if not spawnPosition or not isSpawnAreaClear(spawnPosition) then
+		spawnPosition = self:findSpawnPosition(islandFolder)
+	end
+	if not spawnPosition then
+		warn("[ResourceSpawner] ⚠️ No valid tree spawn position found")
+		return
+	end
+
+	local tree = self:createOakTree(spawnPosition)
 	if not tree then
 		warn("[ResourceSpawner] ⚠️ Failed to create tree")
 		return
@@ -593,26 +644,42 @@ local function anchorTreeParts(tree)
 	end
 end
 
-local function scaleTree(tree, scaleFactor)
-	if scaleFactor == 1 then
-		return
+local function disableLeafCollisions(tree)
+	local leavesContainer = tree:FindFirstChild("LeavesModel")
+		or tree:FindFirstChild("Leaves model")
+		or tree:FindFirstChild("Leaves")
+
+	if not leavesContainer then
+		for _, desc in ipairs(tree:GetDescendants()) do
+			if (desc:IsA("Model") or desc:IsA("Folder")) and desc.Name:lower():find("leaves") then
+				leavesContainer = desc
+				break
+			end
+		end
 	end
 
-	local ok = pcall(function()
-		tree:ScaleTo(scaleFactor)
-	end)
-	if ok then
-		return
-	end
-
-	for _, descendant in ipairs(tree:GetDescendants()) do
-		if descendant:IsA("BasePart") then
-			descendant.Size = descendant.Size * scaleFactor
+	if leavesContainer then
+		for _, desc in ipairs(leavesContainer:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				desc.CanCollide = false
+			end
+		end
+		if leavesContainer:IsA("BasePart") then
+			leavesContainer.CanCollide = false
+		end
+	else
+		for _, desc in ipairs(tree:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				local name = desc.Name:lower()
+				if name:find("leaf") or name:find("foliage") then
+					desc.CanCollide = false
+				end
+			end
 		end
 	end
 end
 
-local function alignTreeToGround(tree, position)
+local function getLowestTreePointY(tree)
 	local lowestPoint = math.huge
 	for _, descendant in ipairs(tree:GetDescendants()) do
 		if descendant:IsA("BasePart") then
@@ -622,7 +689,43 @@ local function alignTreeToGround(tree, position)
 			end
 		end
 	end
+	return lowestPoint
+end
 
+local function scaleTreeToTargetHeight(tree, targetHeight)
+	local ok, extents = pcall(function()
+		return tree:GetExtentsSize()
+	end)
+	if not ok or not extents then
+		return
+	end
+
+	local currentScale = getModelScale(tree)
+	local baseHeight = extents.Y / currentScale
+	if baseHeight <= 0 then
+		return
+	end
+
+	local targetScale = targetHeight / baseHeight
+	if math.abs(targetScale - currentScale) < 0.01 then
+		tree:SetAttribute("TreeTargetHeight", targetHeight)
+		return
+	end
+
+	local scaled = pcall(function()
+		tree:ScaleTo(targetScale)
+	end)
+
+	if scaled then
+		tree:SetAttribute("TreeTargetHeight", targetHeight)
+		return
+	end
+
+	warn("[ResourceSpawner] 🌳 ScaleTo failed for tree:", tree.Name)
+end
+
+local function alignTreeToGround(tree, position)
+	local lowestPoint = getLowestTreePointY(tree)
 	if lowestPoint < math.huge then
 		local deltaY = position.Y - lowestPoint + TREE_GROUND_OFFSET
 		tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
@@ -635,11 +738,10 @@ function ResourceSpawner:createFallbackTree(position)
 
 	local groundedPosition = position + Vector3.new(0, TREE_GROUND_OFFSET, 0)
 
-	-- Base sizes scaled by TREE_SCALE (1.25x)
 	local trunk = Instance.new("Part")
 	trunk.Name = "Trunk"
-	trunk.Size = Vector3.new(2, 8, 2) * TREE_SCALE
-	trunk.Position = groundedPosition + Vector3.new(0, 4 * TREE_SCALE, 0)
+	trunk.Size = Vector3.new(2, 8, 2)
+	trunk.Position = groundedPosition + Vector3.new(0, 4, 0)
 	trunk.Anchored = true
 	trunk.Material = Enum.Material.Wood
 	trunk.BrickColor = BrickColor.new("Brown")
@@ -647,9 +749,10 @@ function ResourceSpawner:createFallbackTree(position)
 
 	local leaves = Instance.new("Part")
 	leaves.Name = "Leaves"
-	leaves.Size = Vector3.new(6, 6, 6) * TREE_SCALE
-	leaves.Position = groundedPosition + Vector3.new(0, 10 * TREE_SCALE, 0)
+	leaves.Size = Vector3.new(6, 6, 6)
+	leaves.Position = groundedPosition + Vector3.new(0, 10, 0)
 	leaves.Anchored = true
+	leaves.CanCollide = false
 	leaves.Material = Enum.Material.Grass
 	leaves.BrickColor = BrickColor.new("Dark green")
 	leaves.Shape = Enum.PartType.Ball
@@ -657,6 +760,7 @@ function ResourceSpawner:createFallbackTree(position)
 
 	tree.PrimaryPart = trunk
 	anchorTreeParts(tree)
+	disableLeafCollisions(tree)
 
 	local tag = Instance.new("StringValue")
 	tag.Name = "ResourceTag"
@@ -697,12 +801,12 @@ function ResourceSpawner:createOakTree(position)
 		end
 	end
 
-	-- Scale tree to 1.25x size
-	scaleTree(tree, TREE_SCALE)
+	scaleTreeToTargetHeight(tree, TREE_TARGET_HEIGHT)
 
 	tree:PivotTo(CFrame.new(position))
 	alignTreeToGround(tree, position)
 	anchorTreeParts(tree)
+	disableLeafCollisions(tree)
 
 	if not tree:FindFirstChild("ResourceTag") then
 		local tag = Instance.new("StringValue")

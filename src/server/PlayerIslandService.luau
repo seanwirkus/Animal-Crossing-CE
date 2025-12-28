@@ -20,28 +20,30 @@ PlayerIslandService.__index = PlayerIslandService
 local ISLAND_SPACING = 1000 -- Studs between islands
 local ISLAND_SIZE = Vector3.new(200, 50, 200) -- Size of each island
 local SEA_LEVEL = 50
-local TREE_GROUND_OFFSET = -1
-local TREE_SCALE = 1.2
+local TREE_GROUND_OFFSET = -1.5
+local TREE_TARGET_HEIGHT = 32
 
-local function scaleTreeModel(tree, scaleFactor, ratio)
-    if not tree or scaleFactor == 1 then
-        return
-    end
-
-    local ok = pcall(function()
-        tree:ScaleTo(scaleFactor)
+local function getModelScale(model)
+    local ok, scale = pcall(function()
+        return model:GetScale()
     end)
-    if ok then
-        return
+    if ok and type(scale) == "number" and scale > 0 then
+        return scale
     end
+    return 1
+end
 
-    local scaleRatio = ratio or scaleFactor
-
+local function getLowestTreePointY(tree)
+    local lowestPoint = math.huge
     for _, part in ipairs(tree:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.Size = part.Size * scaleRatio
+            local partBottomY = (part.CFrame.Position - (part.CFrame.UpVector * (part.Size.Y * 0.5))).Y
+            if partBottomY < lowestPoint then
+                lowestPoint = partBottomY
+            end
         end
     end
+    return lowestPoint
 end
 
 local function applyTreeScaleIfNeeded(tree)
@@ -49,14 +51,82 @@ local function applyTreeScaleIfNeeded(tree)
         return
     end
 
-    local appliedScale = tree:GetAttribute("TreeScaleApplied")
-    if appliedScale == TREE_SCALE then
+    local appliedHeight = tree:GetAttribute("TreeTargetHeight")
+    if appliedHeight == TREE_TARGET_HEIGHT then
         return
     end
 
-    local ratio = appliedScale and appliedScale > 0 and (TREE_SCALE / appliedScale) or TREE_SCALE
-    scaleTreeModel(tree, TREE_SCALE, ratio)
-    tree:SetAttribute("TreeScaleApplied", TREE_SCALE)
+    local ok, extents = pcall(function()
+        return tree:GetExtentsSize()
+    end)
+    if not ok or not extents then
+        return
+    end
+
+    local currentScale = getModelScale(tree)
+    local baseHeight = extents.Y / currentScale
+    if baseHeight <= 0 then
+        return
+    end
+
+    local originalLowest = getLowestTreePointY(tree)
+    local targetScale = TREE_TARGET_HEIGHT / baseHeight
+    if math.abs(targetScale - currentScale) < 0.01 then
+        tree:SetAttribute("TreeTargetHeight", TREE_TARGET_HEIGHT)
+        return
+    end
+
+    local scaled = pcall(function()
+        tree:ScaleTo(targetScale)
+    end)
+
+    if scaled then
+        tree:SetAttribute("TreeTargetHeight", TREE_TARGET_HEIGHT)
+        if originalLowest < math.huge then
+            local newLowest = getLowestTreePointY(tree)
+            if newLowest < math.huge then
+                tree:PivotTo(tree:GetPivot() + Vector3.new(0, originalLowest - newLowest, 0))
+            end
+        end
+        return
+    end
+
+    warn("[PlayerIslandService] 🌳 ScaleTo failed for tree:", tree.Name)
+end
+
+local function disableLeafCollisions(tree)
+    local leavesContainer = tree:FindFirstChild("LeavesModel")
+        or tree:FindFirstChild("Leaves model")
+        or tree:FindFirstChild("Leaves")
+
+    if not leavesContainer then
+        for _, desc in ipairs(tree:GetDescendants()) do
+            if (desc:IsA("Model") or desc:IsA("Folder")) and desc.Name:lower():find("leaves") then
+                leavesContainer = desc
+                break
+            end
+        end
+    end
+
+    if leavesContainer then
+        for _, desc in ipairs(leavesContainer:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                desc.CanCollide = false
+            end
+        end
+        if leavesContainer:IsA("BasePart") then
+            leavesContainer.CanCollide = false
+        end
+    else
+        for _, desc in ipairs(tree:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                local name = desc.Name:lower()
+                if name:find("leaf") or name:find("foliage") then
+                    desc.CanCollide = false
+                end
+            end
+        end
+    end
 end
 
 -- DataStore
@@ -436,6 +506,7 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 
     -- Minimum spacing between trees (INCREASED for better distribution)
     local MIN_TREE_SPACING = 10 -- Increased from 2 to 10 studs
+    local MIN_MODEL_CLEARANCE = 10
 
     -- Grid-based distribution to ensure even spread across island
     local gridCellSize = 25 -- Grid cell size in studs
@@ -482,28 +553,28 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
 
     local function buildGroundRaycastParams()
         local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Include
+        params.FilterDescendantsInstances = { workspace.Terrain }
+        params.IgnoreWater = false
+        params.RespectCanCollide = false
+        return params
+    end
+
+    local function isClearOfModels(position)
+        local params = OverlapParams.new()
         params.FilterType = Enum.RaycastFilterType.Exclude
 
         local excludes = {}
-        local resourcesFolder = workspace:FindFirstChild("Resources")
-        if resourcesFolder then
-            table.insert(excludes, resourcesFolder)
-        end
-
-        local generatedFolder = workspace:FindFirstChild("GeneratedObjects")
-        if generatedFolder then
-            table.insert(excludes, generatedFolder)
-        end
-
         local treesFolder = islandFolder:FindFirstChild("Trees")
         if treesFolder then
             table.insert(excludes, treesFolder)
         end
 
         params.FilterDescendantsInstances = excludes
-        params.IgnoreWater = false
         params.RespectCanCollide = false
-        return params
+
+        local parts = workspace:GetPartBoundsInRadius(position, MIN_MODEL_CLEARANCE, params)
+        return #parts == 0
     end
 
     -- Scan terrain for viable tree positions
@@ -617,8 +688,6 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
                 local pos = nil
                 if ray and isValidTreeSurface(ray.Material, allowAnySurface) then
                     pos = ray.Position
-                elseif allowAnySurface and not ray then
-                    pos = candidatePos
                 end
 
                 if pos then
@@ -647,6 +716,10 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
                                 end
                             end
                         end
+                    end
+
+                    if not tooClose and not isClearOfModels(pos) then
+                        tooClose = true
                     end
 
                     if not tooClose then
@@ -796,6 +869,7 @@ function PlayerIslandService:placeTree(folder, position, treeType)
                 part.Anchored = true
             end
         end
+        disableLeafCollisions(tree)
 
         local lowestPoint = math.huge
         for _, part in ipairs(tree:GetDescendants()) do
@@ -822,8 +896,8 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
         local trunk = Instance.new("Part")
         trunk.Name = "Trunk"
-        trunk.Size = Vector3.new(2, 8, 2) * TREE_SCALE
-        trunk.Position = position + Vector3.new(0, (4 * TREE_SCALE) + TREE_GROUND_OFFSET, 0)
+        trunk.Size = Vector3.new(2, 8, 2)
+        trunk.Position = position + Vector3.new(0, 4 + TREE_GROUND_OFFSET, 0)
         trunk.Anchored = true
         trunk.Material = Enum.Material.Wood
         trunk.BrickColor = BrickColor.new("Brown")
@@ -831,16 +905,35 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
         local leaves = Instance.new("Part")
         leaves.Name = "Leaves"
-        leaves.Size = Vector3.new(6, 6, 6) * TREE_SCALE
-        leaves.Position = position + Vector3.new(0, (9 * TREE_SCALE) + TREE_GROUND_OFFSET, 0)
+        leaves.Size = Vector3.new(6, 6, 6)
+        leaves.Position = position + Vector3.new(0, 9 + TREE_GROUND_OFFSET, 0)
         leaves.Anchored = true
+        leaves.CanCollide = false
         leaves.Material = Enum.Material.Grass
         leaves.BrickColor = BrickColor.new("Dark green")
         leaves.Shape = Enum.PartType.Ball
         leaves.Parent = tree
 
         tree.PrimaryPart = trunk
-        tree:SetAttribute("TreeScaleApplied", TREE_SCALE)
+        applyTreeScaleIfNeeded(tree)
+        disableLeafCollisions(tree)
+
+        local lowestPoint = math.huge
+        for _, part in ipairs(tree:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local partBottomY = (part.CFrame.Position - (part.CFrame.UpVector * (part.Size.Y * 0.5))).Y
+                if partBottomY < lowestPoint then
+                    lowestPoint = partBottomY
+                end
+            end
+        end
+
+        if lowestPoint < math.huge then
+            local deltaY = position.Y - lowestPoint
+            tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
+        end
+
+        tree:PivotTo(tree:GetPivot() + Vector3.new(0, TREE_GROUND_OFFSET, 0))
         tree.Parent = treesFolder
     end
 
@@ -987,7 +1080,7 @@ function PlayerIslandService:saveIsland(userId, islandData)
     islandData = islandData or self.playerIslands[userId]
 
     if not islandData then
-        return
+        return false
     end
 
     -- Update timestamp
@@ -999,8 +1092,10 @@ function PlayerIslandService:saveIsland(userId, islandData)
 
     if success then
         print(string.format("[PlayerIslandService] ✅ Saved island for user %d", userId))
+        return true
     else
         warn(string.format("[PlayerIslandService] ❌ Failed to save island for user %d: %s", userId, tostring(err)))
+        return false
     end
 end
 

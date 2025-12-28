@@ -9,6 +9,7 @@ local IslandSaveService = {}
 IslandSaveService.__index = IslandSaveService
 
 local _instance = nil
+local SAVE_COOLDOWN = 10
 
 -- DataStore configuration
 local DATASTORE_NAME = "ACNH_Islands"
@@ -27,6 +28,8 @@ function IslandSaveService.new()
 
     self._datastore = DataStoreService:GetDataStore(DATASTORE_NAME)
     self._playerIslands = {} -- [userId] = islandData
+    self._islandService = nil
+    self._lastSaveAt = {} -- [userId] = timestamp
 
     -- Setup RemoteEvents
     self:_setupRemoteEvents()
@@ -34,6 +37,10 @@ function IslandSaveService.new()
     _instance = self
     print("[IslandSaveService] ✅ Initialized")
     return self
+end
+
+function IslandSaveService:SetIslandService(islandService)
+    self._islandService = islandService
 end
 
 function IslandSaveService:_setupRemoteEvents()
@@ -52,8 +59,16 @@ function IslandSaveService:_setupRemoteEvents()
         saveIslandRemote.Parent = remoteEventsFolder
     end
 
-    saveIslandRemote.OnServerEvent:Connect(function(player)
-        self:SavePlayerIsland(player)
+    local saveIslandResultRemote = remoteEventsFolder:FindFirstChild("SaveIslandResult")
+    if not saveIslandResultRemote then
+        saveIslandResultRemote = Instance.new("RemoteEvent")
+        saveIslandResultRemote.Name = "SaveIslandResult"
+        saveIslandResultRemote.Parent = remoteEventsFolder
+    end
+
+    saveIslandRemote.OnServerEvent:Connect(function(player, requestId)
+        local success, reason = self:SavePlayerIsland(player)
+        saveIslandResultRemote:FireClient(player, requestId, success, reason)
     end)
 
     -- LoadIsland RemoteEvent
@@ -94,14 +109,33 @@ end
 
 function IslandSaveService:SavePlayerIsland(player)
     local userId = player.UserId
+    local now = os.clock()
+
+    if self._lastSaveAt[userId] and (now - self._lastSaveAt[userId]) < SAVE_COOLDOWN then
+        return false, "cooldown"
+    end
 
     print("[IslandSaveService] 💾 Saving island for", player.Name)
+
+    if self._islandService then
+        local islandData = self._islandService:getPlayerIsland(userId)
+        if islandData then
+            local success = self._islandService:saveIsland(userId, islandData)
+            if success == false then
+                return false, "datastore-failed"
+            end
+            self._playerIslands[userId] = islandData
+            self._lastSaveAt[userId] = now
+            print("[IslandSaveService] ✅ Saved island via PlayerIslandService for", player.Name)
+            return true, "saved"
+        end
+    end
 
     -- Get island data from workspace
     local islandData = self:_collectIslandData(player)
     if not islandData then
-        warn("[IslandSaveService] No island data to save for", player.Name)
-        return false
+        warn("[IslandSaveService] ⚠️ No island data found to save for", player.Name)
+        return false, "no-island-data"
     end
 
     -- Save to DataStore
@@ -111,11 +145,12 @@ function IslandSaveService:SavePlayerIsland(player)
 
     if success then
         self._playerIslands[userId] = islandData
+        self._lastSaveAt[userId] = now
         print("[IslandSaveService] ✅ Saved island for", player.Name)
-        return true
+        return true, "saved"
     else
         warn("[IslandSaveService] ❌ Failed to save island for", player.Name, ":", err)
-        return false
+        return false, "datastore-failed"
     end
 end
 
@@ -180,6 +215,15 @@ function IslandSaveService:LoadPlayerIsland(player)
     local userId = player.UserId
 
     print("[IslandSaveService] 📂 Loading island for", player.Name)
+
+    if self._islandService then
+        local islandData = self._islandService:loadIsland(userId)
+        if islandData then
+            self._playerIslands[userId] = islandData
+            print("[IslandSaveService] ✅ Loaded island via PlayerIslandService")
+            return islandData
+        end
+    end
 
     -- Try to get from cache first
     if self._playerIslands[userId] then

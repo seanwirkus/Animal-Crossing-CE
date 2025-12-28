@@ -24,6 +24,49 @@ local IslandAuditor = require(script.Parent.IslandAuditor)
 
 local OAK_TREE_TEMPLATE: Model? = ReplicatedStorage:FindFirstChild("OakTree")
 local TREE_GROUND_OFFSET = -1
+local TREE_TARGET_HEIGHT = 32
+
+local function getModelScale(model)
+    local ok, scale = pcall(function()
+        return model:GetScale()
+    end)
+    if ok and type(scale) == "number" and scale > 0 then
+        return scale
+    end
+    return 1
+end
+
+local function scaleTreeToTargetHeight(tree, targetHeight)
+    local ok, extents = pcall(function()
+        return tree:GetExtentsSize()
+    end)
+    if not ok or not extents then
+        return
+    end
+
+    local currentScale = getModelScale(tree)
+    local baseHeight = extents.Y / currentScale
+    if baseHeight <= 0 then
+        return
+    end
+
+    local targetScale = targetHeight / baseHeight
+    if math.abs(targetScale - currentScale) < 0.01 then
+        tree:SetAttribute("TreeTargetHeight", targetHeight)
+        return
+    end
+
+    local scaled = pcall(function()
+        tree:ScaleTo(targetScale)
+    end)
+
+    if scaled then
+        tree:SetAttribute("TreeTargetHeight", targetHeight)
+        return
+    end
+
+    warn("[ProceduralIslandSystem] 🌳 ScaleTo failed for tree:", tree.Name)
+end
 
 local function getOakTreeTemplate(): Model?
     if OAK_TREE_TEMPLATE and OAK_TREE_TEMPLATE.Parent then
@@ -315,6 +358,8 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
                 descendant.Anchored = true
             end
         end
+
+        scaleTreeToTargetHeight(tree, TREE_TARGET_HEIGHT)
 
         -- Apply rotation and place at target position
         local rotationCFrame = CFrame.Angles(0, math.rad(proposal.rotation or 0), 0)

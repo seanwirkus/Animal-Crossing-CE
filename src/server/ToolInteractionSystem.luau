@@ -295,7 +295,7 @@ function ToolInteractionSystem:chopDownTree(player, tree)
 		end)
 	end
 
-	-- Make tree fall over with animation
+	-- Make tree fall over with animation and glitchy separation
 	self:animateTreeFall(tree)
 
 	-- Find island name
@@ -455,12 +455,31 @@ function ToolInteractionSystem:spawnItemDrop(position, itemId, amount)
 end
 
 --[[
-	Animate tree falling over
+	Animate tree falling over with glitchy separation effect
 ]]
 function ToolInteractionSystem:animateTreeFall(tree)
 	local primary = tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart")
 	if not primary then
 		return
+	end
+
+	-- Separate leaf parts and spheres for glitchy effect
+	local leafParts = {}
+	local sphereParts = {}
+	local otherParts = {}
+
+	for _, part in ipairs(tree:GetDescendants()) do
+		if part:IsA("BasePart") then
+			-- Check if part name contains "Leaf" or "Sphere"
+			local partName = part.Name:lower()
+			if partName:find("leaf") then
+				table.insert(leafParts, part)
+			elseif partName:find("sphere") then
+				table.insert(sphereParts, part)
+			else
+				table.insert(otherParts, part)
+			end
+		end
 	end
 
 	-- Unanchor all parts for falling animation
@@ -470,10 +489,65 @@ function ToolInteractionSystem:animateTreeFall(tree)
 		end
 	end
 
-	-- Apply a random falling direction
+	-- Apply glitchy separation to leaf parts
+	for _, leafPart in ipairs(leafParts) do
+		-- Apply random forces to make leaves fly off in different directions
+		local randomDirection = Vector3.new(
+			(math.random() - 0.5) * 2,
+			math.random() * 2,
+			(math.random() - 0.5) * 2
+		).Unit
+		leafPart:ApplyImpulse(randomDirection * leafPart.AssemblyMass * 30)
+		leafPart:ApplyAngularImpulse(Vector3.new(
+			math.random(-200, 200),
+			math.random(-200, 200),
+			math.random(-200, 200)
+		))
+	end
+
+	-- Apply glitchy separation to sphere parts
+	for _, spherePart in ipairs(sphereParts) do
+		-- Apply random forces to make spheres fly off
+		local randomDirection = Vector3.new(
+			(math.random() - 0.5) * 2,
+			math.random() * 1.5,
+			(math.random() - 0.5) * 2
+		).Unit
+		spherePart:ApplyImpulse(randomDirection * spherePart.AssemblyMass * 25)
+		spherePart:ApplyAngularImpulse(Vector3.new(
+			math.random(-150, 150),
+			math.random(-150, 150),
+			math.random(-150, 150)
+		))
+	end
+
+	-- Apply a random falling direction to the main tree trunk
 	local direction = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)).Unit
 	primary:ApplyImpulse(direction * primary.AssemblyMass * 50 + Vector3.new(0, 20, 0))
 	primary:ApplyAngularImpulse(Vector3.new(math.random(-100, 100), 0, math.random(-100, 100)))
+
+	-- Add visual glitch effects
+	for _, part in ipairs(leafParts) do
+		-- Make leaves flicker and change transparency
+		task.spawn(function()
+			for i = 1, 10 do
+				part.Transparency = math.random()
+				task.wait(0.1)
+			end
+			part.Transparency = 0.5
+		end)
+	end
+
+	for _, part in ipairs(sphereParts) do
+		-- Make spheres flicker
+		task.spawn(function()
+			for i = 1, 8 do
+				part.Transparency = math.random() * 0.7
+				task.wait(0.15)
+			end
+			part.Transparency = 0.3
+		end)
+	end
 end
 
 --[[

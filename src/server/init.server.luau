@@ -27,6 +27,41 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 
+local INVALID_SOUND_IDS = {
+    ["rbxassetid://131961723"] = true,
+    ["rbxassetid://131094181"] = true,
+    ["131961723"] = true,
+    ["131094181"] = true,
+}
+
+local function scrubInvalidSound(sound)
+    local soundId = sound.SoundId
+    if not soundId or soundId == "" then
+        return
+    end
+
+    local rawId = soundId:gsub("rbxassetid://", "")
+    if INVALID_SOUND_IDS[soundId] or INVALID_SOUND_IDS[rawId] then
+        sound.SoundId = ""
+        sound.Volume = 0
+        pcall(function()
+            sound:Stop()
+        end)
+    end
+end
+
+for _, instance in ipairs(game:GetDescendants()) do
+    if instance:IsA("Sound") then
+        scrubInvalidSound(instance)
+    end
+end
+
+game.DescendantAdded:Connect(function(instance)
+    if instance:IsA("Sound") then
+        scrubInvalidSound(instance)
+    end
+end)
+
 -- Create RemoteEvents folder and QuestEvent early (before client loads)
 local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
 if not remoteEventsFolder then
@@ -110,6 +145,8 @@ local function ensureRemoteEvent(parent, name)
 
     return remote
 end
+
+local bellBagPickupRemote = ensureRemoteEvent(remoteEventsFolder, "BellBagPickup")
 
 local function fireToolFeedback(player, payload)
     if toolFeedbackRemote then
@@ -482,6 +519,8 @@ workbenchService:initialize()
 -- Initialize Player Island service
 logInfo("🏝️ Initializing Player Island service...")
 local islandService = PlayerIslandService.new()
+local islandSaveService = _IslandSaveService.new()
+islandSaveService:SetIslandService(islandService)
 islandService:initialize()
 
 -- Connect HomeBuildingService to PlayerIslandService
@@ -550,6 +589,7 @@ balloonPresentDropped.Parent = ReplicatedStorage
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local SpriteConfig = require(sharedFolder:WaitForChild("SpriteConfig"))
 local ItemDataFetcher = require(sharedFolder:WaitForChild("ItemDataFetcher"))
+local ShopData = require(sharedFolder:WaitForChild("ShopData"))
 local CraftingSystem = require(sharedFolder:WaitForChild("CraftingSystem"))
 local CraftingStationsConfig = require(sharedFolder:WaitForChild("crafting"):WaitForChild("CraftingStationsConfig"))
 local InventoryDomain = require(sharedFolder:WaitForChild("inventory"))
@@ -711,10 +751,10 @@ local nextItemId = 1
 local ItemData = ItemDataFetcher.getFallbackData()
 local DisplayItems = ItemDataFetcher.getDisplayItemMap()
 
--- Bell Bag system configuration (ACNH Nookipedia values)
+-- Bell Bag system configuration
 -- Small Bell Bag: 1,000 bells
--- Bell Bag (Medium): 10,000 bells
--- Large Bell Bag: 99,000 bells
+-- Medium Bell Bag: 5,000 bells
+-- Large Bell Bag: 10,000 bells
 local BELL_BAG_VALUES = {
     small = 1000,   -- BellBagSmall contains 1,000 bells
     medium = 5000,  -- BellBagMedium contains 5,000 bells
@@ -752,9 +792,9 @@ local function getBellBagValue(bellBagModelName)
     if bellBagModelName == "BellBagSmall" then
         return BELL_BAG_VALUES.small -- 1,000 bells
     elseif bellBagModelName == "BellBagMedium" then
-        return BELL_BAG_VALUES.medium -- 10,000 bells
+        return BELL_BAG_VALUES.medium -- 5,000 bells
     else
-        return BELL_BAG_VALUES.large -- 99,000 bells
+        return BELL_BAG_VALUES.large -- 10,000 bells
     end
 end
 
@@ -1559,6 +1599,143 @@ local function destroyWorldItem(worldItemId)
     worldItems[worldItemId] = nil
 end
 
+local function getWorldItemPosition(entry)
+    local model = entry and entry.model
+    if not model then
+        return nil
+    end
+
+    local pivot = model:FindFirstChild("Pivot")
+    if pivot and pivot:IsA("BasePart") then
+        return pivot.Position
+    end
+
+    local primary = model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
+    return primary and primary.Position or nil
+end
+
+local function animateBellBagPickup(entry, pickingPlayer)
+    local model = entry and entry.model
+    if not model then
+        return
+    end
+
+    local pivot = model:FindFirstChild("Pivot")
+    local bellBagModel = model:FindFirstChild("BellBag")
+    local character = pickingPlayer and pickingPlayer.Character
+    local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not (pivot and humanoidRootPart) then
+        return
+    end
+
+    local targetPosition = humanoidRootPart.Position + Vector3.new(0, 2, 0)
+
+    local pickupTween = TweenService:Create(
+        pivot,
+        TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        {
+            CFrame = CFrame.new(targetPosition),
+        }
+    )
+
+    local pickupBellBagPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
+    local scaleDownTween
+    if pickupBellBagPart then
+        scaleDownTween = TweenService:Create(
+            pickupBellBagPart,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            {
+                Size = pickupBellBagPart.Size * 0.1,
+                Transparency = 1,
+            }
+        )
+    end
+
+    pickupTween:Play()
+    if scaleDownTween then
+        scaleDownTween:Play()
+    end
+
+    pickupTween.Completed:Wait()
+end
+
+local function handleBellBagPickup(pickingPlayer, worldItemId, pickupMode)
+    if typeof(worldItemId) ~= "number" then
+        return
+    end
+
+    local entry = worldItems[worldItemId]
+    if not entry or not entry.isBellBag or entry.isCollected then
+        return
+    end
+
+    if not entry.model or not entry.model.Parent then
+        return
+    end
+
+    local character = pickingPlayer.Character
+    local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+    local itemPosition = getWorldItemPosition(entry)
+    if not humanoidRootPart or not itemPosition then
+        return
+    end
+
+    if (humanoidRootPart.Position - itemPosition).Magnitude > 12 then
+        return
+    end
+
+    entry.isCollected = true
+
+    local collectAsItem = pickupMode == "item"
+    if collectAsItem then
+        local modelName = entry.bellBagModelName or "BellBagSmall"
+        local bellBagItemId = "bell_bag_" .. string.lower(modelName:gsub("BellBag", ""))
+        local success, err = addItemToInventory(pickingPlayer, {
+            itemId = bellBagItemId,
+            count = 1,
+        })
+        if success then
+            logInfo(
+                "🎒 Bell bag picked up as item",
+                { player = pickingPlayer.Name, model = modelName, itemId = bellBagItemId }
+            )
+        else
+            warn("[Server] ❌ Failed to add bell bag item to inventory:", err)
+            collectAsItem = false
+        end
+    end
+
+    if not collectAsItem then
+        local totalValue = entry.bellsValue or 0
+        if totalValue > 0 then
+            local success = CurrencyManager.addBells(pickingPlayer, totalValue)
+            if success then
+                logInfo(
+                    "💰 Bell bag picked up",
+                    { player = pickingPlayer.Name, model = entry.bellBagModelName, totalValue = totalValue }
+                )
+            else
+                warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
+            end
+        end
+    end
+
+    animateBellBagPickup(entry, pickingPlayer)
+    destroyWorldItem(worldItemId)
+end
+
+bellBagPickupRemote.OnServerEvent:Connect(function(player, payload, pickupMode)
+    if typeof(payload) == "table" then
+        handleBellBagPickup(player, payload.worldItemId, payload.mode)
+        return
+    end
+
+    if typeof(payload) == "number" then
+        handleBellBagPickup(player, payload, pickupMode)
+    end
+end)
+
 -- Create dropped item as simple banner in front of player
 local function createDroppedItem(player, itemId, count, worldPosition)
     if not ItemData[itemId] then
@@ -1769,15 +1946,15 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         local floatConnection = nil
         local floatTime = 0
 
-        -- Function to start floating animation - use RenderStepped for smoother animation
+        -- Function to start floating animation - use Heartbeat for server-side animation
         local function startFloatingAnimation()
             if floatConnection then
                 return -- Already floating
             end
 
-            -- Use RenderStepped for smoother animation, but only update every other frame to reduce lag
+            -- Use Heartbeat for server-side animation (RenderStepped is client-only)
             local frameSkip = 0
-            floatConnection = RunService.RenderStepped:Connect(function()
+            floatConnection = RunService.Heartbeat:Connect(function(deltaTime)
                 frameSkip = frameSkip + 1
                 if frameSkip < 2 then
                     return
@@ -1792,7 +1969,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                     return
                 end
 
-                floatTime += 0.033 -- Approximate frame time (30fps)
+                floatTime += deltaTime
                 local floatHeight = math.sin(floatTime * 1.5) * 0.15 -- Gentle floating
                 local primaryBellBagPart = bellBagModel
                     and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
@@ -1889,108 +2066,9 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 -- Add an attribute to mark this as a bell bag for custom UI styling
                 prompt:SetAttribute("IsBellBag", true)
                 prompt:SetAttribute("BellsValue", totalValue)
+                prompt:SetAttribute("WorldItemId", worldItemId)
 
-                -- Connect pickup
-                prompt.Triggered:Connect(function(pickingPlayer)
-                    local now = tick()
-                    if now - lastPickupAttempt < pickupCooldown then
-                        return
-                    end
-                    lastPickupAttempt = now
-
-                    -- Check if player wants to collect as item or as bells
-                    -- For now, default to bells, but we'll add UI choice later
-                    local collectAsItem = false -- This will be set based on player choice
-
-                    if collectAsItem then
-                        -- Add bell bag as item to inventory
-                        local bellBagItemId = "bell_bag_" .. string.lower(bellBagModelName:gsub("BellBag", ""))
-                        local success, err = addItemToInventory(pickingPlayer, {
-                            itemId = bellBagItemId,
-                            count = 1,
-                        })
-                        if success then
-                            logInfo(
-                                "🎒 Bell bag picked up as item",
-                                { player = pickingPlayer.Name, model = bellBagModelName, itemId = bellBagItemId }
-                            )
-                        else
-                            warn("[Server] ❌ Failed to add bell bag item to inventory:", err)
-                            -- Fallback to collecting as bells if inventory is full
-                            if totalValue and totalValue > 0 then
-                                local success = CurrencyManager.addBells(pickingPlayer, totalValue)
-                                if success then
-                                    logInfo(
-                                        "💰 Bell bag picked up as bells (inventory full)",
-                                        { player = pickingPlayer.Name, model = bellBagModelName, totalValue = totalValue }
-                                    )
-                                else
-                                    warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
-                                end
-                            end
-                        end
-                    else
-                        -- Add bells to player (original behavior)
-                        if totalValue and totalValue > 0 then
-                            local success = CurrencyManager.addBells(pickingPlayer, totalValue)
-                            if success then
-                                logInfo(
-                                    "💰 Bell bag picked up",
-                                    { player = pickingPlayer.Name, model = bellBagModelName, totalValue = totalValue }
-                                )
-                            else
-                                warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
-                            end
-                        end
-                    end
-
-                            -- Play pickup animation
-                            local character = pickingPlayer.Character
-                            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
-                            if humanoidRootPart and bellBagModel then
-                                local targetPosition = humanoidRootPart.Position + Vector3.new(0, 2, 0)
-
-                                -- Animate bell bag flying to player
-                                local pickupTween = TweenService:Create(
-                                    pivot,
-                                    TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-                                    {
-                                        CFrame = CFrame.new(targetPosition),
-                                    }
-                                )
-
-                                -- Scale down effect
-                                local pickupBellBagPart = bellBagModel.PrimaryPart
-                                    or bellBagModel:FindFirstChildOfClass("BasePart")
-                                local scaleDownTween
-                                if pickupBellBagPart then
-                                    scaleDownTween = TweenService:Create(
-                                        pickupBellBagPart,
-                                        TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In),
-                                        {
-                                            Size = pickupBellBagPart.Size * 0.1,
-                                            Transparency = 1,
-                                        }
-                                    )
-                                end
-
-                                pickupTween:Play()
-                                if scaleDownTween then
-                                    scaleDownTween:Play()
-                                end
-
-                                -- Clean up after animation
-                                pickupTween.Completed:Wait()
-                                destroyWorldItem(worldItemId)
-                            else
-                                -- No animation, just destroy
-                                destroyWorldItem(worldItemId)
-                            end
-                        else
-                            warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
-                        end
-                    end
-                end)
+                -- Pickup handled via BellBagPickup RemoteEvent (client choice)
 
                 if landingConnection then
                     landingConnection:Disconnect()
@@ -3225,6 +3303,88 @@ local shopFeedbackRemote = ensureRemoteEvent(remoteEventsFolder, "ShopFeedback")
 -- Player pending deliveries (items waiting to be delivered via mail)
 local playerPendingDeliveries = {} -- [playerId] = { {itemId, count, orderedAt}, ... }
 
+local RESOURCE_PRICE_OVERRIDES = {
+    ["softwood"] = 60, ["wood"] = 60, ["hardwood"] = 60,
+    ["bamboo-piece"] = 80, ["young-spring-bamboo"] = 200,
+    ["iron-nugget"] = 375, ["gold-nugget"] = 10000,
+    ["clay"] = 100, ["stone"] = 75,
+    ["tree-branch"] = 5, ["weeds"] = 10, ["coconut"] = 250,
+    ["conch"] = 700, ["coral"] = 500, ["giant-clam"] = 900,
+    ["sand-dollar"] = 120, ["sea-snail"] = 180, ["venus-comb"] = 300,
+    ["cowrie"] = 60, ["summer-shell"] = 600,
+    ["star-fragment"] = 250, ["large-star-fragment"] = 500,
+    ["snowflake"] = 200, ["large-snowflake"] = 2500,
+    ["maple-leaf"] = 200, ["cherry-blossom-petal"] = 200,
+    ["acorn"] = 200, ["pine-cone"] = 200, ["mushroom"] = 200,
+    ["flower-seeds"] = 120, ["bush-start"] = 280,
+    ["sapling"] = 640, ["cedar-sapling"] = 640, ["coconut-tree-sapling"] = 1000,
+    ["wasp-nest"] = 300,
+    ["flimsy-axe"] = 800, ["flimsy-fishing-rod"] = 400,
+    ["flimsy-net"] = 400, ["flimsy-shovel"] = 800,
+    ["flimsy-watering-can"] = 400, ["ladder"] = 2000, ["vaulting-pole"] = 2000,
+}
+
+local MIN_DELIVERY_TOTAL = 500
+
+local RESOURCE_SELL_OVERRIDES = {
+    ["softwood"] = 60, ["wood"] = 60, ["hardwood"] = 60,
+    ["bamboo-piece"] = 80, ["young-spring-bamboo"] = 200,
+    ["iron-nugget"] = 375, ["gold-nugget"] = 10000,
+    ["clay"] = 100, ["stone"] = 75,
+    ["tree-branch"] = 5, ["weeds"] = 10, ["coconut"] = 250,
+    ["conch"] = 700, ["coral"] = 500, ["giant-clam"] = 900,
+    ["sand-dollar"] = 120, ["sea-snail"] = 180, ["venus-comb"] = 300,
+    ["cowrie"] = 60, ["summer-shell"] = 600,
+    ["star-fragment"] = 250, ["large-star-fragment"] = 500,
+    ["snowflake"] = 200, ["large-snowflake"] = 2500,
+    ["maple-leaf"] = 200, ["cherry-blossom-petal"] = 200,
+    ["acorn"] = 200, ["pine-cone"] = 200, ["mushroom"] = 200,
+    ["flower-seeds"] = 40, ["bush-start"] = 100,
+    ["sapling"] = 200, ["cedar-sapling"] = 200, ["coconut-tree-sapling"] = 250,
+    ["wasp-nest"] = 300,
+    ["flimsy-axe"] = 200, ["flimsy-fishing-rod"] = 100,
+    ["flimsy-net"] = 100, ["flimsy-shovel"] = 200,
+    ["flimsy-watering-can"] = 100, ["ladder"] = 500, ["vaulting-pole"] = 500,
+}
+
+local function getItemRecord(itemId)
+    local record = ItemDataFetcher.getItem(itemId)
+    if not record or record.category == "placeholder" or record.category == "legacy" then
+        return nil
+    end
+    return record
+end
+
+local function isItemBrowserItem(itemId)
+    local record = getItemRecord(itemId)
+    return record and record.spriteIndex and record.spriteIndex > 0
+end
+
+local function getShopBasePrice(itemId)
+    local override = RESOURCE_PRICE_OVERRIDES[itemId]
+    if override then
+        return override
+    end
+
+    local info = ShopData.getItemInfo(itemId)
+    if info and info.buyPrice and info.buyPrice > 0 then
+        return info.buyPrice
+    end
+
+    local record = getItemRecord(itemId)
+    local buy = record and (record.buy or record.buyPrice or 0) or 0
+    if buy > 0 then
+        return buy
+    end
+
+    return nil
+end
+
+local function getItemDisplayName(itemId)
+    local record = getItemRecord(itemId)
+    return record and (record.name or record.displayName or record.id) or itemId
+end
+
 shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
     print(string.format("[ShopTransaction] 📦 Received: player=%s action=%s", player and player.Name or "nil", tostring(action)))
 
@@ -3235,16 +3395,48 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
 
     if action == "BuyItem" then
         local itemId = data.itemId
-        local price = data.price or 0
-        local count = data.count or 1
-        local deliveryMethod = data.deliveryMethod or "instant"
+        local count = tonumber(data.count) or 1
+        count = math.clamp(math.floor(count), 1, 99)
+        local deliveryMethod = data.deliveryMethod or "nookplane"
 
-        print(string.format("[ShopTransaction] 🛒 BuyItem: %s x%d for %d bells (delivery: %s)",
-            tostring(itemId), count, price, deliveryMethod))
+        if deliveryMethod ~= "instant" and deliveryMethod ~= "nookplane" and deliveryMethod ~= "mail" then
+            deliveryMethod = "nookplane"
+        end
 
-        if not itemId then
+        if not itemId or not isItemBrowserItem(itemId) then
             shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
-                reason = "Invalid item",
+                reason = "Item unavailable",
+                itemId = itemId,
+            })
+            return
+        end
+
+        local basePrice = getShopBasePrice(itemId)
+        if not basePrice or basePrice <= 0 then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Item not for sale",
+                itemId = itemId,
+            })
+            return
+        end
+
+        local unitPrice = tonumber(data.unitPrice) or basePrice
+        unitPrice = math.floor(unitPrice)
+        local minUnitPrice = math.max(1, math.floor(basePrice * 0.6 + 0.5))
+        if unitPrice < minUnitPrice or unitPrice > basePrice then
+            unitPrice = basePrice
+        end
+
+        local price = unitPrice * count
+
+        print(string.format("[ShopTransaction] 🛒 BuyItem: %s x%d for %d bells (unit %d, delivery: %s)",
+            tostring(itemId), count, price, unitPrice, deliveryMethod))
+
+        if deliveryMethod == "nookplane" and price < MIN_DELIVERY_TOTAL then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Minimum delivery is " .. tostring(MIN_DELIVERY_TOTAL) .. " Bells",
+                required = MIN_DELIVERY_TOTAL,
+                current = CurrencyManager.getBells(player),
             })
             return
         end
@@ -3265,9 +3457,12 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
         if not deductSuccess then
             shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
                 reason = "Failed to process payment",
+                itemId = itemId,
             })
             return
         end
+
+        local itemName = getItemDisplayName(itemId)
 
         if deliveryMethod == "instant" then
             -- Add item directly to inventory
@@ -3285,8 +3480,10 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
 
                 shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
                     itemId = itemId,
+                    itemName = itemName,
                     count = count,
                     price = price,
+                    unitPrice = unitPrice,
                     deliveryMethod = "instant",
                 })
 
@@ -3300,6 +3497,8 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
                 shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
                     reason = "Inventory full",
                     error = err,
+                    itemId = itemId,
+                    itemName = itemName,
                 })
             end
         elseif deliveryMethod == "nookplane" then
@@ -3317,8 +3516,10 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
 
                 shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
                     itemId = itemId,
+                    itemName = itemName,
                     count = count,
                     price = price,
+                    unitPrice = unitPrice,
                     deliveryMethod = "nookplane",
                     message = "The DAL plane will deliver your package shortly!",
                 })
@@ -3332,6 +3533,8 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
                 CurrencyManager.addBells(player, price)
                 shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
                     reason = "Delivery service unavailable",
+                    itemId = itemId,
+                    itemName = itemName,
                 })
             end
         else
@@ -3356,12 +3559,189 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
 
             shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
                 itemId = itemId,
+                itemName = itemName,
                 count = count,
                 price = price,
+                unitPrice = unitPrice,
                 deliveryMethod = "mail",
                 message = "Your order will be delivered shortly!",
             })
         end
+    elseif action == "BuyCart" then
+        local items = data.items
+        local deliveryMethod = data.deliveryMethod or "nookplane"
+
+        if type(items) ~= "table" or #items == 0 then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Cart is empty",
+            })
+            return
+        end
+
+        if deliveryMethod ~= "nookplane" then
+            deliveryMethod = "nookplane"
+        end
+
+        local sanitizedItems = {}
+        local totalCount = 0
+        local totalPrice = 0
+
+        for _, entry in ipairs(items) do
+            local itemId = entry and entry.itemId
+            if itemId and isItemBrowserItem(itemId) then
+                local basePrice = getShopBasePrice(itemId)
+                if basePrice and basePrice > 0 then
+                    local count = math.clamp(math.floor(tonumber(entry.count) or 1), 1, 99)
+                    local unitPrice = tonumber(entry.unitPrice) or basePrice
+                    unitPrice = math.floor(unitPrice)
+                    local minUnitPrice = math.max(1, math.floor(basePrice * 0.6 + 0.5))
+                    if unitPrice < minUnitPrice or unitPrice > basePrice then
+                        unitPrice = basePrice
+                    end
+
+                    totalPrice = totalPrice + (unitPrice * count)
+                    totalCount = totalCount + count
+                    table.insert(sanitizedItems, {
+                        itemId = itemId,
+                        count = count,
+                    })
+                end
+            end
+        end
+
+        if totalCount == 0 then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Cart is empty",
+            })
+            return
+        end
+
+        if totalPrice < MIN_DELIVERY_TOTAL then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Minimum delivery is " .. tostring(MIN_DELIVERY_TOTAL) .. " Bells",
+                required = MIN_DELIVERY_TOTAL,
+                current = CurrencyManager.getBells(player),
+            })
+            return
+        end
+
+        local currentBells = CurrencyManager.getBells(player)
+        if currentBells < totalPrice then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Not enough bells",
+                required = totalPrice,
+                current = currentBells,
+            })
+            return
+        end
+
+        local deductSuccess = CurrencyManager.removeBells(player, totalPrice)
+        if not deductSuccess then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Failed to process payment",
+            })
+            return
+        end
+
+        for _, entry in ipairs(sanitizedItems) do
+            NookPlaneService.queueDelivery(player, entry.itemId, entry.count)
+        end
+
+        shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
+            cartCount = totalCount,
+            price = totalPrice,
+            deliveryMethod = "nookplane",
+            action = "cart_checkout",
+            message = "DAL plane will deliver your cart shortly!",
+        })
+    elseif action == "BuyBundle" then
+        local bundleId = data.bundleId
+        local bundleName = data.bundleName or bundleId or "Bundle"
+        local deliveryMethod = data.deliveryMethod or "nookplane"
+        local items = data.items
+
+        if not bundleId or type(items) ~= "table" or #items == 0 then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Invalid bundle",
+            })
+            return
+        end
+
+        local sanitizedItems = {}
+        local totalItems = 0
+        local totalBasePrice = 0
+        for _, entry in ipairs(items) do
+            local itemId = entry and entry.itemId
+            if itemId and isItemBrowserItem(itemId) then
+                local basePrice = getShopBasePrice(itemId)
+                if basePrice and basePrice > 0 then
+                    local count = math.clamp(math.floor(tonumber(entry.count) or 1), 1, 99)
+                    table.insert(sanitizedItems, {
+                        itemId = itemId,
+                        count = count,
+                    })
+                    totalItems = totalItems + count
+                    totalBasePrice = totalBasePrice + (basePrice * count)
+                end
+            end
+        end
+        if totalItems == 0 then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Empty bundle",
+            })
+            return
+        end
+
+        local price = tonumber(data.price) or 0
+        if price <= 0 then
+            price = math.max(1, math.floor(totalBasePrice * 0.25))
+        end
+
+        if price < MIN_DELIVERY_TOTAL then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Minimum delivery is " .. tostring(MIN_DELIVERY_TOTAL) .. " Bells",
+                required = MIN_DELIVERY_TOTAL,
+                current = CurrencyManager.getBells(player),
+            })
+            return
+        end
+
+        -- Check if player has enough bells
+        local currentBells = CurrencyManager.getBells(player)
+        if currentBells < price then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Not enough bells",
+                required = price,
+                current = currentBells,
+            })
+            return
+        end
+
+        -- Deduct bells
+        local deductSuccess = CurrencyManager.removeBells(player, price)
+        if not deductSuccess then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Failed to process payment",
+            })
+            return
+        end
+
+        if deliveryMethod ~= "nookplane" then
+            deliveryMethod = "nookplane"
+        end
+
+        for _, entry in ipairs(sanitizedItems) do
+            NookPlaneService.queueDelivery(player, entry.itemId, entry.count)
+        end
+
+        shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
+            bundleId = bundleId,
+            bundleName = bundleName,
+            bundleCount = totalItems,
+            price = price,
+            deliveryMethod = "nookplane",
+            message = "DAL plane will deliver your bundle shortly!",
+        })
     elseif action == "CheckDeliveries" then
         -- Check if player has any pending deliveries ready
         local playerId = player.UserId
@@ -3425,31 +3805,19 @@ shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
         end
 
         -- Get sell price for item
-        local sellPrice = 100 -- Default fallback
-
-        -- Check resource items first (from ACNH data)
-        local resourcePrices = {
-            ["softwood"] = 60, ["wood"] = 60, ["hardwood"] = 60,
-            ["bamboo-piece"] = 80, ["young-spring-bamboo"] = 200,
-            ["iron-nugget"] = 375, ["gold-nugget"] = 10000,
-            ["clay"] = 100, ["stone"] = 75,
-            ["tree-branch"] = 5, ["weeds"] = 10, ["coconut"] = 250,
-            ["conch"] = 700, ["coral"] = 500, ["giant-clam"] = 900,
-            ["sand-dollar"] = 120, ["sea-snail"] = 180, ["venus-comb"] = 300,
-            ["cowrie"] = 60, ["summer-shell"] = 600,
-            ["star-fragment"] = 250, ["large-star-fragment"] = 500,
-            ["snowflake"] = 200, ["large-snowflake"] = 2500,
-            ["maple-leaf"] = 200, ["cherry-blossom-petal"] = 200,
-            ["acorn"] = 200, ["pine-cone"] = 200, ["mushroom"] = 200,
-            ["wasp-nest"] = 300,
-            ["flimsy-axe"] = 200, ["flimsy-fishing-rod"] = 100,
-            ["flimsy-net"] = 100, ["flimsy-shovel"] = 200,
-            ["flimsy-watering-can"] = 100, ["ladder"] = 500, ["vaulting-pole"] = 500,
-        }
-
-        if resourcePrices[itemId] then
-            sellPrice = resourcePrices[itemId]
+        local sellPrice = RESOURCE_SELL_OVERRIDES[itemId]
+        if not sellPrice then
+            local info = ShopData.getItemInfo(itemId)
+            if info and info.sellPrice and info.sellPrice > 0 then
+                sellPrice = info.sellPrice
+            else
+                local basePrice = getShopBasePrice(itemId)
+                if basePrice then
+                    sellPrice = math.floor(basePrice * 0.25)
+                end
+            end
         end
+        sellPrice = sellPrice or 100 -- Default fallback
 
         -- Try to remove item from inventory
         local removed = false

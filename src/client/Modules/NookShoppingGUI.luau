@@ -86,22 +86,27 @@ local RARITY = {
 
 -- Layout constants (compact Amazon-style)
 local LAYOUT = {
-    WINDOW_SIZE = UDim2.new(0.9, 0, 0.85, 0),
-    WINDOW_MIN = Vector2.new(760, 520),
-    WINDOW_MAX = Vector2.new(1200, 820),
-    HEADER_HEIGHT = 56,
-    TAB_BAR_HEIGHT = 44,
-    FILTER_BAR_HEIGHT = 42,
-    SEARCH_HEIGHT = 40,
-    ITEM_SIZE = 84, -- Slightly larger for clearer display
-    ITEM_PADDING = 10,
-    CORNER_RADIUS = 10,
+    WINDOW_SIZE = UDim2.new(0.82, 0, 0.78, 0),
+    WINDOW_MIN = Vector2.new(640, 440),
+    WINDOW_MAX = Vector2.new(980, 700),
+    HEADER_HEIGHT = 48,
+    TAB_BAR_HEIGHT = 34,
+    FILTER_BAR_HEIGHT = 34,
+    CART_BAR_HEIGHT = 56,
+    SEARCH_HEIGHT = 30,
+    ITEM_SIZE = 68,
+    ITEM_META_HEIGHT = 40,
+    ITEM_PADDING = 8,
+    CORNER_RADIUS = 8,
 }
+
+local MIN_DELIVERY_TOTAL = 500
 
 -- Navigation tabs
 local NAV_TABS = {
     { id = "home", icon = "🏠", name = "Highlights" },
     { id = "all", icon = "📚", name = "Catalog" },
+    { id = "diy", icon = "🔨", name = "DIY Recipes" },
     { id = "resources", icon = "🪵", name = "Resources" },
     { id = "deals", icon = "🔥", name = "Deals" },
     { id = "bundles", icon = "📦", name = "Bundles" },
@@ -204,6 +209,18 @@ function NookShoppingGUI.new()
     self.dailyDeals = {}
     self.bundles = {}
     self.featuredItems = {}
+    self.craftingRecipes = {} -- DIY recipes from ItemDataFetcher
+
+    -- Cart state
+    self.cartItems = {}
+    self.cartTotal = 0
+    self.cartCount = 0
+    self.cartBar = nil
+    self.cartTotalLabel = nil
+    self.cartHintLabel = nil
+    self.checkoutButton = nil
+    self.cartCountLabel = nil
+    self.pendingCartCheckout = false
 
     -- Player inventory for selling
     self.playerInventory = {}
@@ -216,14 +233,19 @@ function NookShoppingGUI.new()
     self.shopData = require(shared:WaitForChild("ShopData"))
     self.itemDataFetcher = require(shared:WaitForChild("ItemDataFetcher"))
 
-    -- Remotes
+    -- Remotes (wait for server to create them)
     self.currencyRemote = ReplicatedStorage:WaitForChild("CurrencyEvent")
-    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    local remoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
     if remoteEventsFolder then
-        self.shopRemote = remoteEventsFolder:FindFirstChild("ShopTransaction")
-    end
-    if not self.shopRemote then
-        debugWarn("ShopTransaction remote missing")
+        -- Wait for the shop transaction remote (server creates it during init)
+        self.shopRemote = remoteEventsFolder:WaitForChild("ShopTransaction", 10)
+        if not self.shopRemote then
+            debugWarn("ShopTransaction remote not found after waiting")
+        else
+            debugLog("ShopTransaction remote found")
+        end
+    else
+        debugWarn("RemoteEvents folder not found")
     end
 
     -- Initialize shop data with rarity and stock
@@ -265,8 +287,25 @@ function NookShoppingGUI:initializeShopData()
         debugWarn("ShopData returned 0 available items")
     end
 
-    -- Build catalog from all items
+    local function isCatalogEligible(item)
+        if not item or not item.id then
+            return false
+        end
+        if not item.spriteIndex or item.spriteIndex <= 0 then
+            return false
+        end
+        local category = item.category
+        if category == "placeholder" or category == "legacy" then
+            return false
+        end
+        return true
+    end
+
+    -- Build catalog from ItemBrowser-visible items (sprite-backed)
     for _, item in ipairs(allItems) do
+        if not isCatalogEligible(item) then
+            continue
+        end
         local buyPrice = item.buy or item.buyPrice or 0
         local sellPrice = item.sell or item.sell_price or item.sellPrice or 0
         local catalogItem = {
@@ -296,16 +335,26 @@ function NookShoppingGUI:initializeShopData()
     for _, resource in ipairs(RESOURCE_ITEMS) do
         local catalogItem = catalogById[resource.id]
         if not catalogItem then
-            catalogItem = {
-                id = resource.id,
-                name = resource.name,
-                category = resource.category or "Resources",
-                description = resource.description or "",
-                themes = {},
-                source = {},
-            }
-            catalogById[resource.id] = catalogItem
-            table.insert(self.catalogItems, catalogItem)
+            local resourceRecord = self.itemDataFetcher.getItem(resource.id)
+            if resourceRecord and resourceRecord.spriteIndex and resourceRecord.spriteIndex > 0 then
+                catalogItem = {
+                    id = resource.id,
+                    name = resource.name,
+                    category = resource.category or "Resources",
+                    description = resource.description or "",
+                    themes = {},
+                    source = {},
+                    spriteIndex = resourceRecord.spriteIndex,
+                }
+                catalogById[resource.id] = catalogItem
+                table.insert(self.catalogItems, catalogItem)
+            else
+                debugWarn("Skipping resource without sprite", resource.id)
+            end
+        end
+
+        if not catalogItem then
+            continue
         end
 
         catalogItem.icon = resource.icon
@@ -421,6 +470,10 @@ function NookShoppingGUI:initializeShopData()
     -- Create bundles
     self:generateBundles(rng)
 
+    -- Load crafting recipes (DIY items)
+    self.craftingRecipes = self.itemDataFetcher.getCraftableItems() or {}
+    debugLog("Loaded", #self.craftingRecipes, "crafting recipes")
+
     debugLog(
         "Shop data ready",
         "catalog", #self.catalogItems,
@@ -428,7 +481,8 @@ function NookShoppingGUI:initializeShopData()
         "resources", #self.resourceItems,
         "dailyDeals", #self.dailyDeals,
         "bundles", #self.bundles,
-        "categories", #self.catalogCategories
+        "categories", #self.catalogCategories,
+        "recipes", #self.craftingRecipes
     )
 end
 
@@ -587,6 +641,7 @@ function NookShoppingGUI:buildGui()
     self:buildTabBar()
     self:buildFilterBar()
     self:buildContentArea()
+    self:buildCartBar()
 end
 
 function NookShoppingGUI:buildHeader()
@@ -611,15 +666,24 @@ function NookShoppingGUI:buildHeader()
     bottomCover.ZIndex = 9
     bottomCover.Parent = header
 
-    -- Logo/Title
+    -- Logo/Title with icon
+    local logoIcon = Instance.new("TextLabel")
+    logoIcon.Size = UDim2.fromOffset(28, 28)
+    logoIcon.Position = UDim2.fromOffset(12, 11)
+    logoIcon.BackgroundTransparency = 1
+    logoIcon.Text = "🛒"
+    logoIcon.TextSize = 22
+    logoIcon.ZIndex = 11
+    logoIcon.Parent = header
+
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.fromOffset(220, 30)
-    titleLabel.Position = UDim2.fromOffset(16, 12)
+    titleLabel.Size = UDim2.fromOffset(200, 26)
+    titleLabel.Position = UDim2.fromOffset(44, 12)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Font = Enum.Font.GothamBlack
-    titleLabel.TextSize = 20
+    titleLabel.TextSize = 18
     titleLabel.TextColor3 = COLORS.TEXT_LIGHT
-    titleLabel.Text = "Nook Shop"
+    titleLabel.Text = "Nook Shopping"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.ZIndex = 11
     titleLabel.Parent = header
@@ -627,8 +691,8 @@ function NookShoppingGUI:buildHeader()
     -- Search bar
     local searchFrame = Instance.new("Frame")
     searchFrame.Name = "SearchFrame"
-    searchFrame.Size = UDim2.fromOffset(320, 34)
-    searchFrame.Position = UDim2.new(0.5, -160, 0.5, -17)
+    searchFrame.Size = UDim2.fromOffset(280, LAYOUT.SEARCH_HEIGHT)
+    searchFrame.Position = UDim2.new(0.5, -140, 0.5, -math.floor(LAYOUT.SEARCH_HEIGHT / 2))
     searchFrame.BackgroundColor3 = COLORS.BG_WHITE
     searchFrame.BorderSizePixel = 0
     searchFrame.ZIndex = 11
@@ -639,21 +703,21 @@ function NookShoppingGUI:buildHeader()
     searchCorner.Parent = searchFrame
 
     local searchIcon = Instance.new("TextLabel")
-    searchIcon.Size = UDim2.fromOffset(30, 34)
-    searchIcon.Position = UDim2.fromOffset(8, 0)
+    searchIcon.Size = UDim2.fromOffset(26, LAYOUT.SEARCH_HEIGHT)
+    searchIcon.Position = UDim2.fromOffset(6, 0)
     searchIcon.BackgroundTransparency = 1
     searchIcon.Text = "🔍"
-    searchIcon.TextSize = 14
+    searchIcon.TextSize = 12
     searchIcon.ZIndex = 12
     searchIcon.Parent = searchFrame
 
     local searchBox = Instance.new("TextBox")
     searchBox.Name = "SearchBox"
-    searchBox.Size = UDim2.new(1, -45, 1, 0)
-    searchBox.Position = UDim2.fromOffset(35, 0)
+    searchBox.Size = UDim2.new(1, -40, 1, 0)
+    searchBox.Position = UDim2.fromOffset(32, 0)
     searchBox.BackgroundTransparency = 1
     searchBox.Font = Enum.Font.Gotham
-    searchBox.TextSize = 14
+    searchBox.TextSize = 13
     searchBox.TextColor3 = COLORS.TEXT_DARK
     searchBox.PlaceholderText = "Search the catalog..."
     searchBox.PlaceholderColor3 = COLORS.TEXT_MUTED
@@ -694,14 +758,15 @@ function NookShoppingGUI:buildHeader()
 
     -- Close button
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.fromOffset(32, 32)
-    closeBtn.Position = UDim2.new(1, -50, 0.5, -16)
+    closeBtn.Size = UDim2.fromOffset(30, 30)
+    closeBtn.Position = UDim2.new(1, -44, 0.5, -15)
     closeBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
     closeBtn.BorderSizePixel = 0
-    closeBtn.Text = "✕"
+    closeBtn.Text = "X"
     closeBtn.TextColor3 = COLORS.TEXT_LIGHT
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 16
+    closeBtn.Font = Enum.Font.GothamBlack
+    closeBtn.TextSize = 18
+    closeBtn.TextStrokeTransparency = 0.6
     closeBtn.ZIndex = 11
     closeBtn.Parent = header
 
@@ -938,6 +1003,396 @@ function NookShoppingGUI:buildFilterBar()
     filterBar.Visible = (self.currentTab == "all")
 end
 
+function NookShoppingGUI:buildCartBar()
+    local cartBar = Instance.new("Frame")
+    cartBar.Name = "CartBar"
+    cartBar.Size = UDim2.new(1, 0, 0, LAYOUT.CART_BAR_HEIGHT)
+    cartBar.Position = UDim2.fromOffset(0, LAYOUT.HEADER_HEIGHT + LAYOUT.TAB_BAR_HEIGHT)
+    cartBar.BackgroundColor3 = Color3.fromRGB(255, 252, 245)
+    cartBar.BackgroundTransparency = 1
+    cartBar.BorderSizePixel = 0
+    cartBar.ZIndex = 9
+    cartBar.Visible = false
+    cartBar.Parent = self.container
+    self.cartBar = cartBar
+
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(0, 10)
+    barCorner.Parent = cartBar
+
+    local barStroke = Instance.new("UIStroke")
+    barStroke.Color = Color3.fromRGB(223, 204, 175)
+    barStroke.Thickness = 1
+    barStroke.Parent = cartBar
+
+    local barGradient = Instance.new("UIGradient")
+    barGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 252, 246)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(249, 242, 232)),
+    })
+    barGradient.Rotation = 90
+    barGradient.Parent = cartBar
+
+    local barScale = Instance.new("UIScale")
+    barScale.Scale = 0.98
+    barScale.Parent = cartBar
+    self.cartBarScale = barScale
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 6)
+    padding.PaddingBottom = UDim.new(0, 6)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.Parent = cartBar
+
+    local rowLayout = Instance.new("UIListLayout")
+    rowLayout.FillDirection = Enum.FillDirection.Vertical
+    rowLayout.Padding = UDim.new(0, 4)
+    rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    rowLayout.Parent = cartBar
+
+    local topRow = Instance.new("Frame")
+    topRow.Size = UDim2.new(1, 0, 0, 20)
+    topRow.BackgroundTransparency = 1
+    topRow.LayoutOrder = 1
+    topRow.ZIndex = 10
+    topRow.Parent = cartBar
+
+    local cartIcon = Instance.new("TextLabel")
+    cartIcon.Size = UDim2.fromOffset(18, 18)
+    cartIcon.Position = UDim2.fromOffset(0, 1)
+    cartIcon.BackgroundTransparency = 1
+    cartIcon.Text = "🧺"
+    cartIcon.TextSize = 16
+    cartIcon.ZIndex = 11
+    cartIcon.Parent = topRow
+
+    local cartTitle = Instance.new("TextLabel")
+    cartTitle.Size = UDim2.fromOffset(60, 18)
+    cartTitle.Position = UDim2.fromOffset(22, 0)
+    cartTitle.BackgroundTransparency = 1
+    cartTitle.Font = Enum.Font.GothamBold
+    cartTitle.TextSize = 12
+    cartTitle.TextColor3 = COLORS.TEXT_DARK
+    cartTitle.Text = "Cart"
+    cartTitle.TextXAlignment = Enum.TextXAlignment.Left
+    cartTitle.ZIndex = 11
+    cartTitle.Parent = topRow
+
+    local cartCountBadge = Instance.new("TextLabel")
+    cartCountBadge.Size = UDim2.fromOffset(56, 16)
+    cartCountBadge.Position = UDim2.fromOffset(84, 2)
+    cartCountBadge.BackgroundColor3 = COLORS.TEAL
+    cartCountBadge.Font = Enum.Font.GothamBold
+    cartCountBadge.TextSize = 10
+    cartCountBadge.TextColor3 = COLORS.TEXT_LIGHT
+    cartCountBadge.Text = "0 items"
+    cartCountBadge.TextTruncate = Enum.TextTruncate.AtEnd
+    cartCountBadge.TextXAlignment = Enum.TextXAlignment.Center
+    cartCountBadge.ZIndex = 11
+    cartCountBadge.Parent = topRow
+    self.cartCountLabel = cartCountBadge
+
+    local badgeCorner = Instance.new("UICorner")
+    badgeCorner.CornerRadius = UDim.new(0, 9)
+    badgeCorner.Parent = cartCountBadge
+
+    local cartTotalLabel = Instance.new("TextLabel")
+    cartTotalLabel.Size = UDim2.fromOffset(200, 18)
+    cartTotalLabel.AnchorPoint = Vector2.new(1, 0)
+    cartTotalLabel.Position = UDim2.new(1, 0, 0, 0)
+    cartTotalLabel.BackgroundTransparency = 1
+    cartTotalLabel.Font = Enum.Font.GothamBold
+    cartTotalLabel.TextSize = 12
+    cartTotalLabel.TextColor3 = COLORS.TEXT_DARK
+    cartTotalLabel.Text = "Total: 0 Bells"
+    cartTotalLabel.TextXAlignment = Enum.TextXAlignment.Right
+    cartTotalLabel.ZIndex = 11
+    cartTotalLabel.Parent = topRow
+    self.cartTotalLabel = cartTotalLabel
+
+    local bottomRow = Instance.new("Frame")
+    bottomRow.Size = UDim2.new(1, 0, 0, 20)
+    bottomRow.BackgroundTransparency = 1
+    bottomRow.LayoutOrder = 2
+    bottomRow.ZIndex = 10
+    bottomRow.Parent = cartBar
+
+    local hintLabel = Instance.new("TextLabel")
+    hintLabel.Size = UDim2.new(1, -210, 1, 0)
+    hintLabel.Position = UDim2.fromOffset(0, 0)
+    hintLabel.BackgroundTransparency = 1
+    hintLabel.Font = Enum.Font.Gotham
+    hintLabel.TextSize = 10
+    hintLabel.TextColor3 = COLORS.TEXT_MUTED
+    hintLabel.Text = ""
+    hintLabel.TextXAlignment = Enum.TextXAlignment.Left
+    hintLabel.ZIndex = 11
+    hintLabel.Parent = bottomRow
+    self.cartHintLabel = hintLabel
+
+    local actionFrame = Instance.new("Frame")
+    actionFrame.Size = UDim2.fromOffset(200, 20)
+    actionFrame.AnchorPoint = Vector2.new(1, 0)
+    actionFrame.Position = UDim2.new(1, 0, 0, 0)
+    actionFrame.BackgroundTransparency = 1
+    actionFrame.ZIndex = 11
+    actionFrame.Parent = bottomRow
+
+    local actionLayout = Instance.new("UIListLayout")
+    actionLayout.FillDirection = Enum.FillDirection.Horizontal
+    actionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    actionLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    actionLayout.Padding = UDim.new(0, 6)
+    actionLayout.Parent = actionFrame
+
+    local clearBtn = Instance.new("TextButton")
+    clearBtn.Size = UDim2.fromOffset(64, 20)
+    clearBtn.BackgroundColor3 = COLORS.BG_LIGHT
+    clearBtn.BorderSizePixel = 0
+    clearBtn.Font = Enum.Font.GothamMedium
+    clearBtn.TextSize = 10
+    clearBtn.TextColor3 = COLORS.TEXT_DARK
+    clearBtn.Text = "Clear"
+    clearBtn.ZIndex = 12
+    clearBtn.Parent = actionFrame
+
+    local clearCorner = Instance.new("UICorner")
+    clearCorner.CornerRadius = UDim.new(0, 8)
+    clearCorner.Parent = clearBtn
+
+    local checkoutBtn = Instance.new("TextButton")
+    checkoutBtn.Size = UDim2.fromOffset(110, 20)
+    checkoutBtn.BackgroundColor3 = COLORS.TEAL
+    checkoutBtn.BorderSizePixel = 0
+    checkoutBtn.Font = Enum.Font.GothamBold
+    checkoutBtn.TextSize = 10
+    checkoutBtn.TextColor3 = COLORS.TEXT_LIGHT
+    checkoutBtn.Text = "Checkout"
+    checkoutBtn.ZIndex = 12
+    checkoutBtn.Parent = actionFrame
+
+    local checkoutCorner = Instance.new("UICorner")
+    checkoutCorner.CornerRadius = UDim.new(0, 8)
+    checkoutCorner.Parent = checkoutBtn
+
+    self.checkoutButton = checkoutBtn
+
+    clearBtn.MouseButton1Click:Connect(function()
+        self:clearCart()
+    end)
+
+    checkoutBtn.MouseButton1Click:Connect(function()
+        self:checkoutCart()
+    end)
+
+    self:updateCartBar()
+end
+
+function NookShoppingGUI:recalculateCart()
+    local total = 0
+    local count = 0
+    for _, entry in pairs(self.cartItems) do
+        if entry and entry.item and entry.count then
+            total = total + (entry.item.price * entry.count)
+            count = count + entry.count
+        end
+    end
+
+    self.cartTotal = total
+    self.cartCount = count
+end
+
+function NookShoppingGUI:updateCartBar()
+    if not self.cartBar then
+        return
+    end
+
+    if self.cartCount <= 0 then
+        self:animateCartBar(false)
+        return
+    end
+
+    self:animateCartBar(true)
+
+    if self.cartCountLabel then
+        local label = self.cartCount == 1 and "1 item" or (tostring(self.cartCount) .. " items")
+        self.cartCountLabel.Text = label
+    end
+
+    if self.cartTotalLabel then
+        self.cartTotalLabel.Text = "Total: " .. self:formatBells(self.cartTotal) .. " Bells"
+    end
+
+    if self.cartHintLabel then
+        if self.cartTotal < MIN_DELIVERY_TOTAL then
+            local remaining = MIN_DELIVERY_TOTAL - self.cartTotal
+            self.cartHintLabel.Text = "Add " .. self:formatBells(remaining) .. " more for delivery"
+            self.cartHintLabel.TextColor3 = COLORS.ERROR
+        else
+            self.cartHintLabel.Text = "Ready for delivery"
+            self.cartHintLabel.TextColor3 = COLORS.TEXT_MUTED
+        end
+    end
+
+    if self.checkoutButton then
+        local canCheckout = self.cartTotal >= MIN_DELIVERY_TOTAL
+        self.checkoutButton.Active = canCheckout
+        self.checkoutButton.AutoButtonColor = canCheckout
+        self.checkoutButton.Text = canCheckout and "Checkout" or "Min 500 Bells"
+        self.checkoutButton.BackgroundColor3 = canCheckout and COLORS.TEAL or COLORS.OUT_OF_STOCK
+        self.checkoutButton.TextTransparency = canCheckout and 0 or 0.1
+    end
+
+    self:updateContentLayout()
+end
+
+function NookShoppingGUI:animateCartBar(visible)
+    if not self.cartBar then
+        return
+    end
+
+    if visible then
+        if self.cartBar.Visible then
+            return
+        end
+
+        self.cartBar.Visible = true
+        if self.cartBarScale then
+            self.cartBarScale.Scale = 0.97
+        end
+        self.cartBar.BackgroundTransparency = 1
+
+        TweenService:Create(self.cartBar, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundTransparency = 0,
+        }):Play()
+
+        if self.cartBarScale then
+            TweenService:Create(self.cartBarScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Scale = 1,
+            }):Play()
+        end
+
+        self:updateContentLayout()
+        return
+    end
+
+    if not self.cartBar.Visible then
+        return
+    end
+
+    local fadeTween = TweenService:Create(self.cartBar, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1,
+    })
+
+    if self.cartBarScale then
+        TweenService:Create(self.cartBarScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Scale = 0.97,
+        }):Play()
+    end
+
+    fadeTween.Completed:Connect(function()
+        if self.cartBar then
+            self.cartBar.Visible = false
+            self:updateContentLayout()
+        end
+    end)
+    fadeTween:Play()
+end
+
+function NookShoppingGUI:pulseCartBar()
+    if not self.cartBar or not self.cartBar.Visible or not self.cartBarScale then
+        return
+    end
+
+    local grow = TweenService:Create(self.cartBarScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Scale = 1.03,
+    })
+    local shrink = TweenService:Create(self.cartBarScale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Scale = 1,
+    })
+
+    grow.Completed:Connect(function()
+        if self.cartBarScale then
+            shrink:Play()
+        end
+    end)
+    grow:Play()
+end
+
+function NookShoppingGUI:addToCart(item, quantity)
+    quantity = math.clamp(math.floor(quantity or 1), 1, 99)
+    if item.isAvailable == false or item.stock == 0 then
+        self:showNotification(false, { reason = "Item unavailable" })
+        return
+    end
+
+    local entry = self.cartItems[item.id]
+    if entry then
+        entry.count = math.clamp(entry.count + quantity, 1, 99)
+    else
+        self.cartItems[item.id] = {
+            item = item,
+            count = quantity,
+        }
+    end
+
+    self:recalculateCart()
+    self:updateCartBar()
+    self:pulseCartBar()
+    self:showNotification(true, {
+        action = "cart_add",
+        itemName = item.name or item.id,
+        count = quantity,
+    })
+end
+
+function NookShoppingGUI:clearCart()
+    self.cartItems = {}
+    self.cartTotal = 0
+    self.cartCount = 0
+    self.pendingCartCheckout = false
+    self:updateCartBar()
+end
+
+function NookShoppingGUI:checkoutCart()
+    if self.cartCount <= 0 then
+        return
+    end
+
+    if self.cartTotal < MIN_DELIVERY_TOTAL then
+        self:showNotification(false, { reason = "Minimum delivery is " .. self:formatBells(MIN_DELIVERY_TOTAL) .. " Bells" })
+        return
+    end
+
+    if self.bells < self.cartTotal then
+        self:showNotification(false, { reason = "Not enough bells!" })
+        return
+    end
+
+    if not self.shopRemote then
+        self:showNotification(false, { reason = "Shop unavailable" })
+        return
+    end
+
+    local items = {}
+    for _, entry in pairs(self.cartItems) do
+        table.insert(items, {
+            itemId = entry.item.id,
+            count = entry.count,
+            unitPrice = entry.item.price,
+        })
+    end
+
+    self.pendingCartCheckout = true
+    debugLog("Cart checkout", "items", #items, "total", self.cartTotal)
+    self.shopRemote:FireServer("BuyCart", {
+        items = items,
+        total = self.cartTotal,
+        deliveryMethod = "nookplane",
+    })
+end
+
 function NookShoppingGUI:buildSidebar()
     -- Deprecated: sidebar navigation replaced by top tab + filter bars.
 end
@@ -979,8 +1434,17 @@ function NookShoppingGUI:updateContentLayout()
         return
     end
 
+    local cartHeight = (self.cartBar and self.cartBar.Visible) and LAYOUT.CART_BAR_HEIGHT or 0
     local filterHeight = (self.filterBar and self.filterBar.Visible) and LAYOUT.FILTER_BAR_HEIGHT or 0
-    local topOffset = LAYOUT.HEADER_HEIGHT + LAYOUT.TAB_BAR_HEIGHT + filterHeight
+    local topOffset = LAYOUT.HEADER_HEIGHT + LAYOUT.TAB_BAR_HEIGHT + cartHeight + filterHeight
+
+    if self.cartBar then
+        self.cartBar.Position = UDim2.fromOffset(0, LAYOUT.HEADER_HEIGHT + LAYOUT.TAB_BAR_HEIGHT)
+    end
+
+    if self.filterBar then
+        self.filterBar.Position = UDim2.fromOffset(0, LAYOUT.HEADER_HEIGHT + LAYOUT.TAB_BAR_HEIGHT + cartHeight)
+    end
     self.contentArea.Position = UDim2.fromOffset(8, topOffset + 8)
     self.contentArea.Size = UDim2.new(1, -16, 1, -(topOffset + 16))
 end
@@ -999,7 +1463,8 @@ function NookShoppingGUI:selectTab(tabId)
     end
 
     if self.filterBar then
-        self.filterBar.Visible = (tabId == "all")
+        -- Show filter bar on tabs that use filtering
+        self.filterBar.Visible = (tabId == "all" or tabId == "diy" or tabId == "resources")
     end
     self:updateContentLayout()
 
@@ -1157,6 +1622,8 @@ function NookShoppingGUI:refreshContent()
         self:renderHomePage()
     elseif self.currentTab == "all" then
         self:renderAllItems()
+    elseif self.currentTab == "diy" then
+        self:renderDIYRecipes()
     elseif self.currentTab == "resources" then
         self:renderResources()
     elseif self.currentTab == "deals" then
@@ -1211,7 +1678,7 @@ function NookShoppingGUI:renderAllItems()
 
     -- Grid layout
     local gridLayout = Instance.new("UIGridLayout")
-    local cardHeight = LAYOUT.ITEM_SIZE + 44
+    local cardHeight = LAYOUT.ITEM_SIZE + LAYOUT.ITEM_META_HEIGHT
     gridLayout.CellSize = UDim2.fromOffset(LAYOUT.ITEM_SIZE, cardHeight)
     gridLayout.CellPadding = UDim2.fromOffset(LAYOUT.ITEM_PADDING, LAYOUT.ITEM_PADDING)
     gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
@@ -1400,6 +1867,231 @@ function NookShoppingGUI:renderRareItems()
 
     yOffset = self:renderItemGrid(rareItems, yOffset, 100)
     self.scrollFrame.CanvasSize = UDim2.fromOffset(0, yOffset + 20)
+end
+
+function NookShoppingGUI:renderDIYRecipes()
+    local yOffset = 0
+
+    -- Info banner
+    local banner = Instance.new("Frame")
+    banner.Size = UDim2.new(1, -10, 0, 50)
+    banner.Position = UDim2.fromOffset(5, yOffset)
+    banner.BackgroundColor3 = Color3.fromRGB(139, 90, 43) -- Brown color for DIY
+    banner.BorderSizePixel = 0
+    banner.ZIndex = 7
+    banner.Parent = self.scrollFrame
+
+    local bannerCorner = Instance.new("UICorner")
+    bannerCorner.CornerRadius = UDim.new(0, 8)
+    bannerCorner.Parent = banner
+
+    local bannerLabel = Instance.new("TextLabel")
+    bannerLabel.Size = UDim2.fromScale(1, 1)
+    bannerLabel.BackgroundTransparency = 1
+    bannerLabel.Font = Enum.Font.GothamBold
+    bannerLabel.TextSize = 14
+    bannerLabel.TextColor3 = Color3.new(1, 1, 1)
+    bannerLabel.Text = "🔨 DIY Recipes - Craft these at a workbench!"
+    bannerLabel.ZIndex = 8
+    bannerLabel.Parent = banner
+
+    yOffset = yOffset + 60
+
+    -- Filter recipes by search
+    local query = string.lower(self.searchQuery or "")
+    local filtered = {}
+
+    for _, recipe in ipairs(self.craftingRecipes) do
+        local name = recipe.name or recipe.result and recipe.result.name or recipe.itemId or ""
+        local matchesSearch = (query == "" or string.find(string.lower(name), query, 1, true))
+        if matchesSearch then
+            table.insert(filtered, recipe)
+        end
+    end
+
+    if #filtered == 0 then
+        local emptyLabel = Instance.new("TextLabel")
+        emptyLabel.Size = UDim2.new(1, -20, 0, 100)
+        emptyLabel.Position = UDim2.fromOffset(10, yOffset)
+        emptyLabel.BackgroundTransparency = 1
+        emptyLabel.Font = Enum.Font.Gotham
+        emptyLabel.TextSize = 16
+        emptyLabel.TextColor3 = COLORS.TEXT_MUTED
+        emptyLabel.Text = #self.craftingRecipes == 0 and "No DIY recipes available" or "No recipes match your search"
+        emptyLabel.ZIndex = 7
+        emptyLabel.Parent = self.scrollFrame
+        self.scrollFrame.CanvasSize = UDim2.fromOffset(0, yOffset + 120)
+        return
+    end
+
+    -- Sort by name
+    table.sort(filtered, function(a, b)
+        local aName = a.name or (a.result and a.result.name) or a.itemId or ""
+        local bName = b.name or (b.result and b.result.name) or b.itemId or ""
+        return string.lower(aName) < string.lower(bName)
+    end)
+
+    -- Render recipe cards
+    for i, recipe in ipairs(filtered) do
+        local recipeCard = self:createRecipeCard(recipe, i, yOffset)
+        yOffset = yOffset + 110
+    end
+
+    self.scrollFrame.CanvasSize = UDim2.fromOffset(0, yOffset + 20)
+end
+
+function NookShoppingGUI:createRecipeCard(recipe, index, yOffset)
+    local result = recipe.result or {}
+    local recipeName = recipe.name or result.name or recipe.itemId or "Unknown"
+    local spriteIndex = result.spriteIndex or recipe.spriteIndex
+
+    local card = Instance.new("Frame")
+    card.Name = "Recipe_" .. (recipe.id or index)
+    card.Size = UDim2.new(1, -16, 0, 100)
+    card.Position = UDim2.fromOffset(8, yOffset)
+    card.BackgroundColor3 = COLORS.BG_WHITE
+    card.BorderSizePixel = 0
+    card.ZIndex = 7
+    card.Parent = self.scrollFrame
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 8)
+    cardCorner.Parent = card
+
+    local cardStroke = Instance.new("UIStroke")
+    cardStroke.Thickness = 1
+    cardStroke.Color = COLORS.BROWN
+    cardStroke.Parent = card
+
+    -- Result item sprite
+    local spriteFrame = Instance.new("Frame")
+    spriteFrame.Name = "SpriteFrame"
+    spriteFrame.Size = UDim2.fromOffset(64, 64)
+    spriteFrame.Position = UDim2.fromOffset(16, 18)
+    spriteFrame.BackgroundColor3 = COLORS.BG_LIGHT
+    spriteFrame.BorderSizePixel = 0
+    spriteFrame.ZIndex = 8
+    spriteFrame.Parent = card
+
+    local spriteCorner = Instance.new("UICorner")
+    spriteCorner.CornerRadius = UDim.new(0, 6)
+    spriteCorner.Parent = spriteFrame
+
+    if spriteIndex and self.spriteConfig then
+        local spriteImage = Instance.new("ImageLabel")
+        spriteImage.Size = UDim2.fromScale(1, 1)
+        spriteImage.BackgroundTransparency = 1
+        spriteImage.Image = self.spriteConfig.SPRITESHEET_ID
+        spriteImage.ImageRectSize = Vector2.new(self.spriteConfig.SPRITE_SIZE, self.spriteConfig.SPRITE_SIZE)
+
+        local col = (spriteIndex - 1) % self.spriteConfig.COLUMNS
+        local row = math.floor((spriteIndex - 1) / self.spriteConfig.COLUMNS)
+        spriteImage.ImageRectOffset = Vector2.new(
+            col * self.spriteConfig.SPRITE_SIZE,
+            row * self.spriteConfig.SPRITE_SIZE
+        )
+        spriteImage.ZIndex = 9
+        spriteImage.Parent = spriteFrame
+    else
+        local placeholder = Instance.new("TextLabel")
+        placeholder.Size = UDim2.fromScale(1, 1)
+        placeholder.BackgroundTransparency = 1
+        placeholder.Text = "🔨"
+        placeholder.TextSize = 32
+        placeholder.ZIndex = 9
+        placeholder.Parent = spriteFrame
+    end
+
+    -- Recipe name
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.fromOffset(300, 24)
+    nameLabel.Position = UDim2.fromOffset(96, 12)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 16
+    nameLabel.TextColor3 = COLORS.TEXT_DARK
+    nameLabel.Text = recipeName
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    nameLabel.ZIndex = 8
+    nameLabel.Parent = card
+
+    -- Materials list
+    local materials = recipe.materials or {}
+    local materialsText = "Materials: "
+    for i, mat in ipairs(materials) do
+        local matName = mat.name or mat.itemId or "?"
+        local matCount = mat.count or 1
+        materialsText = materialsText .. matName .. " x" .. matCount
+        if i < #materials then
+            materialsText = materialsText .. ", "
+        end
+    end
+
+    local materialsLabel = Instance.new("TextLabel")
+    materialsLabel.Size = UDim2.new(1, -180, 0, 40)
+    materialsLabel.Position = UDim2.fromOffset(96, 38)
+    materialsLabel.BackgroundTransparency = 1
+    materialsLabel.Font = Enum.Font.Gotham
+    materialsLabel.TextSize = 12
+    materialsLabel.TextColor3 = COLORS.TEXT_MEDIUM
+    materialsLabel.Text = materialsText
+    materialsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    materialsLabel.TextWrapped = true
+    materialsLabel.ZIndex = 8
+    materialsLabel.Parent = card
+
+    -- Craft time
+    local timeLabel = Instance.new("TextLabel")
+    timeLabel.Size = UDim2.fromOffset(80, 20)
+    timeLabel.Position = UDim2.new(1, -100, 0, 12)
+    timeLabel.BackgroundTransparency = 1
+    timeLabel.Font = Enum.Font.Gotham
+    timeLabel.TextSize = 11
+    timeLabel.TextColor3 = COLORS.TEXT_MUTED
+    timeLabel.Text = "⏱️ " .. (recipe.time or 6) .. "s"
+    timeLabel.TextXAlignment = Enum.TextXAlignment.Right
+    timeLabel.ZIndex = 8
+    timeLabel.Parent = card
+
+    -- "View in Workbench" button
+    local viewBtn = Instance.new("TextButton")
+    viewBtn.Size = UDim2.fromOffset(120, 30)
+    viewBtn.Position = UDim2.new(1, -136, 1, -42)
+    viewBtn.BackgroundColor3 = COLORS.BROWN
+    viewBtn.BorderSizePixel = 0
+    viewBtn.Font = Enum.Font.GothamBold
+    viewBtn.TextSize = 11
+    viewBtn.TextColor3 = COLORS.TEXT_LIGHT
+    viewBtn.Text = "View Recipe"
+    viewBtn.ZIndex = 9
+    viewBtn.Parent = card
+
+    local viewCorner = Instance.new("UICorner")
+    viewCorner.CornerRadius = UDim.new(0, 6)
+    viewCorner.Parent = viewBtn
+
+    viewBtn.MouseButton1Click:Connect(function()
+        -- Close this GUI and open the crafting menu
+        self:hide()
+        -- Try to open the crafting GUI via GUIManager
+        local GUIManager = self.playerGui:FindFirstChild("GUIManager")
+        if GUIManager then
+            local manager = require(GUIManager)
+            if manager and manager.showGui then
+                manager.showGui("crafting")
+            end
+        end
+    end)
+
+    viewBtn.MouseEnter:Connect(function()
+        TweenService:Create(viewBtn, TweenInfo.new(0.1), {BackgroundColor3 = COLORS.BROWN_DARK}):Play()
+    end)
+    viewBtn.MouseLeave:Connect(function()
+        TweenService:Create(viewBtn, TweenInfo.new(0.1), {BackgroundColor3 = COLORS.BROWN}):Play()
+    end)
+
+    return card
 end
 
 function NookShoppingGUI:renderResources()
@@ -1667,7 +2359,7 @@ end
 
 function NookShoppingGUI:createSellItemCard(item, index, parent)
     local cardWidth = LAYOUT.ITEM_SIZE + 20
-    local cardHeight = LAYOUT.ITEM_SIZE + 44
+    local cardHeight = LAYOUT.ITEM_SIZE + LAYOUT.ITEM_META_HEIGHT
 
     local card = Instance.new("Frame")
     card.Name = "SellItem_" .. item.id
@@ -2263,7 +2955,7 @@ function NookShoppingGUI:createCompactItemCard(item, index, parent)
     end
 
     -- Item sprite or emoji icon (centered in top portion)
-    local spriteSize = LAYOUT.ITEM_SIZE - 16
+    local spriteSize = LAYOUT.ITEM_SIZE - 18
     local spriteFrame = Instance.new("Frame")
     spriteFrame.Size = UDim2.fromOffset(spriteSize, spriteSize)
     spriteFrame.Position = UDim2.fromOffset((LAYOUT.ITEM_SIZE - spriteSize) / 2, 6)
@@ -2287,7 +2979,7 @@ function NookShoppingGUI:createCompactItemCard(item, index, parent)
         iconLabel.Size = UDim2.fromScale(1, 1)
         iconLabel.BackgroundTransparency = 1
         iconLabel.Text = item.icon
-        iconLabel.TextSize = 36
+        iconLabel.TextSize = 30
         iconLabel.TextTransparency = isUnavailable and 0.45 or 0
         iconLabel.ZIndex = 10
         iconLabel.Parent = spriteFrame
@@ -2296,11 +2988,11 @@ function NookShoppingGUI:createCompactItemCard(item, index, parent)
     -- Sale badge
     if item.isOnSale and not isUnavailable then
         local saleBadge = Instance.new("TextLabel")
-        saleBadge.Size = UDim2.fromOffset(28, 14)
+        saleBadge.Size = UDim2.fromOffset(26, 13)
         saleBadge.Position = UDim2.fromOffset(3, 3)
         saleBadge.BackgroundColor3 = COLORS.SALE_RED
         saleBadge.Font = Enum.Font.GothamBold
-        saleBadge.TextSize = 9
+        saleBadge.TextSize = 8
         saleBadge.TextColor3 = COLORS.TEXT_LIGHT
         saleBadge.Text = "-" .. item.salePercent .. "%"
         saleBadge.ZIndex = 15
@@ -2314,11 +3006,11 @@ function NookShoppingGUI:createCompactItemCard(item, index, parent)
     -- Stock indicator for limited items
     if item.stock > 0 and item.stock <= 5 then
         local stockBadge = Instance.new("TextLabel")
-        stockBadge.Size = UDim2.fromOffset(22, 14)
+        stockBadge.Size = UDim2.fromOffset(20, 12)
         stockBadge.Position = UDim2.new(1, -25, 0, 3)
         stockBadge.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
         stockBadge.Font = Enum.Font.GothamBold
-        stockBadge.TextSize = 9
+        stockBadge.TextSize = 8
         stockBadge.TextColor3 = COLORS.TEXT_LIGHT
         stockBadge.Text = item.stock .. "!"
         stockBadge.ZIndex = 15
@@ -2329,16 +3021,16 @@ function NookShoppingGUI:createCompactItemCard(item, index, parent)
         stockCorner.Parent = stockBadge
     end
 
-    local nameHeight = 18
-    local priceHeight = 22
+    local nameHeight = 16
+    local priceHeight = 20
 
     -- Item name (centered below sprite)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, -8, 0, nameHeight)
-    nameLabel.Position = UDim2.new(0, 4, 0, LAYOUT.ITEM_SIZE - 8)
+    nameLabel.Position = UDim2.new(0, 4, 0, LAYOUT.ITEM_SIZE - 6)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Font = Enum.Font.GothamMedium
-    nameLabel.TextSize = 11
+    nameLabel.TextSize = 10
     nameLabel.TextColor3 = isUnavailable and COLORS.TEXT_MUTED or COLORS.TEXT_DARK
     nameLabel.Text = item.name or item.id
     nameLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -2371,7 +3063,7 @@ function NookShoppingGUI:createCompactItemCard(item, index, parent)
     priceLabel.Size = UDim2.fromScale(1, 1)
     priceLabel.BackgroundTransparency = 1
     priceLabel.Font = Enum.Font.GothamBold
-    priceLabel.TextSize = 11
+    priceLabel.TextSize = 10
     priceLabel.TextColor3 = isUnavailable and COLORS.TEXT_MUTED or COLORS.BROWN_DARK
     if isUnavailable then
         priceLabel.Text = "Unavailable"
@@ -2615,7 +3307,7 @@ function NookShoppingGUI:showItemDetail(item)
         end
     end)
 
-    -- Buy button
+    -- Add to cart button
     local buyBtn = Instance.new("TextButton")
     buyBtn.Size = UDim2.fromOffset(130, 36)
     buyBtn.Position = UDim2.fromOffset(150, 258)
@@ -2623,7 +3315,7 @@ function NookShoppingGUI:showItemDetail(item)
     buyBtn.Font = Enum.Font.GothamBold
     buyBtn.TextSize = 14
     buyBtn.TextColor3 = COLORS.TEXT_LIGHT
-    buyBtn.Text = "Buy Now"
+    buyBtn.Text = "Add to Cart"
     buyBtn.ZIndex = 101
     buyBtn.Parent = panel
 
@@ -2632,7 +3324,7 @@ function NookShoppingGUI:showItemDetail(item)
     buyCorner.Parent = buyBtn
 
     buyBtn.MouseButton1Click:Connect(function()
-        self:buyItem(item, quantity)
+        self:addToCart(item, quantity)
         panel:Destroy()
     end)
 
@@ -2651,33 +3343,7 @@ function NookShoppingGUI:showItemDetail(item)
 end
 
 function NookShoppingGUI:buyItem(item, quantity)
-    quantity = quantity or 1
-    if item.isAvailable == false or item.stock == 0 then
-        self:showNotification(false, { reason = "Item unavailable" })
-        debugWarn("Buy blocked", item.id, "unavailable")
-        return
-    end
-    local totalPrice = item.price * quantity
-
-    if self.bells < totalPrice then
-        self:showNotification(false, { reason = "Not enough bells!" })
-        debugWarn("Buy blocked", item.id, "insufficient bells", self.bells, "needed", totalPrice)
-        return
-    end
-
-    if not self.shopRemote then
-        self:showNotification(false, { reason = "Shop unavailable" })
-        debugWarn("ShopTransaction remote missing; buy aborted", item.id)
-        return
-    end
-
-    debugLog("Buy request", item.id, "qty", quantity, "price", item.price)
-    self.shopRemote:FireServer("BuyItem", {
-        itemId = item.id,
-        price = item.price,
-        count = quantity,
-        deliveryMethod = "nookplane", -- Items delivered via DAL plane
-    })
+    self:addToCart(item, quantity)
 end
 
 function NookShoppingGUI:buyBundle(bundle)
@@ -2695,20 +3361,20 @@ function NookShoppingGUI:buyBundle(bundle)
     end
 
     debugLog("Bundle buy request", bundle.id, "price", bundle.price)
+    local bundleItems = {}
     for _, item in ipairs(bundle.items) do
-        self.shopRemote:FireServer("BuyItem", {
+        table.insert(bundleItems, {
             itemId = item.id,
-            price = 0, -- Bundle items are free individually
             count = 1,
-            deliveryMethod = "nookplane", -- Items delivered via DAL plane
-            isBundle = true,
         })
     end
 
-    -- Deduct bundle price
     self.shopRemote:FireServer("BuyBundle", {
         bundleId = bundle.id,
+        bundleName = bundle.name,
         price = bundle.price,
+        items = bundleItems,
+        deliveryMethod = "nookplane",
     })
 end
 
@@ -2762,38 +3428,139 @@ function NookShoppingGUI:showSellNotification(success, data)
 end
 
 function NookShoppingGUI:showNotification(success, data)
+    -- Remove any existing toasts
+    local existingToast = self.gui:FindFirstChild("PurchaseToast")
+    if existingToast then existingToast:Destroy() end
+
+    local isCartAdd = success and data.action == "cart_add"
+    local isCartCheckout = success and data.action == "cart_checkout"
+    local isDelivery = success and data.deliveryMethod == "nookplane"
+    local toastHeight = (isDelivery and not isCartAdd) and 70 or 50
+
     local toast = Instance.new("Frame")
-    toast.Name = "Toast"
-    toast.Size = UDim2.fromOffset(300, 50)
-    toast.Position = UDim2.new(0.5, -150, 1, 10)
-    toast.BackgroundColor3 = success and COLORS.SUCCESS or COLORS.ERROR
+    toast.Name = "PurchaseToast"
+    toast.Size = UDim2.fromOffset(340, toastHeight)
+    toast.Position = UDim2.new(0.5, -170, 1, 10)
+    toast.BackgroundColor3 = success and COLORS.TEAL or COLORS.ERROR
     toast.BorderSizePixel = 0
     toast.ZIndex = 200
     toast.Parent = self.gui
 
     local toastCorner = Instance.new("UICorner")
-    toastCorner.CornerRadius = UDim.new(0, 10)
+    toastCorner.CornerRadius = UDim.new(0, 12)
     toastCorner.Parent = toast
 
+    -- Add shadow
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.fromOffset(-10, 2)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://5554236805"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.6
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+    shadow.ZIndex = 199
+    shadow.Parent = toast
+
+    -- Icon
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Size = UDim2.fromOffset(40, 40)
+    iconLabel.Position = UDim2.fromOffset(12, toastHeight/2 - 20)
+    iconLabel.BackgroundTransparency = 1
+    if success then
+        if isCartAdd then
+            iconLabel.Text = "🧺"
+        elseif isDelivery then
+            iconLabel.Text = "✈️"
+        else
+            iconLabel.Text = "✅"
+        end
+    else
+        iconLabel.Text = "❌"
+    end
+    iconLabel.TextSize = 28
+    iconLabel.ZIndex = 202
+    iconLabel.Parent = toast
+
+    -- Main message
+    local itemName = data.itemName or data.itemId or data.bundleName or "item"
+    local count = data.count or data.bundleCount or 1
+    local mainText = ""
+    if success then
+        if isCartAdd then
+            mainText = "Added to cart: " .. itemName .. (count > 1 and (" x" .. count) or "")
+        elseif isCartCheckout then
+            local cartCount = data.cartCount or count or 1
+            mainText = "Order placed (" .. cartCount .. " items)"
+        elseif data.bundleName then
+            mainText = "Ordered " .. itemName .. " (" .. count .. " items)"
+        elseif count > 1 then
+            mainText = "Purchased " .. count .. "x " .. itemName .. "!"
+        else
+            mainText = "Purchased " .. itemName .. "!"
+        end
+    else
+        mainText = data.reason or "Purchase failed"
+    end
+
     local toastLabel = Instance.new("TextLabel")
-    toastLabel.Size = UDim2.fromScale(1, 1)
+    toastLabel.Size = UDim2.new(1, -70, 0, 24)
+    toastLabel.Position = UDim2.fromOffset(56, isDelivery and 10 or 13)
     toastLabel.BackgroundTransparency = 1
     toastLabel.Font = Enum.Font.GothamBold
     toastLabel.TextSize = 14
     toastLabel.TextColor3 = COLORS.TEXT_LIGHT
-    toastLabel.Text = success and ("Purchased " .. (data.itemId or "item") .. "!") or (data.reason or "Purchase failed")
+    toastLabel.Text = mainText
+    toastLabel.TextXAlignment = Enum.TextXAlignment.Left
     toastLabel.ZIndex = 201
     toastLabel.Parent = toast
 
-    TweenService:Create(toast, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-        Position = UDim2.new(0.5, -150, 1, -70)
+    -- Delivery message (if applicable)
+    if isDelivery and not isCartAdd then
+        local deliveryLabel = Instance.new("TextLabel")
+        deliveryLabel.Size = UDim2.new(1, -70, 0, 20)
+        deliveryLabel.Position = UDim2.fromOffset(56, 36)
+        deliveryLabel.BackgroundTransparency = 1
+        deliveryLabel.Font = Enum.Font.Gotham
+        deliveryLabel.TextSize = 12
+        deliveryLabel.TextColor3 = Color3.fromRGB(200, 255, 245)
+        deliveryLabel.Text = data.message or "DAL plane arriving soon with your package!"
+        deliveryLabel.TextXAlignment = Enum.TextXAlignment.Left
+        deliveryLabel.ZIndex = 201
+        deliveryLabel.Parent = toast
+    end
+
+    -- Price deducted indicator
+    if success and data.price and data.price > 0 then
+        local priceLabel = Instance.new("TextLabel")
+        priceLabel.Size = UDim2.fromOffset(80, 20)
+        priceLabel.Position = UDim2.new(1, -90, 0.5, -10)
+        priceLabel.BackgroundTransparency = 1
+        priceLabel.Font = Enum.Font.GothamBold
+        priceLabel.TextSize = 12
+        priceLabel.TextColor3 = Color3.fromRGB(255, 220, 150)
+        priceLabel.Text = "-" .. self:formatBells(data.price)
+        priceLabel.TextXAlignment = Enum.TextXAlignment.Right
+        priceLabel.ZIndex = 201
+        priceLabel.Parent = toast
+    end
+
+    -- Animate in
+    TweenService:Create(toast, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, -170, 1, -90)
     }):Play()
 
-    task.delay(2.5, function()
+    -- Auto-dismiss
+    local displayTime = isDelivery and 4 or 2.5
+    task.delay(displayTime, function()
         if toast.Parent then
-            TweenService:Create(toast, TweenInfo.new(0.2), {Position = UDim2.new(0.5, -150, 1, 10)}):Play()
-            task.wait(0.2)
-            toast:Destroy()
+            TweenService:Create(toast, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2.new(0.5, -170, 1, 20)
+            }):Play()
+            task.wait(0.25)
+            if toast.Parent then toast:Destroy() end
         end
     end)
 end
@@ -2809,17 +3576,27 @@ function NookShoppingGUI:connectToServer()
         debugWarn("CurrencyEvent remote missing")
     end
 
-    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    local remoteEventsFolder = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
     if remoteEventsFolder then
-        local shopFeedback = remoteEventsFolder:FindFirstChild("ShopFeedback")
+        -- Wait for shop feedback remote (created by server during init)
+        local shopFeedback = remoteEventsFolder:WaitForChild("ShopFeedback", 10)
         if shopFeedback then
+            debugLog("ShopFeedback remote connected")
             self.shopFeedbackConnection = shopFeedback.OnClientEvent:Connect(function(action, data)
+                debugLog("ShopFeedback received", action)
                 if action == "PurchaseSuccess" then
+                    if self.pendingCartCheckout then
+                        self.pendingCartCheckout = false
+                        self:clearCart()
+                    end
                     self:showNotification(true, data)
                     if self.currencyRemote then
                         self.currencyRemote:FireServer("GetCurrency")
                     end
                 elseif action == "PurchaseFailed" then
+                    if self.pendingCartCheckout then
+                        self.pendingCartCheckout = false
+                    end
                     self:showNotification(false, data)
                 elseif action == "SellSuccess" then
                     self:showSellNotification(true, data)
@@ -2837,10 +3614,10 @@ function NookShoppingGUI:connectToServer()
                 end
             end)
         else
-            debugWarn("ShopFeedback remote missing")
+            debugWarn("ShopFeedback remote not found after waiting")
         end
     else
-        debugWarn("RemoteEvents folder missing")
+        debugWarn("RemoteEvents folder not found")
     end
 
     if self.currencyRemote then

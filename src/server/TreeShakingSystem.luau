@@ -22,9 +22,10 @@ local APPLE_ASSET_ID = nil -- Optional legacy fallback
 
 -- Configuration
 local CONFIG = {
-    SHAKE_DURATION = 0.8,
-    SHAKE_INTENSITY = 1.5,
-    LEAF_SHAKE_INTENSITY = 0.3, -- Rotation intensity for leaves
+    SHAKE_DURATION = 1.4,
+    SHAKE_INTENSITY = 0.7,
+    SHAKE_FREQUENCY = 4.5, -- Oscillations per second
+    LEAF_SHAKE_INTENSITY = 0.12, -- Rotation intensity for leaves
     APPLE_DROP_CHANCE = 0.7, -- 70% chance to drop apple
     MAX_APPLES_PER_TREE = 2, -- Max apples that can drop from one shake
     APPLE_RESPAWN_TIME = 300, -- 5 minutes before tree can drop apples again
@@ -39,6 +40,7 @@ local CONFIG = {
 -- Track tree states
 local treeStates = {} -- [treeModel] = {lastShakeTime, lastAppleDropTime, canDropApples, visualApples}
 local playerCooldowns = {} -- [player] = lastShakeTime
+local disableLeafCollisions
 
 --[[
 	Create a visual apple part to attach to tree leaves
@@ -222,6 +224,8 @@ function TreeShakingSystem._initializeAllTrees()
                 if treeStates[obj].canDropApples then
                     TreeShakingSystem._spawnVisualApples(obj)
                 end
+
+                disableLeafCollisions(obj)
             end
         end
     end
@@ -343,6 +347,19 @@ local function collectLeafParts(treeModel)
     return leafParts
 end
 
+disableLeafCollisions = function(treeModel)
+    local leafParts = collectLeafParts(treeModel)
+    if #leafParts == 0 then
+        return
+    end
+
+    for _, part in ipairs(leafParts) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+end
+
 --[[
 	Animate tree shaking - makes leaf parts visibly shake
 ]]
@@ -354,45 +371,76 @@ function TreeShakingSystem._animateTreeShake(treeModel: Model)
         return
     end
 
+    local treeState = treeStates[treeModel]
+    if not treeState then
+        treeState = {
+            lastShakeTime = 0,
+            lastAppleDropTime = 0,
+            canDropApples = true,
+            visualApples = {},
+        }
+        treeStates[treeModel] = treeState
+    end
+
+    if treeState.shakeConnection then
+        treeState.shakeConnection:Disconnect()
+        treeState.shakeConnection = nil
+    end
+
     -- Store original CFrames
     local originalCFrames = {}
     for _, part in ipairs(leafParts) do
         originalCFrames[part] = part.CFrame
     end
 
-    -- Shake animation parameters
-    local shakeSteps = 10
-    local dampingFactor = 0.8
+    local startTime = os.clock()
+    local duration = CONFIG.SHAKE_DURATION
+    local frequency = CONFIG.SHAKE_FREQUENCY
 
-    for i = 1, shakeSteps do
-        local damping = math.pow(dampingFactor, i - 1)
-        local direction = (i % 2 == 0) and 1 or -1
+    treeState.shakeConnection = RunService.Heartbeat:Connect(function()
+        if not treeModel.Parent then
+            if treeState.shakeConnection then
+                treeState.shakeConnection:Disconnect()
+                treeState.shakeConnection = nil
+            end
+            return
+        end
 
-        -- Shake offsets
-        local horizontalOffset = CONFIG.SHAKE_INTENSITY * 0.5 * direction * damping
-        local verticalOffset = CONFIG.SHAKE_INTENSITY * 0.3 * direction * damping
-        local rotationAngle = math.rad(CONFIG.LEAF_SHAKE_INTENSITY * 20 * direction * damping)
+        local elapsed = os.clock() - startTime
+        if elapsed >= duration then
+            if treeState.shakeConnection then
+                treeState.shakeConnection:Disconnect()
+                treeState.shakeConnection = nil
+            end
+
+            for part, original in pairs(originalCFrames) do
+                if part and part.Parent then
+                    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+                    TweenService:Create(part, tweenInfo, { CFrame = original }):Play()
+                end
+            end
+            return
+        end
+
+        local t = elapsed / duration
+        local attack = math.min(1, t / 0.2)
+        local decay = 1 - t
+        local strength = attack * decay
+        local phase = elapsed * frequency * math.pi * 2
+
+        local horizontalOffset = math.sin(phase) * CONFIG.SHAKE_INTENSITY * 0.35 * strength
+        local verticalOffset = math.cos(phase * 0.7) * CONFIG.SHAKE_INTENSITY * 0.12 * strength
+        local rotationAngle = math.sin(phase * 0.9) * math.rad(CONFIG.LEAF_SHAKE_INTENSITY * 12) * strength
 
         for _, part in ipairs(leafParts) do
             local original = originalCFrames[part]
             if original and part.Parent then
-                local offset = Vector3.new(horizontalOffset, verticalOffset, horizontalOffset * 0.3)
-                local rotation = CFrame.Angles(rotationAngle * 0.5, 0, rotationAngle)
+                local offset = Vector3.new(horizontalOffset, verticalOffset, horizontalOffset * 0.2)
+                local rotation = CFrame.Angles(rotationAngle * 0.35, 0, rotationAngle)
                 part.CFrame = original * CFrame.new(offset) * rotation
             end
         end
-
-        task.wait(CONFIG.SHAKE_DURATION / shakeSteps)
-    end
-
-    -- Return to original position with tween
-    for part, original in pairs(originalCFrames) do
-        if part and part.Parent then
-            local tweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tween = TweenService:Create(part, tweenInfo, { CFrame = original })
-            tween:Play()
-        end
-    end
+    end)
 end
 
 --[[

@@ -366,7 +366,7 @@ local function createHole(position, surfaceNormal: Vector3?)
 end
 
 --[[
-	Digs up a tree - scales it down, adds to inventory, and spawns a hole
+	Digs up a tree - makes it appear too big first, then scales it down, adds to inventory, and spawns a hole
 ]]
 local function performTreeDig(player, treeModel)
     if not treeModel or not treeModel.Parent then
@@ -389,48 +389,91 @@ local function performTreeDig(player, treeModel)
         end
     end
 
-    -- Scale tree down animation using PivotTo (Models don't have Size property)
+    -- First, make tree appear too big with a glitchy effect
     local originalCFrame = treeModel:GetPivot()
+    local growDuration = 0.3
+    local growStartTime = tick()
+
+    -- Grow tree to be too big
+    task.spawn(function()
+        while tick() - growStartTime < growDuration do
+            local alpha = (tick() - growStartTime) / growDuration
+            local scale = 1 + (alpha * 1.5) -- Scale from 1 to 2.5 (too big!)
+            treeModel:ScaleTo(scale)
+            task.wait()
+        end
+        treeModel:ScaleTo(2.5) -- Make it really big
+    end)
+
+    -- Wait for grow animation to complete
+    task.wait(growDuration)
+
+    -- Add glitchy visual effects while tree is too big
+    task.spawn(function()
+        for _, part in ipairs(treeParts) do
+            -- Make parts flicker and change colors
+            local originalColor = part.Color
+            local originalTransparency = part.Transparency
+            
+            for i = 1, 5 do
+                part.Color = Color3.new(math.random(), math.random(), math.random())
+                part.Transparency = math.random() * 0.5
+                task.wait(0.1)
+            end
+            
+            -- Restore original appearance
+            part.Color = originalColor
+            part.Transparency = originalTransparency
+        end
+    end)
+
+    -- Wait a bit for the glitch effect
+    task.wait(0.5)
+
+    -- Now scale tree down animation using PivotTo (Models don't have Size property)
     local shrinkDuration = 0.5
     local shrinkStartTime = tick()
+    local scaleTween = nil
 
     task.spawn(function()
         while tick() - shrinkStartTime < shrinkDuration do
             local alpha = (tick() - shrinkStartTime) / shrinkDuration
-            local scale = 1 - (alpha * 0.99) -- Scale from 1 to 0.01
+            local scale = 2.5 - (alpha * 2.49) -- Scale from 2.5 to 0.01
             treeModel:ScaleTo(scale)
             task.wait()
         end
         treeModel:ScaleTo(0.01)
     end)
 
-    -- Add tree to inventory - determine tree type from model name
-    local treeItemId = "tree" -- Default tree item
+    -- Add tree to inventory - determine tree type from model name and use sapling item IDs
+    local treeItemId = "sapling" -- Default sapling for oak tree
     local treeName = treeModel.Name:lower()
     
-    -- Map tree types to item IDs
+    -- Map tree types to sapling item IDs (from Nookipedia)
     if treeName:find("cherry") then
-        treeItemId = "cherry_tree"
+        treeItemId = "cherry_sapling"
     elseif treeName:find("apple") then
-        treeItemId = "apple_tree"
+        treeItemId = "apple_sapling"
     elseif treeName:find("peach") then
-        treeItemId = "peach_tree"
+        treeItemId = "peach_sapling"
     elseif treeName:find("orange") then
-        treeItemId = "orange_tree"
+        treeItemId = "orange_sapling"
     elseif treeName:find("pear") then
-        treeItemId = "pear_tree"
+        treeItemId = "pear_sapling"
+    elseif treeName:find("oak") or treeName:find("tree") then
+        treeItemId = "sapling" -- Default oak tree sapling
     end
     
-    -- Add tree to inventory - use direct function call if available
+    -- Add sapling to inventory - use direct function call if available
     -- This will be set by init.server.luau after ShovelSystem is initialized
     if ShovelSystem.addItemToInventory then
         ShovelSystem.addItemToInventory(player, {
             itemId = treeItemId,
             count = 1,
         })
-        print("[ShovelSystem] 🌳 Added " .. treeItemId .. " to inventory")
+        print("[ShovelSystem] 🌱 Added " .. treeItemId .. " sapling to inventory")
     else
-        warn("[ShovelSystem] ⚠️ addItemToInventory function not set - tree not added to inventory")
+        warn("[ShovelSystem] ⚠️ addItemToInventory function not set - sapling not added to inventory")
     end
 
     -- Wait for scale animation to complete, then remove tree

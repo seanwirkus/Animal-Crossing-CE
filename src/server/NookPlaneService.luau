@@ -23,11 +23,48 @@ local DROP_RADIUS = 150 -- Max distance from player to drop (210 studs max, keep
 local PLANE_HEIGHT = 120 -- Height the plane flies at
 local PLANE_SPEED = 80 -- Studs per second
 local PRESENT_FALL_SPEED = 40 -- How fast presents fall
+local PLANE_YAW_OFFSET = math.rad(90) -- Rotate plane to align template orientation (right wing was front)
 
--- Create the plane model
+-- Try to get NookPlane model from ReplicatedStorage, fallback to creating one
 local function createPlane()
+    -- First, try to find the NookPlane model in ReplicatedStorage
+    local nookPlaneTemplate = ReplicatedStorage:FindFirstChild("NookPlane")
+
+    if nookPlaneTemplate and nookPlaneTemplate:IsA("Model") then
+        -- Clone the existing model
+        local plane = nookPlaneTemplate:Clone()
+        plane.Name = "NookPlane_Delivery"
+
+        -- Make sure all parts are anchored and non-collidable for flight
+        for _, part in ipairs(plane:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = true
+                part.CanCollide = false
+            end
+        end
+
+        -- Ensure there's a PrimaryPart
+        if not plane.PrimaryPart then
+            local body = plane:FindFirstChild("Body") or plane:FindFirstChildWhichIsA("BasePart")
+            if body then
+                plane.PrimaryPart = body
+            end
+        end
+
+        if plane.PrimaryPart then
+            print("[NookPlaneService] ✈️ Using NookPlane model from ReplicatedStorage")
+            return plane
+        end
+
+        warn("[NookPlaneService] ⚠️ NookPlane model missing BasePart; falling back to simple plane")
+        plane:Destroy()
+    end
+
+    -- Fallback: Create a simple plane model
+    print("[NookPlaneService] ⚠️ NookPlane model not found in ReplicatedStorage, creating fallback")
+
     local plane = Instance.new("Model")
-    plane.Name = "NookPlane"
+    plane.Name = "NookPlane_Delivery"
 
     -- Main body
     local body = Instance.new("Part")
@@ -297,7 +334,7 @@ function NookPlaneService.executeDelivery(player)
     local endPos = playerPos + Vector3.new(0, PLANE_HEIGHT, 0) + direction * 300
     local dropPos = playerPos + Vector3.new(0, PLANE_HEIGHT, 0)
 
-    plane:SetPrimaryPartCFrame(CFrame.new(startPos, endPos))
+    plane:SetPrimaryPartCFrame(CFrame.new(startPos, endPos) * CFrame.Angles(0, PLANE_YAW_OFFSET, 0))
     plane.Parent = Workspace
 
     -- Calculate drop point (within DROP_RADIUS of player)
@@ -346,7 +383,7 @@ function NookPlaneService.executeDelivery(player)
 
         -- Lerp position
         local currentPos = startPos:Lerp(endPos, progress)
-        plane:SetPrimaryPartCFrame(CFrame.new(currentPos, endPos))
+        plane:SetPrimaryPartCFrame(CFrame.new(currentPos, endPos) * CFrame.Angles(0, PLANE_YAW_OFFSET, 0))
 
         -- Spin propeller
         local propeller = plane:FindFirstChild("Propeller")

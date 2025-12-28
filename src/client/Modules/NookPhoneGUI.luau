@@ -263,6 +263,8 @@ function NookPhoneGUI.new()
     self.phoneSize = getPhoneSize()
     self.inventoryClient = nil
     self.recipeGUI = nil
+    self._pendingSaveRequests = {}
+    self._saveResultConnection = nil
     self.dynamicState = {
         bells = 0,
         miles = 0,
@@ -1969,48 +1971,113 @@ function NookPhoneGUI:loadSaveGameApp(content)
 end
 
 function NookPhoneGUI:performManualSave(statusCard, dataCard)
-    -- Find the status and data labels in the cards
-    local statusLabels = statusCard:GetChildren()
-    local dataLabels = dataCard:GetChildren()
-    
-    -- Update status to saving
-    for _, child in ipairs(statusLabels) do
-        if child:IsA("TextLabel") and child.Text == "Ready to save" then
-            child.Text = "Saving..."
-            child.TextColor3 = Color3.fromRGB(255, 193, 7)
-            break
+    local function findSubtitleLabel(card)
+        for _, child in ipairs(card:GetChildren()) do
+            if child:IsA("TextLabel") and child.LayoutOrder == 2 then
+                return child
+            end
         end
+        for _, child in ipairs(card:GetChildren()) do
+            if child:IsA("TextLabel") and child.Text == "Ready to save" then
+                return child
+            end
+        end
+        return nil
+    end
+
+    local function findLastSaveLabel(card)
+        for _, child in ipairs(card:GetChildren()) do
+            if child:IsA("TextLabel") and string.find(child.Text, "Last save:") then
+                return child
+            end
+        end
+        return nil
+    end
+
+    local statusLabel = findSubtitleLabel(statusCard)
+    local lastSaveLabel = findLastSaveLabel(statusCard)
+
+    if statusLabel then
+        statusLabel.Text = "Saving..."
+        statusLabel.TextColor3 = Color3.fromRGB(255, 193, 7)
     end
 
     -- Perform the save by triggering island save
     local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
-    if remoteEventsFolder then
-        local saveIslandRemote = remoteEventsFolder:FindFirstChild("SaveIsland")
-        if saveIslandRemote then
-            saveIslandRemote:FireServer()
+        or ReplicatedStorage:WaitForChild("RemoteEvents", 5)
+    if not remoteEventsFolder then
+        if statusLabel then
+            statusLabel.Text = "Save unavailable"
+            statusLabel.TextColor3 = Color3.fromRGB(244, 67, 54)
+        end
+        return
+    end
+
+    local requestId = tostring(os.clock()) .. "-" .. tostring(math.random(1000, 9999))
+    self._pendingSaveRequests[requestId] = {
+        statusLabel = statusLabel,
+        lastSaveLabel = lastSaveLabel,
+    }
+
+    if not self._saveResultConnection then
+        local saveResultRemote = remoteEventsFolder:FindFirstChild("SaveIslandResult")
+            or remoteEventsFolder:WaitForChild("SaveIslandResult", 5)
+        if saveResultRemote then
+            self._saveResultConnection = saveResultRemote.OnClientEvent:Connect(function(responseId, success, reason)
+                local request = self._pendingSaveRequests[responseId]
+                if not request then
+                    return
+                end
+
+                self._pendingSaveRequests[responseId] = nil
+                if request.statusLabel then
+                    if success then
+                        request.statusLabel.Text = "✅ Saved successfully!"
+                        request.statusLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
+                    elseif reason == "cooldown" then
+                        request.statusLabel.Text = "Save recently completed"
+                        request.statusLabel.TextColor3 = Color3.fromRGB(255, 193, 7)
+                    else
+                        request.statusLabel.Text = "Save failed"
+                        request.statusLabel.TextColor3 = Color3.fromRGB(244, 67, 54)
+                    end
+                end
+
+                if success and request.lastSaveLabel then
+                    request.lastSaveLabel.Text = string.format("Last save: %s", os.date("%H:%M:%S"))
+                end
+            end)
         end
     end
+
+    local saveIslandRemote = remoteEventsFolder:FindFirstChild("SaveIsland")
+        or remoteEventsFolder:WaitForChild("SaveIsland", 5)
+    if not saveIslandRemote then
+        if statusLabel then
+            statusLabel.Text = "Save unavailable"
+            statusLabel.TextColor3 = Color3.fromRGB(244, 67, 54)
+        end
+        self._pendingSaveRequests[requestId] = nil
+        return
+    end
+
+    saveIslandRemote:FireServer(requestId)
 
     -- Also trigger other saves through existing systems
     task.spawn(function()
         -- Wait a moment for save to process
         task.wait(2)
-        
-        -- Update status to saved
-        for _, child in ipairs(statusLabels) do
-            if child:IsA("TextLabel") and child.Text == "Saving..." then
-                child.Text = "✅ Saved successfully!"
-                child.TextColor3 = Color3.fromRGB(76, 175, 80)
-                break
-            end
-        end
 
-        -- Update last save time
-        for _, child in ipairs(statusLabels) do
-            if child:IsA("TextLabel") and string.find(child.Text, "Last save:") then
-                child.Text = string.format("Last save: %s", os.date("%H:%M:%S"))
-                break
+        -- Fallback when server feedback is unavailable
+        if self._pendingSaveRequests[requestId] then
+            if statusLabel then
+                statusLabel.Text = "✅ Saved successfully!"
+                statusLabel.TextColor3 = Color3.fromRGB(76, 175, 80)
             end
+            if lastSaveLabel then
+                lastSaveLabel.Text = string.format("Last save: %s", os.date("%H:%M:%S"))
+            end
+            self._pendingSaveRequests[requestId] = nil
         end
     end)
 end

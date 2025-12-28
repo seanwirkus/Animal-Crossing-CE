@@ -30,6 +30,7 @@ ShopData.Items = {}
 ShopData.ItemsByCategory = {}
 
 -- Initialize shop items from ItemDataFetcher
+-- Items with sprites AND buy prices are purchasable in the shop
 local function initializeShopItems()
     print("[ShopData] 🛒 Initializing Nook Shopping items...")
 
@@ -37,108 +38,57 @@ local function initializeShopItems()
     local allItems = ItemDataFetcher.getAllItems()
     local shopItemCount = 0
     local itemsWithBuyPrice = 0
-    local nookShoppingCount = 0
+    local itemsWithSprite = 0
 
     print("[ShopData] 📦 Processing", #allItems, "total items from ItemDataFetcher...")
 
-    -- First pass: Collect items that match "Nook Shopping"
+    -- Include ALL items that have both a sprite AND a buy price
+    -- This makes the shop show all purchasable items from ItemBrowser
     for _, item in ipairs(allItems) do
         -- Check if item has a buy price (required for shop)
         if item.buy and item.buy > 0 then
             itemsWithBuyPrice = itemsWithBuyPrice + 1
 
-            -- Check if item is available from "Nook Shopping"
-            local source = item.source or {}
-            local isNookShopping = false
+            -- Check if item has a sprite (required for display)
+            if item.spriteIndex and item.spriteIndex > 0 then
+                itemsWithSprite = itemsWithSprite + 1
 
-            -- Try multiple variations of "Nook Shopping" name
-            for _, sourceName in ipairs(source) do
-                local sourceLower = string.lower(tostring(sourceName or ""))
-                -- Check for exact "nook shopping" match first
-                if string.find(sourceLower, "nook shopping", 1, true) then
-                    isNookShopping = true
-                    nookShoppingCount = nookShoppingCount + 1
-                    break
-                end
-            end
-
-            if isNookShopping then
-                -- Add to shop items
                 local itemId = item.id
                 local category = item.category or "Miscellaneous"
 
-                ShopData.Items[itemId] = {
-                    id = itemId,
-                    name = item.name or item.displayName or itemId,
-                    category = category,
-                    buyPrice = item.buy,
-                    sellPrice = item.sell or math.floor(item.buy * 0.7), -- Default to 70% of buy price
-                    spriteIndex = item.spriteIndex,
-                    description = item.description or "",
-                    unlockLevel = item.unlockLevel or 1,
-                    stock = -1, -- -1 = infinite stock
-                    themes = item.themes or {},
-                    series = item.series,
-                    tag = item.tag,
-                }
+                -- Skip placeholder/legacy items
+                if category ~= "legacy" and category ~= "placeholder" then
+                    ShopData.Items[itemId] = {
+                        id = itemId,
+                        name = item.name or item.displayName or itemId,
+                        category = category,
+                        buyPrice = item.buy,
+                        sellPrice = item.sell or math.floor(item.buy * 0.25), -- Default to 25% of buy price
+                        spriteIndex = item.spriteIndex,
+                        description = item.description or "",
+                        unlockLevel = item.unlockLevel or 1,
+                        stock = -1, -- -1 = infinite stock
+                        themes = item.themes or {},
+                        series = item.series,
+                        tag = item.tag,
+                        source = item.source or {},
+                    }
 
-                -- Add to category list
-                if not ShopData.ItemsByCategory[category] then
-                    ShopData.ItemsByCategory[category] = {}
+                    -- Add to category list
+                    if not ShopData.ItemsByCategory[category] then
+                        ShopData.ItemsByCategory[category] = {}
+                    end
+                    table.insert(ShopData.ItemsByCategory[category], itemId)
+
+                    shopItemCount = shopItemCount + 1
                 end
-                table.insert(ShopData.ItemsByCategory[category], itemId)
-
-                shopItemCount = shopItemCount + 1
             end
         end
     end
 
-    -- Second pass: If we have very few "Nook Shopping" items, include all items with buy prices as fallback
-    if shopItemCount < 5 and itemsWithBuyPrice > 0 then
-        print(
-            "[ShopData] ⚠️ Only",
-            shopItemCount,
-            "items match 'Nook Shopping' - including all items with buy prices as fallback"
-        )
-
-        -- Clear and re-add all items with buy prices
-        ShopData.Items = {}
-        ShopData.ItemsByCategory = {}
-        shopItemCount = 0
-
-        for _, item in ipairs(allItems) do
-            if item.buy and item.buy > 0 then
-                local itemId = item.id
-                local category = item.category or "Miscellaneous"
-
-                ShopData.Items[itemId] = {
-                    id = itemId,
-                    name = item.name or item.displayName or itemId,
-                    category = category,
-                    buyPrice = item.buy,
-                    sellPrice = item.sell or math.floor(item.buy * 0.7),
-                    spriteIndex = item.spriteIndex,
-                    description = item.description or "",
-                    unlockLevel = item.unlockLevel or 1,
-                    stock = -1,
-                    themes = item.themes or {},
-                    series = item.series,
-                    tag = item.tag,
-                }
-
-                if not ShopData.ItemsByCategory[category] then
-                    ShopData.ItemsByCategory[category] = {}
-                end
-                table.insert(ShopData.ItemsByCategory[category], itemId)
-
-                shopItemCount = shopItemCount + 1
-            end
-        end
-    end
-
-    print("[ShopData] ✅ Loaded", shopItemCount, "items for Nook Shopping")
+    print("[ShopData] ✅ Loaded", shopItemCount, "purchasable items for Nook Shopping")
     print("[ShopData] 📊 Items with buy prices:", itemsWithBuyPrice)
-    print("[ShopData] 📊 Items matching 'Nook Shopping':", nookShoppingCount)
+    print("[ShopData] 📊 Items with sprites:", itemsWithSprite)
 
     -- Print category breakdown
     for category, items in pairs(ShopData.ItemsByCategory) do
@@ -148,7 +98,7 @@ local function initializeShopItems()
     -- If no items were loaded, warn
     if shopItemCount == 0 then
         warn("[ShopData] ⚠️ No items loaded! Shop will be empty.")
-        warn("[ShopData] ⚠️ Check ItemDataFetcher and item source fields.")
+        warn("[ShopData] ⚠️ Check ItemDataFetcher - items need both spriteIndex and buy price.")
     end
 end
 
