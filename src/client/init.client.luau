@@ -63,6 +63,7 @@ local ParticleEffectsModule = require(script.Modules.ParticleEffects)
 local NookPlaneModule = require(script.Modules.NookPlane)
 local DIYWorkBenchControllerModule = require(script.Modules.DIYWorkBenchController)
 local HomePlacementControllerModule = require(script.Modules.HomePlacementController)
+local StatusHUDModule = require(script.Modules.StatusHUD)
 
 -- Initialize HUD system
 local _HUD = nil
@@ -164,6 +165,182 @@ _G.NookPlane = NookPlaneModule
 -- Initialize visual effects
 VisualEffectsModule.initialize(localPlayer)
 ParticleEffectsModule.initialize()
+
+-- Custom ProximityPrompt UI for Bell Bags (gold-colored prompt)
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local TweenService = game:GetService("TweenService")
+
+local function createBellBagPromptUI(prompt, inputType)
+    -- Create a BillboardGui for custom bell bag prompt
+    local adornee = prompt.Parent
+    if not adornee then return nil end
+
+    -- Get bell value from attribute
+    local bellsValue = prompt:GetAttribute("BellsValue") or 0
+
+    -- Format bells with commas (e.g., 99,000)
+    local function formatBells(value)
+        local formatted = tostring(value)
+        local reversed = formatted:reverse()
+        local result = reversed:gsub("(%d%d%d)", "%1,")
+        return result:reverse():gsub("^,", "")
+    end
+
+    local formattedBells = formatBells(bellsValue)
+
+    -- Determine bag size for styling
+    local isLarge = bellsValue >= 99000
+    local isMedium = bellsValue >= 10000 and bellsValue < 99000
+
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "BellBagPromptUI"
+    billboardGui.Adornee = adornee
+    billboardGui.Size = UDim2.fromOffset(220, 100)
+    billboardGui.StudsOffset = Vector3.new(0, 3.5, 0)
+    billboardGui.AlwaysOnTop = true
+    billboardGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    billboardGui.Parent = localPlayer.PlayerGui
+
+    -- Main frame with rich gold gradient styling
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "PromptFrame"
+    mainFrame.Size = UDim2.fromScale(1, 1)
+    mainFrame.BackgroundColor3 = isLarge and Color3.fromRGB(255, 215, 0) -- Bright gold for large
+        or isMedium and Color3.fromRGB(255, 200, 60) -- Gold for medium
+        or Color3.fromRGB(240, 190, 80) -- Softer gold for small
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = billboardGui
+
+    -- Add gradient for premium look
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 200)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 215, 100)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 150, 50)),
+    })
+    gradient.Rotation = -45
+    gradient.Parent = mainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = isLarge and 4 or 3
+    stroke.Color = Color3.fromRGB(160, 110, 20) -- Rich brown/gold border
+    stroke.Parent = mainFrame
+
+    -- "Collect Bells" title
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, 0, 0.28, 0)
+    titleLabel.Position = UDim2.fromOffset(0, 4)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
+    titleLabel.TextColor3 = Color3.fromRGB(100, 60, 20)
+    titleLabel.Text = "Collect Bells"
+    titleLabel.Parent = mainFrame
+
+    -- Big bells amount display
+    local bellsLabel = Instance.new("TextLabel")
+    bellsLabel.Name = "BellsAmount"
+    bellsLabel.Size = UDim2.new(1, 0, 0.38, 0)
+    bellsLabel.Position = UDim2.new(0, 0, 0.26, 0)
+    bellsLabel.BackgroundTransparency = 1
+    bellsLabel.Font = Enum.Font.GothamBlack
+    bellsLabel.TextSize = isLarge and 26 or isMedium and 24 or 22
+    bellsLabel.TextColor3 = Color3.fromRGB(70, 40, 10) -- Dark brown
+    bellsLabel.Text = formattedBells .. " Bells"
+    bellsLabel.Parent = mainFrame
+
+    -- Add text shadow for depth
+    local shadowLabel = Instance.new("TextLabel")
+    shadowLabel.Name = "Shadow"
+    shadowLabel.Size = bellsLabel.Size
+    shadowLabel.Position = bellsLabel.Position + UDim2.fromOffset(1, 1)
+    shadowLabel.BackgroundTransparency = 1
+    shadowLabel.Font = Enum.Font.GothamBlack
+    shadowLabel.TextSize = bellsLabel.TextSize
+    shadowLabel.TextColor3 = Color3.fromRGB(40, 20, 5)
+    shadowLabel.TextTransparency = 0.6
+    shadowLabel.Text = bellsLabel.Text
+    shadowLabel.ZIndex = bellsLabel.ZIndex - 1
+    shadowLabel.Parent = mainFrame
+
+    -- Key prompt frame
+    local keyFrame = Instance.new("Frame")
+    keyFrame.Size = UDim2.fromOffset(32, 32)
+    keyFrame.Position = UDim2.new(0.5, -16, 0.66, 2)
+    keyFrame.BackgroundColor3 = Color3.fromRGB(70, 40, 15)
+    keyFrame.BorderSizePixel = 0
+    keyFrame.Parent = mainFrame
+
+    local keyCorner = Instance.new("UICorner")
+    keyCorner.CornerRadius = UDim.new(0, 8)
+    keyCorner.Parent = keyFrame
+
+    local keyStroke = Instance.new("UIStroke")
+    keyStroke.Thickness = 2
+    keyStroke.Color = Color3.fromRGB(50, 25, 10)
+    keyStroke.Parent = keyFrame
+
+    local keyLabel = Instance.new("TextLabel")
+    keyLabel.Size = UDim2.fromScale(1, 1)
+    keyLabel.BackgroundTransparency = 1
+    keyLabel.Font = Enum.Font.GothamBlack
+    keyLabel.TextSize = 16
+    keyLabel.TextColor3 = Color3.fromRGB(255, 215, 100)
+    keyLabel.Text = "E"
+    keyLabel.Parent = keyFrame
+
+    -- Sparkle animation for large bags
+    local sparkleTime = 0
+    local pulseConnection
+    pulseConnection = _RunService.Heartbeat:Connect(function(dt)
+        if not billboardGui.Parent then
+            pulseConnection:Disconnect()
+            return
+        end
+
+        sparkleTime = sparkleTime + dt
+
+        -- Gentle pulse
+        local scale = 1 + 0.04 * math.sin(sparkleTime * 4)
+        mainFrame.Size = UDim2.fromScale(scale, scale)
+        mainFrame.Position = UDim2.fromScale((1 - scale) / 2, (1 - scale) / 2)
+
+        -- Shimmer effect on gradient
+        gradient.Offset = Vector2.new(0.1 * math.sin(sparkleTime * 2), 0.1 * math.cos(sparkleTime * 2))
+
+        -- Extra glow for large bags
+        if isLarge then
+            local brightness = 0.9 + 0.1 * math.sin(sparkleTime * 6)
+            stroke.Transparency = 1 - brightness
+        end
+    end)
+
+    return billboardGui
+end
+
+-- Handle custom ProximityPrompt UI for bell bags
+local bellBagPromptUIs = {}
+
+ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
+    if prompt:GetAttribute("IsBellBag") then
+        local ui = createBellBagPromptUI(prompt, inputType)
+        if ui then
+            bellBagPromptUIs[prompt] = ui
+        end
+    end
+end)
+
+ProximityPromptService.PromptHidden:Connect(function(prompt)
+    if bellBagPromptUIs[prompt] then
+        bellBagPromptUIs[prompt]:Destroy()
+        bellBagPromptUIs[prompt] = nil
+    end
+end)
 
 -- Find or create ScreenGui for Recipes Inventory
 local playerGui = _Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -454,5 +631,8 @@ inventoryClient.inventoryRemote.OnClientEvent:Connect(function(action, data)
         end
     end
 end)
+
+-- Initialize StatusHUD (always visible at top of screen)
+local statusHUD = StatusHUDModule.new()
 
 print("[Client] All systems ready")

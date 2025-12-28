@@ -141,7 +141,7 @@ function ShopGUI:buildGui()
     closeButton.TextColor3 = COLORS.TEXT_LIGHT
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextSize = 20
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Parent = header
 
     local closeCorner = Instance.new("UICorner")

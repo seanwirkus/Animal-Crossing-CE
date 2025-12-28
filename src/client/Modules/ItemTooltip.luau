@@ -6,6 +6,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -24,6 +25,12 @@ local _tooltipGui = nil
 local _tooltipFrame = nil
 local _currentSlot = nil
 local _isVisible = false
+local _visibilityConnection = nil
+
+local function isGuiBlockingTooltips(): boolean
+    -- Tooltips are allowed even when other GUIs are open, so never block.
+    return false
+end
 
 --[[
 	Initialize the tooltip GUI
@@ -224,6 +231,14 @@ function ItemTooltip.show(itemData, slotGui, itemCount)
     TweenService:Create(_tooltipFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
         BackgroundTransparency = 0,
     }):Play()
+
+    if not _visibilityConnection then
+        _visibilityConnection = RunService.RenderStepped:Connect(function()
+            if _isVisible and isGuiBlockingTooltips() then
+                ItemTooltip.hide()
+            end
+        end)
+    end
 end
 
 --[[
@@ -247,6 +262,11 @@ function ItemTooltip.hide()
     if _tooltipFrame then
         _tooltipFrame.Visible = false
     end
+
+    if _visibilityConnection then
+        _visibilityConnection:Disconnect()
+        _visibilityConnection = nil
+    end
 end
 
 --[[
@@ -254,6 +274,10 @@ end
 ]]
 function updatePosition()
     if not _tooltipFrame or not _isVisible then
+        return
+    end
+    if isGuiBlockingTooltips() then
+        ItemTooltip.hide()
         return
     end
 

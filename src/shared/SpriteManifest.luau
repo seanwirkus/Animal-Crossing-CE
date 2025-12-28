@@ -65,7 +65,7 @@ return {
     bamboo_greener_gui = { name = "Greener Bamboo with Leaf", spriteIndex = 48 },
     tree_branch = { name = "Tree Branch", spriteIndex = 49 },
     clay_gui = { name = "Clay", spriteIndex = 50 },
-    charcoal = { name = "Charcoal", spriteIndex = 51 },
+    charcoal = { name = "Charcoal", spriteIndex = 275 },
     gold_ore_gui = { name = "Gold Ore", spriteIndex = 52 },
     stone_gui = { name = "Stone", spriteIndex = 53 },
     acorn_gui = { name = "Acorn", spriteIndex = 54 },
@@ -198,7 +198,7 @@ return {
     antique_wardrobe = { name = "antique wardrobe", spriteIndex = 140 },
 
     -- Apple Items
-    apple = { name = "apple", spriteIndex = 141 },
+    apple = { name = "apple", spriteIndex = 191 },
 
     -- Other
     apple_chair = { name = "apple chair", spriteIndex = 142 },
@@ -278,7 +278,7 @@ return {
     bamboo_candleholder = { name = "bamboo candleholder", spriteIndex = 188 },
     bamboo_doll = { name = "bamboo doll", spriteIndex = 189 },
     bamboo_drum = { name = "bamboo drum", spriteIndex = 190 },
-    bamboo_floor_lamp = { name = "bamboo floor lamp", spriteIndex = 191 },
+    bamboo_floor_lamp = { name = "bamboo floor lamp", spriteIndex = 141 },
 
     -- Cherry Items
     cherry = { name = "Cherry", spriteIndex = 192 },
@@ -395,7 +395,7 @@ return {
     horse_mackerel = { name = "horse mackerel", spriteIndex = 274 },
 
     -- Materials
-    iron_nugget = { name = "iron nugget", spriteIndex = 275 },
+    iron_nugget = { name = "iron nugget", spriteIndex = 51 },
 
     -- Other
     log_stakes = { name = "log stakes", spriteIndex = 276 },

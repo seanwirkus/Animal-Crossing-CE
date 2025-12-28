@@ -10,6 +10,7 @@
 
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TreeShakingSystem = require(script.Parent:WaitForChild("TreeShakingSystem"))
 
 local ResourceSpawner = {}
 ResourceSpawner.__index = ResourceSpawner
@@ -25,7 +26,36 @@ local CONFIG = {
 	RESOURCE_MAINTENANCE_INTERVAL = 120, -- Periodic check to repopulate resources
 }
 
+local OAK_TREE_TEMPLATE_NAME = "OakTree"
+
 local TREE_GROUND_OFFSET = -1
+local TREE_SCALE = 1.2 -- Scale factor for trees
+
+local function ensureTreeShakePrompt(tree)
+	local rootPart = tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart", true)
+	if not rootPart then
+		return
+	end
+
+	local existingPrompt = tree:FindFirstChild("ShakeTree", true)
+	if existingPrompt then
+		return
+	end
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "ShakeTree"
+	prompt.ActionText = "Shake Tree"
+	prompt.ObjectText = "Tree"
+	prompt.HoldDuration = 0
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.MaxActivationDistance = 8
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = rootPart
+
+	prompt.Triggered:Connect(function(player)
+		TreeShakingSystem.shakeTree(player, tree)
+	end)
+end
 
 function ResourceSpawner.new()
 	local self = setmetatable({}, ResourceSpawner)
@@ -50,15 +80,7 @@ function ResourceSpawner:initialize()
 	-- Scan existing islands
 	self:scanExistingIslands()
 
-	-- Periodic maintenance to repopulate resources as needed
-	task.spawn(function()
-		while true do
-			task.wait(CONFIG.RESOURCE_MAINTENANCE_INTERVAL)
-			self:scanExistingIslands()
-		end
-	end)
-
-	-- Auto-populate terrain with initial resources
+	-- Spawn trees once on init (no repeated maintenance)
 	task.spawn(function()
 		task.wait(3) -- Wait for terrain to load
 		self:populateTerrainResources()
@@ -151,6 +173,9 @@ end
 function ResourceSpawner:ensureMinimumResources(islandName, islandFolder)
 	local resources = self.islandResources[islandName]
 	if not resources then
+		return
+	end
+	if islandName == "Resources" then
 		return
 	end
 
@@ -347,48 +372,11 @@ end
 	Spawn a new tree at position
 ]]
 function ResourceSpawner:spawnTree(islandFolder, position)
-	-- Create simple tree model
-	local tree = Instance.new("Model")
-	tree.Name = "Tree"
-
-	local groundedPosition = position + Vector3.new(0, TREE_GROUND_OFFSET, 0)
-
-	-- Tree trunk
-	local trunk = Instance.new("Part")
-	trunk.Name = "Trunk"
-	trunk.Size = Vector3.new(2, 8, 2)
-	trunk.Position = groundedPosition + Vector3.new(0, 4, 0)
-	trunk.Anchored = true
-	trunk.Material = Enum.Material.Wood
-	trunk.BrickColor = BrickColor.new("Brown")
-	trunk.Parent = tree
-
-	-- Tree foliage
-	local foliage = Instance.new("Part")
-	foliage.Name = "Foliage"
-	foliage.Size = Vector3.new(6, 6, 6)
-	foliage.Position = groundedPosition + Vector3.new(0, 10, 0)
-	foliage.Anchored = true
-	foliage.Material = Enum.Material.Grass
-	foliage.BrickColor = BrickColor.new("Dark green")
-	foliage.Shape = Enum.PartType.Ball
-	foliage.Parent = tree
-
-	tree.PrimaryPart = trunk
-
-	-- Add resource tag
-	local tag = Instance.new("StringValue")
-	tag.Name = "ResourceTag"
-	tag.Value = "tree"
-	tag.Parent = tree
-
-	-- Add tree tag for identification
-	local treeTag = Instance.new("BoolValue")
-	treeTag.Name = "TreeTag"
-	treeTag.Parent = tree
-
-	tree:SetAttribute("HarvestType", "tree")
-	tree:SetAttribute("ResourceType", "tree")
+	local tree = self:createOakTree(position)
+	if not tree then
+		warn("[ResourceSpawner] ⚠️ Failed to create tree")
+		return
+	end
 
 	tree.Parent = islandFolder
 
@@ -483,24 +471,45 @@ function ResourceSpawner:populateTerrainResources()
 		return
 	end
 
+	local playerIslands = Workspace:FindFirstChild("PlayerIslands")
+	if playerIslands then
+		print("[ResourceSpawner] ✅ Player islands detected, skipping terrain resources")
+		return
+	end
+
 	-- Create a resources folder
 	local resourcesFolder = Workspace:FindFirstChild("Resources")
 	if not resourcesFolder then
 		resourcesFolder = Instance.new("Folder")
 		resourcesFolder.Name = "Resources"
 		resourcesFolder.Parent = Workspace
+	elseif resourcesFolder:GetAttribute("Populated") then
+		print("[ResourceSpawner] ✅ Resources already populated, skipping re-run")
+		return
 	end
 
 	-- Spawn trees in a grid pattern
 	local treeCount = 0
 	local rockCount = 0
+	local treePositions = {}
+	local rockPositions = {}
 
-	for x = -200, 200, 20 do
-		for z = -200, 200, 20 do
+	local function isFarEnough(candidate: Vector3, existing: { Vector3 }, minDistance: number)
+		local minDistSq = minDistance * minDistance
+		for _, pos in ipairs(existing) do
+			if (candidate - pos).Magnitude ^ 2 < minDistSq then
+				return false
+			end
+		end
+		return true
+	end
+
+	for x = -200, 200, 24 do
+		for z = -200, 200, 24 do
 			-- Random chance to spawn tree or rock
 			local rand = math.random()
 
-			if rand < 0.15 then -- 15% chance for tree
+			if rand < 0.18 then -- 18% chance for tree
 				local position = Vector3.new(x, 100, z)
 
 				-- Raycast down to find ground
@@ -510,13 +519,14 @@ function ResourceSpawner:populateTerrainResources()
 
 				local result = Workspace:Raycast(position, Vector3.new(0, -200, 0), raycastParams)
 
-				if result and result.Position.Y > 0 then
+				if result and result.Position.Y > 0 and isFarEnough(result.Position, treePositions, 22) then
 					-- Spawn tree here
-					local tree = self:createSimpleTree(result.Position)
+					local tree = self:createOakTree(result.Position)
 					tree.Parent = resourcesFolder
 					treeCount = treeCount + 1
+					table.insert(treePositions, result.Position)
 				end
-			elseif rand < 0.22 then -- 7% chance for rock
+			elseif rand < 0.25 then -- ~7% chance for rock (after tree chance)
 				local position = Vector3.new(x, 100, z)
 
 				-- Raycast down to find ground
@@ -526,126 +536,87 @@ function ResourceSpawner:populateTerrainResources()
 
 				local result = Workspace:Raycast(position, Vector3.new(0, -200, 0), raycastParams)
 
-				if result and result.Position.Y > 0 then
+				if result and result.Position.Y > 0 and isFarEnough(result.Position, rockPositions, 16) then
 					-- Spawn rock here
 					local rock = self:createSimpleRock(result.Position)
 					rock.Parent = resourcesFolder
 					rockCount = rockCount + 1
+					table.insert(rockPositions, result.Position)
 				end
 			end
 		end
 	end
 
 	print(string.format("[ResourceSpawner] ✅ Spawned %d trees and %d rocks on terrain", treeCount, rockCount))
+	resourcesFolder:SetAttribute("Populated", true)
 end
 
 --[[
 	Find template tree model in workspace
 ]]
-function ResourceSpawner:findTreeTemplate()
-	-- Look for tree template in workspace
-	local locations = {
-		Workspace:FindFirstChild("TreeTemplate"),
-		Workspace:FindFirstChild("Templates") and Workspace.Templates:FindFirstChild("Tree"),
-		ReplicatedStorage:FindFirstChild("TreeTemplate"),
-		ReplicatedStorage:FindFirstChild("Trees") and ReplicatedStorage.Trees:FindFirstChild("Tree"),
-		ReplicatedStorage:FindFirstChild("Models") and ReplicatedStorage.Models:FindFirstChild("Tree"),
+function ResourceSpawner:findOakTreeTemplate()
+	local candidates = {
+		Workspace:FindFirstChild(OAK_TREE_TEMPLATE_NAME),
+		Workspace:FindFirstChild("Trees") and Workspace.Trees:FindFirstChild(OAK_TREE_TEMPLATE_NAME),
+		ReplicatedStorage:FindFirstChild(OAK_TREE_TEMPLATE_NAME),
+		ReplicatedStorage:FindFirstChild("Templates") and ReplicatedStorage.Templates:FindFirstChild(OAK_TREE_TEMPLATE_NAME),
+		ReplicatedStorage:FindFirstChild("Trees") and ReplicatedStorage.Trees:FindFirstChild(OAK_TREE_TEMPLATE_NAME),
+		ReplicatedStorage:FindFirstChild("Models") and ReplicatedStorage.Models:FindFirstChild(OAK_TREE_TEMPLATE_NAME),
 	}
 
-	for _, location in ipairs(locations) do
-		if location and location:IsA("Model") then
-			print(string.format("[ResourceSpawner] ✅ Found tree template: %s", location:GetFullName()))
-			return location
+	for _, candidate in ipairs(candidates) do
+		if candidate and candidate:IsA("Model") then
+			print(string.format("[ResourceSpawner] ✅ Found OakTree template: %s", candidate:GetFullName()))
+			return candidate
 		end
 	end
 
-	-- If no template found, look for any tree in workspace (not under Resources folder)
-	for _, obj in ipairs(Workspace:GetChildren()) do
-		if obj:IsA("Model") and obj.Name:lower():find("tree") and obj.Name ~= "Resources" then
-			-- Make sure it's not a spawned resource
-			if not obj.Parent or obj.Parent.Name ~= "Resources" then
-				print(string.format("[ResourceSpawner] ✅ Found tree example: %s", obj.Name))
-				return obj
-			end
+	for _, child in ipairs(Workspace:GetChildren()) do
+		if child:IsA("Model") and child.Name:lower():find("oak") then
+			print(string.format("[ResourceSpawner] ✅ Using oak example: %s", child.Name))
+			return child
 		end
 	end
 
-	warn("[ResourceSpawner] ⚠️ No tree template found, will use simple placeholder trees")
+	warn("[ResourceSpawner] ⚠️ No OakTree template found")
 	return nil
 end
 
 --[[
 	Create a tree model for terrain population
 ]]
-function ResourceSpawner:createSimpleTree(position)
-	local function buildFallbackTree()
-		local tree = Instance.new("Model")
-		tree.Name = "Tree"
+local function anchorTreeParts(tree)
+	for _, descendant in ipairs(tree:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = true
+		end
+	end
+end
 
-		local groundedPosition = position + Vector3.new(0, TREE_GROUND_OFFSET, 0)
-
-		-- Tree trunk
-		local trunk = Instance.new("Part")
-		trunk.Name = "Trunk"
-		trunk.Size = Vector3.new(2, 8, 2)
-		trunk.Position = groundedPosition + Vector3.new(0, 4, 0)
-		trunk.Anchored = true
-		trunk.Material = Enum.Material.Wood
-		trunk.BrickColor = BrickColor.new("Brown")
-		trunk.Parent = tree
-
-		-- Tree foliage
-		local foliage = Instance.new("Part")
-		foliage.Name = "Foliage"
-		foliage.Size = Vector3.new(6, 6, 6)
-		foliage.Position = groundedPosition + Vector3.new(0, 10, 0)
-		foliage.Anchored = true
-		foliage.Material = Enum.Material.Grass
-		foliage.BrickColor = BrickColor.new("Dark green")
-		foliage.Shape = Enum.PartType.Ball
-		foliage.Parent = tree
-
-		tree.PrimaryPart = trunk
-
-		-- Add resource tag
-		local tag = Instance.new("StringValue")
-		tag.Name = "ResourceTag"
-		tag.Value = "tree"
-		tag.Parent = tree
-
-		-- Add tree tag for identification
-		local treeTag = Instance.new("BoolValue")
-		treeTag.Name = "TreeTag"
-		treeTag.Parent = tree
-
-		tree:SetAttribute("HarvestType", "tree")
-		tree:SetAttribute("ResourceType", "tree")
-
-		return tree
+local function scaleTree(tree, scaleFactor)
+	if scaleFactor == 1 then
+		return
 	end
 
-	-- Try to use existing tree template if available
-	local template = self:findTreeTemplate()
-	if not template then
-		return buildFallbackTree()
+	local ok = pcall(function()
+		tree:ScaleTo(scaleFactor)
+	end)
+	if ok then
+		return
 	end
 
-	local tree = template:Clone()
-	local primaryPart = tree.PrimaryPart or tree:FindFirstChildWhichIsA("BasePart", true)
-	if not primaryPart then
-		warn("[ResourceSpawner] ⚠️ Tree template has no BasePart - using fallback tree")
-		return buildFallbackTree()
+	for _, descendant in ipairs(tree:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			descendant.Size = descendant.Size * scaleFactor
+		end
 	end
-	tree.PrimaryPart = primaryPart
+end
 
-	-- Position the tree at the spawn location
-	tree:PivotTo(CFrame.new(position))
-
-	-- Align tree so its lowest point sits on terrain
+local function alignTreeToGround(tree, position)
 	local lowestPoint = math.huge
-	for _, part in ipairs(tree:GetDescendants()) do
-		if part:IsA("BasePart") then
-			local partBottomY = (part.CFrame.Position - (part.CFrame.UpVector * (part.Size.Y * 0.5))).Y
+	for _, descendant in ipairs(tree:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			local partBottomY = (descendant.CFrame.Position - (descendant.CFrame.UpVector * (descendant.Size.Y * 0.5))).Y
 			if partBottomY < lowestPoint then
 				lowestPoint = partBottomY
 			end
@@ -656,15 +627,83 @@ function ResourceSpawner:createSimpleTree(position)
 		local deltaY = position.Y - lowestPoint + TREE_GROUND_OFFSET
 		tree:PivotTo(tree:GetPivot() + Vector3.new(0, deltaY, 0))
 	end
+end
 
-	-- Ensure all parts are anchored
-	for _, part in ipairs(tree:GetDescendants()) do
-		if part:IsA("BasePart") then
-			part.Anchored = true
+function ResourceSpawner:createFallbackTree(position)
+	local tree = Instance.new("Model")
+	tree.Name = "Tree"
+
+	local groundedPosition = position + Vector3.new(0, TREE_GROUND_OFFSET, 0)
+
+	-- Base sizes scaled by TREE_SCALE (1.25x)
+	local trunk = Instance.new("Part")
+	trunk.Name = "Trunk"
+	trunk.Size = Vector3.new(2, 8, 2) * TREE_SCALE
+	trunk.Position = groundedPosition + Vector3.new(0, 4 * TREE_SCALE, 0)
+	trunk.Anchored = true
+	trunk.Material = Enum.Material.Wood
+	trunk.BrickColor = BrickColor.new("Brown")
+	trunk.Parent = tree
+
+	local leaves = Instance.new("Part")
+	leaves.Name = "Leaves"
+	leaves.Size = Vector3.new(6, 6, 6) * TREE_SCALE
+	leaves.Position = groundedPosition + Vector3.new(0, 10 * TREE_SCALE, 0)
+	leaves.Anchored = true
+	leaves.Material = Enum.Material.Grass
+	leaves.BrickColor = BrickColor.new("Dark green")
+	leaves.Shape = Enum.PartType.Ball
+	leaves.Parent = tree
+
+	tree.PrimaryPart = trunk
+	anchorTreeParts(tree)
+
+	local tag = Instance.new("StringValue")
+	tag.Name = "ResourceTag"
+	tag.Value = "tree"
+	tag.Parent = tree
+
+	local treeTag = Instance.new("BoolValue")
+	treeTag.Name = "TreeTag"
+	treeTag.Parent = tree
+
+	tree:SetAttribute("HarvestType", "tree")
+	tree:SetAttribute("ResourceType", "tree")
+
+	return tree
+end
+
+function ResourceSpawner:createOakTree(position)
+	local template = self:findOakTreeTemplate()
+	if not template then
+		return self:createFallbackTree(position)
+	end
+
+	local tree = template:Clone()
+	tree.Name = OAK_TREE_TEMPLATE_NAME
+
+	local primaryPart = tree.PrimaryPart
+	if primaryPart and not primaryPart:IsA("BasePart") then
+		tree.PrimaryPart = nil
+		primaryPart = nil
+	end
+
+	if not primaryPart then
+		local preferredRoot = tree:FindFirstChild("TreeRoot t", true)
+			or tree:FindFirstChild("Root", true)
+			or tree:FindFirstChildWhichIsA("BasePart", true)
+		if preferredRoot and preferredRoot:IsA("BasePart") then
+			tree.PrimaryPart = preferredRoot
 		end
 	end
 
-	-- Add resource tags if not already present
+	-- Scale tree to 1.25x size
+	scaleTree(tree, TREE_SCALE)
+
+	tree:PivotTo(CFrame.new(position))
+	alignTreeToGround(tree, position)
+	anchorTreeParts(tree)
+
 	if not tree:FindFirstChild("ResourceTag") then
 		local tag = Instance.new("StringValue")
 		tag.Name = "ResourceTag"
@@ -680,6 +719,7 @@ function ResourceSpawner:createSimpleTree(position)
 
 	tree:SetAttribute("HarvestType", "tree")
 	tree:SetAttribute("ResourceType", "tree")
+	ensureTreeShakePrompt(tree)
 
 	return tree
 end

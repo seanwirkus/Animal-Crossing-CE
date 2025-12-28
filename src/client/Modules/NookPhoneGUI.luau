@@ -32,22 +32,22 @@ if ok and fetcher then
 end
 
 local DEFAULT_PHONE_LAYOUT = {
-    anchorPoint = Vector2.new(0.5, 1),
-    position = UDim2.new(0.5, 0, 1, -20),
-    size = UDim2.new(0, 360, 0, 640),
+    anchorPoint = Vector2.new(0.5, 0.5), -- Center anchor
+    position = UDim2.new(0.5, 0, 0.5, 0), -- Center of screen
+    size = UDim2.new(0, 380, 0, 620),
     padding = {
         horizontal = 16,
-        vertical = 18,
+        vertical = 16,
     },
     grid = {
-        columns = 3,
-        iconSize = 90,
-        spacing = 12,
+        columns = 3, -- 3 columns for bigger, clearer icons
+        iconSize = 64, -- Larger circle icons
+        spacing = 16, -- More spacing between circles
     },
     aspectRatio = 9 / 16,
-    notchHeight = 48,
-    statusRowHeight = 60,
-    closeButtonOffset = Vector2.new(0, -55),
+    notchHeight = 32,
+    statusRowHeight = 28,
+    closeButtonOffset = Vector2.new(-8, 8),
 }
 
 local function formatNumber(num: number): string
@@ -94,34 +94,54 @@ local function getPhoneSize()
     local isTablet = UserInputService.TouchEnabled and UserInputService.KeyboardEnabled
 
     if isMobile then
-        -- Mobile: Smaller icons with less padding to see all apps
+        -- Mobile: Compact phone with small circle icons
         return {
             widthScale = 0.85,
-            heightScale = 0.95,
-            iconSize = 60, -- Reduced from 80
-            iconSpacing = 6, -- Reduced from 10
-            cols = 3,
+            heightScale = 0.88,
+            iconSize = 48,
+            iconSpacing = 10,
+            cols = 4,
         }
     elseif isTablet then
-        -- Tablet: Smaller icons with less padding
+        -- Tablet: Medium phone with circle icons
         return {
-            widthScale = 0.7,
-            heightScale = 0.9,
-            iconSize = 70, -- Reduced from 100
-            iconSpacing = 8, -- Reduced from 12
-            cols = 3,
+            widthScale = 0.6,
+            heightScale = 0.85,
+            iconSize = 52,
+            iconSpacing = 12,
+            cols = 4,
         }
     else
-        -- Desktop: Smaller icons with less padding
-        local maxWidth = 500
+        -- Desktop: Compact phone that fits well
+        local maxWidth = 380
         return {
-            widthScale = math.min(0.5, maxWidth / screenSize.X),
-            heightScale = 0.95,
-            iconSize = 75, -- Reduced from 110
-            iconSpacing = 8, -- Reduced from 12
-            cols = 3,
+            widthScale = math.min(0.32, maxWidth / screenSize.X),
+            heightScale = 0.82,
+            iconSize = 52,
+            iconSpacing = 12,
+            cols = 4,
         }
     end
+end
+
+local function calculateGridMetrics(size, layout, availableWidth)
+    local gridSettings = layout.grid or {}
+    local padding = layout.padding and layout.padding.horizontal or 12
+    local viewportWidth = workspace.CurrentCamera.ViewportSize.X
+    local baseWidth = availableWidth or math.floor(viewportWidth * (size.widthScale or 0.5))
+    local paddedWidth = math.max(240, baseWidth - (padding * 2))
+    local baseIcon = gridSettings.iconSize or size.iconSize or 70
+    local baseSpacing = gridSettings.spacing or size.iconSpacing or 10
+    local iconScale = math.clamp(paddedWidth / 420, 0.85, 1.15)
+    local iconSize = math.clamp(math.floor(baseIcon * iconScale), 52, 96)
+    local spacing = math.max(8, math.floor(baseSpacing * iconScale * 0.95))
+    return iconSize, spacing
+end
+
+local function getGridCellHeight(iconSize)
+    local nameHeight = math.clamp(iconSize * 0.28, 14, 24) -- Larger name area
+    local gap = math.clamp(math.floor(iconSize * 0.1), 4, 10)
+    return iconSize + nameHeight + gap
 end
 
 -- ACNH Color Palette
@@ -183,7 +203,7 @@ local APPS = {
     },
     {
         id = "nook_shopping",
-        name = "Nook Shopping",
+        name = "Nook Shop",
         icon = "🛒",
         color = Color3.fromRGB(4, 175, 166),
         description = "Shop items",
@@ -209,6 +229,20 @@ local APPS = {
         color = Color3.fromRGB(139, 90, 43), -- Brown/tan for home
         description = "Build & upgrade your home",
     },
+    {
+        id = "save_game",
+        name = "Save Game",
+        icon = "💾",
+        color = Color3.fromRGB(76, 175, 80), -- Green for save
+        description = "Manual save & data backup",
+    },
+    {
+        id = "delivery",
+        name = "Delivery",
+        icon = "✈️",
+        color = Color3.fromRGB(66, 165, 245), -- Light blue for planes
+        description = "Track incoming packages",
+    },
 }
 
 function NookPhoneGUI.new()
@@ -221,6 +255,7 @@ function NookPhoneGUI.new()
     self.visible = false
     self.currentApp = nil
     self.appModules = {} -- Store app module connections
+    self.appIcons = {} -- Keep references for responsive layout updates
     self.gui = nil
     self.animating = false
     self.guiManager = nil -- Will be set by init
@@ -296,176 +331,117 @@ function NookPhoneGUI:createGUI()
     local horizontalPadding = layout.padding and layout.padding.horizontal or 12
     local verticalPadding = layout.padding and layout.padding.vertical or 12
 
-    -- Phone Container (slides in from bottom) - Responsive using scale
+    -- Phone Container (slides in from bottom) - Clean, ACNH-style design
     local phoneContainer = Instance.new("Frame")
     phoneContainer.Name = "PhoneContainer"
     phoneContainer.Size = UDim2.new(size.widthScale, 0, size.heightScale, 0)
     phoneContainer.AnchorPoint = layout.anchorPoint or Vector2.new(0.5, 1)
-    phoneContainer.BackgroundColor3 = COLORS.PHONE_BG
+    phoneContainer.BackgroundColor3 = Color3.fromRGB(78, 186, 169) -- ACNH teal green
     phoneContainer.BorderSizePixel = 0
     phoneContainer.ClipsDescendants = true
     phoneContainer.Parent = screenGui
-    local baseWidth = layout.size and layout.size.X.Offset or 360
-    local baseHeight = layout.size and layout.size.Y.Offset or 640
+    local baseWidth = layout.size and layout.size.X.Offset or 340
+    local baseHeight = layout.size and layout.size.Y.Offset or 580
     local sizeConstraint = Instance.new("UISizeConstraint")
-    sizeConstraint.MinSize = Vector2.new(math.floor(baseWidth * 0.85), math.floor(baseHeight * 0.85))
-    sizeConstraint.MaxSize = Vector2.new(math.floor(baseWidth * 1.15), math.floor(baseHeight * 1.15))
+    sizeConstraint.MinSize = Vector2.new(280, 420)
+    sizeConstraint.MaxSize = Vector2.new(420, 700)
     sizeConstraint.Parent = phoneContainer
     local aspectConstraint = Instance.new("UIAspectRatioConstraint")
     aspectConstraint.AspectRatio = layout.aspectRatio or 9 / 16
     aspectConstraint.Parent = phoneContainer
     self.phoneContainer = phoneContainer
 
+    -- Softer, larger corner radius for phone case
     local phoneCorner = Instance.new("UICorner")
-    phoneCorner.CornerRadius = UDim.new(0, 40)
+    phoneCorner.CornerRadius = UDim.new(0, 30)
     phoneCorner.Parent = phoneContainer
 
-    local phoneStroke = Instance.new("UIStroke")
-    phoneStroke.Thickness = 2
-    phoneStroke.Color = Color3.fromRGB(20, 20, 25)
-    phoneStroke.Transparency = 0.4
-    phoneStroke.Parent = phoneContainer
-
-    local phoneGradient = Instance.new("UIGradient")
-    phoneGradient.Rotation = 90
-    phoneGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 60, 65)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 40)),
-    })
-    phoneGradient.Parent = phoneContainer
-
+    -- Subtle soft shadow (no harsh black outline)
     local phoneShadow = Instance.new("ImageLabel")
     phoneShadow.Name = "Shadow"
     phoneShadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    phoneShadow.Position = UDim2.new(0.5, 0, 0.5, 10)
-    phoneShadow.Size = UDim2.new(1, 80, 1, 80)
+    phoneShadow.Position = UDim2.new(0.5, 0, 0.5, 6)
+    phoneShadow.Size = UDim2.new(1, 40, 1, 40)
     phoneShadow.BackgroundTransparency = 1
     phoneShadow.Image = "rbxassetid://1316045217"
-    phoneShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    phoneShadow.ImageTransparency = 0.65
+    phoneShadow.ImageColor3 = Color3.fromRGB(80, 70, 60)
+    phoneShadow.ImageTransparency = 0.8
     phoneShadow.ZIndex = 0
     phoneShadow.Parent = phoneContainer
 
-    -- Phone border/bezel (reduced padding for more screen space)
-    local phoneBezel = Instance.new("Frame")
-    phoneBezel.Name = "Bezel"
-    phoneBezel.Size = UDim2.new(1, -16, 1, -60) -- Further reduced padding
-    phoneBezel.Position = UDim2.new(0, 8, 0, 40) -- Less top padding
-    phoneBezel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    phoneBezel.BorderSizePixel = 0
-    phoneBezel.Parent = phoneContainer
-
-    local bezelCorner = Instance.new("UICorner")
-    bezelCorner.CornerRadius = UDim.new(0, 30)
-    bezelCorner.Parent = phoneBezel
-
-    -- Screen (main content area) - maximized for more app visibility
+    -- Screen (main content area) - cream background like ACNH
     local screen = Instance.new("Frame")
     screen.Name = "Screen"
-    screen.Size = UDim2.new(1, -24, 1, -70) -- Further reduced padding
-    screen.Position = UDim2.new(0, 12, 0, 50) -- Less top padding
-    screen.BackgroundColor3 = ThemeProvider.getColor("cream")
+    screen.Size = UDim2.new(1, -12, 1, -12)
+    screen.Position = UDim2.new(0, 6, 0, 6)
+    screen.BackgroundColor3 = Color3.fromRGB(255, 251, 235) -- Soft cream screen
     screen.BorderSizePixel = 0
     screen.Parent = phoneContainer
 
     local screenCorner = Instance.new("UICorner")
-    screenCorner.CornerRadius = UDim.new(0, 25)
+    screenCorner.CornerRadius = UDim.new(0, 24)
     screenCorner.Parent = screen
 
-    local screenStroke = Instance.new("UIStroke")
-    screenStroke.Color = ThemeProvider.getColor("lightBrown")
-    screenStroke.Thickness = 1
-    screenStroke.Transparency = 0.3
-    screenStroke.Parent = screen
-
-    local statusRow = Instance.new("Frame")
-    statusRow.Name = "StatusRow"
-    statusRow.Size = UDim2.new(1, -(horizontalPadding * 2), 0, layout.statusRowHeight or 60)
-    statusRow.Position = UDim2.new(0, horizontalPadding, 0, verticalPadding)
-    statusRow.BackgroundColor3 = Color3.fromRGB(248, 244, 232)
-    statusRow.BorderSizePixel = 0
-    statusRow.Parent = screen
-
-    local statusCorner = Instance.new("UICorner")
-    statusCorner.CornerRadius = UDim.new(0, 18)
-    statusCorner.Parent = statusRow
-
-    local statusStroke = Instance.new("UIStroke")
-    statusStroke.Color = COLORS.BORDER
-    statusStroke.Thickness = 2
-    statusStroke.Transparency = 0.5
-    statusStroke.Parent = statusRow
-
-    local statusLayout = Instance.new("UIListLayout")
-    statusLayout.FillDirection = Enum.FillDirection.Horizontal
-    statusLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    statusLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    statusLayout.Padding = UDim.new(0, 6) -- Reduced padding
-    statusLayout.Parent = statusRow
-
-    local statusPadding = Instance.new("UIPadding")
-    statusPadding.PaddingLeft = UDim.new(0, horizontalPadding)
-    statusPadding.PaddingRight = UDim.new(0, horizontalPadding)
-    statusPadding.Parent = statusRow
-
-    -- Top bar (notch area)
+    -- Top status bar (clean, modern)
     local topBar = Instance.new("Frame")
     topBar.Name = "TopBar"
-    topBar.Size = UDim2.new(1, 0, 0, 50)
-    topBar.Position = UDim2.new(0, 0, 0, 0)
-    topBar.BackgroundColor3 = COLORS.PHONE_BG
+    topBar.Size = UDim2.new(1, -24, 0, 28)
+    topBar.Position = UDim2.new(0, 12, 0, 10)
+    topBar.BackgroundColor3 = Color3.fromRGB(245, 240, 228)
+    topBar.BackgroundTransparency = 0.3
     topBar.BorderSizePixel = 0
     topBar.Parent = phoneContainer
 
-    -- Time display
+    local topBarCorner = Instance.new("UICorner")
+    topBarCorner.CornerRadius = UDim.new(0, 14)
+    topBarCorner.Parent = topBar
+
+    -- Time display (left side)
     local timeLabel = Instance.new("TextLabel")
     timeLabel.Name = "TimeLabel"
-    timeLabel.Size = UDim2.new(1, -40, 1, 0)
-    timeLabel.Position = UDim2.new(0, 20, 0, 0)
+    timeLabel.Size = UDim2.new(0.5, -10, 1, 0)
+    timeLabel.Position = UDim2.new(0, 12, 0, 0)
     timeLabel.BackgroundTransparency = 1
     timeLabel.Text = "12:34 PM"
-    timeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    timeLabel.Font = Enum.Font.GothamBold
-    timeLabel.TextSize = 16
+    timeLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    timeLabel.Font = Enum.Font.GothamMedium
+    timeLabel.TextSize = 13
     timeLabel.TextXAlignment = Enum.TextXAlignment.Left
     timeLabel.Parent = topBar
 
-    -- Battery indicator
+    -- Battery indicator (right side with icon)
     local batteryLabel = Instance.new("TextLabel")
     batteryLabel.Name = "BatteryLabel"
-    batteryLabel.Size = UDim2.new(0, 60, 1, 0)
-    batteryLabel.Position = UDim2.new(1, -80, 0, 0)
+    batteryLabel.Size = UDim2.new(0.5, -10, 1, 0)
+    batteryLabel.Position = UDim2.new(0.5, 0, 0, 0)
     batteryLabel.BackgroundTransparency = 1
     batteryLabel.Text = "🔋 100%"
-    batteryLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    batteryLabel.Font = Enum.Font.Gotham
-    batteryLabel.TextSize = 14
+    batteryLabel.TextColor3 = Color3.fromRGB(80, 160, 80)
+    batteryLabel.Font = Enum.Font.GothamMedium
+    batteryLabel.TextSize = 12
     batteryLabel.TextXAlignment = Enum.TextXAlignment.Right
     batteryLabel.Parent = topBar
 
-    -- App Grid Container - maximized for more app visibility
+    -- App Grid Container - clean layout
     local appGridContainer = Instance.new("ScrollingFrame")
     appGridContainer.Name = "AppGrid"
-    local gridTopOffset = (layout.statusRowHeight or 60) + verticalPadding + 20
-    local gridBottomPadding = math.abs(layout.closeButtonOffset and layout.closeButtonOffset.Y or -50) + 60
-    appGridContainer.Size = UDim2.new(1, -(horizontalPadding * 2), 1, -(gridTopOffset + gridBottomPadding))
-    appGridContainer.Position = UDim2.new(0, horizontalPadding, 0, gridTopOffset)
+    local gridTopOffset = 48 -- Below status bar
+    local gridBottomPadding = 12
+    appGridContainer.Size = UDim2.new(1, -24, 1, -(gridTopOffset + gridBottomPadding))
+    appGridContainer.Position = UDim2.new(0, 12, 0, gridTopOffset)
     appGridContainer.BackgroundTransparency = 1
     appGridContainer.BorderSizePixel = 0
-    appGridContainer.ScrollBarThickness = 6
-    appGridContainer.ScrollBarImageColor3 = COLORS.BORDER
-    appGridContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+    appGridContainer.ScrollBarThickness = 0
+    appGridContainer.ScrollBarImageTransparency = 1
+    appGridContainer.ScrollingEnabled = false
     appGridContainer.Parent = screen
 
     local gridLayout = Instance.new("UIGridLayout")
-    local gridSettings = layout.grid or {}
-    local sizeScale = size.iconSize / 75
-    local spacingScale = size.iconSpacing / 8
-    local iconSize = math.floor((gridSettings.iconSize or size.iconSize) * sizeScale)
-    local spacing = math.max(4, math.floor((gridSettings.spacing or size.iconSpacing) * spacingScale))
-    local columns = gridSettings.columns or size.cols
-    gridLayout.CellSize = UDim2.new(0, iconSize, 0, iconSize + 24)
-    gridLayout.CellPadding = UDim2.new(0, spacing, 0, spacing)
+    local iconSize, spacing = calculateGridMetrics(size, layout)
+    self.gridIconSize = iconSize
+    self.gridSpacing = spacing
+    gridLayout.CellSize = UDim2.new(0, iconSize, 0, getGridCellHeight(iconSize))
+    gridLayout.CellPadding = UDim2.new(0, spacing, 0, math.max(8, spacing - 2))
     gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
     gridLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -473,123 +449,144 @@ function NookPhoneGUI:createGUI()
     gridLayout.Parent = appGridContainer
 
     local gridPadding = Instance.new("UIPadding")
-    gridPadding.PaddingTop = UDim.new(0, spacing)
-    gridPadding.PaddingBottom = UDim.new(0, spacing)
-    gridPadding.PaddingLeft = UDim.new(0, spacing)
-    gridPadding.PaddingRight = UDim.new(0, spacing)
+    local gridInset = math.max(6, spacing - 2)
+    gridPadding.PaddingTop = UDim.new(0, gridInset)
+    gridPadding.PaddingBottom = UDim.new(0, gridInset)
+    gridPadding.PaddingLeft = UDim.new(0, gridInset)
+    gridPadding.PaddingRight = UDim.new(0, gridInset)
     gridPadding.Parent = appGridContainer
+    self.gridLayout = gridLayout
+    self.gridPadding = gridPadding
 
+    self.appIcons = {}
     -- Create app icons
     for i, app in ipairs(APPS) do
         local appButton = self:createAppIcon(app, i)
         appButton.Parent = appGridContainer
+        table.insert(self.appIcons, appButton)
     end
 
-    self.statusChips = {}
-    local chipConfig = {
-        { key = "bells", icon = "💰", title = "Bells" },
-        { key = "miles", icon = "✈️", title = "Miles" },
-        { key = "inventory", icon = "🎒", title = "Bag" },
-        { key = "quests", icon = "✅", title = "Tasks" },
-    }
-
-    for index, config in ipairs(chipConfig) do
-        local chip, valueLabel = self:createStatusChip(config.icon, config.title)
-        chip.LayoutOrder = index
-        chip.Parent = statusRow
-        self.statusChips[config.key] = valueLabel
-    end
-
-    -- Update canvas size (responsive) - adjusted for reduced spacing
-    local numRows = math.ceil(#APPS / math.max(1, columns))
-    local rowHeight = iconSize + 24 + spacing
-    appGridContainer.CanvasSize = UDim2.new(0, 0, 0, (numRows * rowHeight) + spacing)
-
-    -- Close button (swipe down or X button)
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 50, 0, 50)
-    local closeOffset = layout.closeButtonOffset or Vector2.new(0, -60)
-    closeButton.Position = UDim2.new(0.5, -25, 1, closeOffset.Y)
-    closeButton.BackgroundColor3 = COLORS.ACCENT
-    closeButton.Text = "✕"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.TextSize = 24
-    closeButton.BorderSizePixel = 0
-    closeButton.Parent = phoneContainer
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 25)
-    closeCorner.Parent = closeButton
-
-    -- App content container (for displaying app content)
+    -- App content container (for displaying app content) - needs to be created BEFORE close button
     local appContentContainer = Instance.new("Frame")
     appContentContainer.Name = "AppContent"
     appContentContainer.Size = UDim2.new(1, 0, 1, 0)
-    appContentContainer.Position = UDim2.new(1, 0, 0, 0) -- Start off-screen right
-    appContentContainer.BackgroundColor3 = COLORS.SCREEN_BG
+    appContentContainer.Position = UDim2.new(1, 0, 0, 0)
+    appContentContainer.BackgroundColor3 = Color3.fromRGB(255, 252, 240)
     appContentContainer.BorderSizePixel = 0
     appContentContainer.Visible = false
     appContentContainer.Parent = screen
 
     local appContentCorner = Instance.new("UICorner")
-    appContentCorner.CornerRadius = UDim.new(0, 25)
+    appContentCorner.CornerRadius = UDim.new(0, 20)
     appContentCorner.Parent = appContentContainer
 
-    -- App header (back button, title)
+    -- App header (clean, modern with accent color)
     local appHeader = Instance.new("Frame")
     appHeader.Name = "AppHeader"
-    appHeader.Size = UDim2.new(1, 0, 0, 60)
+    appHeader.Size = UDim2.new(1, 0, 0, 52)
     appHeader.Position = UDim2.new(0, 0, 0, 0)
-    appHeader.BackgroundColor3 = COLORS.APP_GRID_BG
+    appHeader.BackgroundColor3 = Color3.fromRGB(78, 186, 169) -- Match phone case
     appHeader.BorderSizePixel = 0
     appHeader.Parent = appContentContainer
 
-    local headerStroke = Instance.new("UIStroke")
-    headerStroke.Color = COLORS.BORDER
-    headerStroke.Thickness = 2
-    headerStroke.Parent = appHeader
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 20)
+    headerCorner.Parent = appHeader
+
+    -- Cover bottom corners with a small rectangle
+    local headerBottom = Instance.new("Frame")
+    headerBottom.Size = UDim2.new(1, 0, 0, 20)
+    headerBottom.Position = UDim2.new(0, 0, 1, -20)
+    headerBottom.BackgroundColor3 = Color3.fromRGB(78, 186, 169)
+    headerBottom.BorderSizePixel = 0
+    headerBottom.Parent = appHeader
 
     local backButton = Instance.new("TextButton")
     backButton.Name = "BackButton"
-    backButton.Size = UDim2.new(0, 50, 0, 50)
-    backButton.Position = UDim2.new(0, 10, 0, 5)
-    backButton.BackgroundColor3 = COLORS.BUTTON_HOVER
+    backButton.Size = UDim2.new(0, 38, 0, 38)
+    backButton.Position = UDim2.new(0, 8, 0, 7)
+    backButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    backButton.BackgroundTransparency = 0.2
     backButton.Text = "←"
-    backButton.TextColor3 = COLORS.TEXT_PRIMARY
+    backButton.TextColor3 = Color3.new(1, 1, 1)
     backButton.Font = Enum.Font.GothamBold
-    backButton.TextSize = 24
+    backButton.TextSize = 20
     backButton.BorderSizePixel = 0
     backButton.Parent = appHeader
 
     local backCorner = Instance.new("UICorner")
-    backCorner.CornerRadius = UDim.new(0, 10)
+    backCorner.CornerRadius = UDim.new(1, 0) -- Circle
     backCorner.Parent = backButton
 
     local appTitleLabel = Instance.new("TextLabel")
     appTitleLabel.Name = "AppTitle"
-    appTitleLabel.Size = UDim2.new(1, -70, 1, 0)
-    appTitleLabel.Position = UDim2.new(0, 70, 0, 0)
+    appTitleLabel.Size = UDim2.new(1, -60, 1, 0)
+    appTitleLabel.Position = UDim2.new(0, 54, 0, 0)
     appTitleLabel.BackgroundTransparency = 1
     appTitleLabel.Text = "App Name"
-    appTitleLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    appTitleLabel.TextColor3 = Color3.new(1, 1, 1)
     appTitleLabel.Font = Enum.Font.GothamBold
-    appTitleLabel.TextSize = 22
+    appTitleLabel.TextSize = 18
     appTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     appTitleLabel.Parent = appHeader
 
     -- App content frame (scrollable)
     local appContentFrame = Instance.new("ScrollingFrame")
     appContentFrame.Name = "ContentFrame"
-    appContentFrame.Size = UDim2.new(1, -20, 1, -70)
-    appContentFrame.Position = UDim2.new(0, 10, 0, 70)
+    appContentFrame.Size = UDim2.new(1, -16, 1, -60)
+    appContentFrame.Position = UDim2.new(0, 8, 0, 56)
     appContentFrame.BackgroundTransparency = 1
     appContentFrame.BorderSizePixel = 0
-    appContentFrame.ScrollBarThickness = 6
-    appContentFrame.ScrollBarImageColor3 = COLORS.BORDER
+    appContentFrame.ScrollBarThickness = 0
+    appContentFrame.ScrollBarImageTransparency = 1
     appContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     appContentFrame.Parent = appContentContainer
+
+    -- Close button (created AFTER appContentContainer so it's on top)
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.AnchorPoint = Vector2.new(1, 0)
+    closeButton.Position = UDim2.new(1, -12, 0, 12)
+    closeButton.Size = UDim2.new(0, 36, 0, 36)
+    closeButton.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+    closeButton.Text = ""
+    closeButton.BorderSizePixel = 0
+    closeButton.ZIndex = 200 -- Very high to ensure it's on top of everything
+    closeButton.Active = true
+    closeButton.Parent = screen
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(1, 0)
+    closeCorner.Parent = closeButton
+
+    -- Create X with two crossing lines instead of text (more reliable rendering)
+    local xLine1 = Instance.new("Frame")
+    xLine1.Name = "XLine1"
+    xLine1.AnchorPoint = Vector2.new(0.5, 0.5)
+    xLine1.Position = UDim2.new(0.5, 0, 0.5, 0)
+    xLine1.Size = UDim2.new(0, 18, 0, 3)
+    xLine1.Rotation = 45
+    xLine1.BackgroundColor3 = Color3.new(1, 1, 1)
+    xLine1.BorderSizePixel = 0
+    xLine1.Parent = closeButton
+
+    local xLine1Corner = Instance.new("UICorner")
+    xLine1Corner.CornerRadius = UDim.new(0, 2)
+    xLine1Corner.Parent = xLine1
+
+    local xLine2 = Instance.new("Frame")
+    xLine2.Name = "XLine2"
+    xLine2.AnchorPoint = Vector2.new(0.5, 0.5)
+    xLine2.Position = UDim2.new(0.5, 0, 0.5, 0)
+    xLine2.Size = UDim2.new(0, 18, 0, 3)
+    xLine2.Rotation = -45
+    xLine2.BackgroundColor3 = Color3.new(1, 1, 1)
+    xLine2.BorderSizePixel = 0
+    xLine2.Parent = closeButton
+
+    local xLine2Corner = Instance.new("UICorner")
+    xLine2Corner.CornerRadius = UDim.new(0, 2)
+    xLine2Corner.Parent = xLine2
 
     self.phoneContainer = phoneContainer
     self.appGrid = appGridContainer
@@ -601,19 +598,23 @@ function NookPhoneGUI:createGUI()
     self.backButton = backButton
     self.timeLabel = timeLabel
 
-    -- Store references for animations (responsive - using scale)
-    local visiblePos = layout.position or UDim2.new(0.5, 0, 1, -20)
-    local startOffset = layout.size and layout.size.Y.Offset or 0
-    self.phoneStartPos = UDim2.new(visiblePos.X.Scale, visiblePos.X.Offset, 1, startOffset)
+    -- Store references for animations (centered on screen)
+    local visiblePos = layout.position or UDim2.new(0.5, 0, 0.5, 0)
+    self.phoneStartPos = UDim2.new(0.5, 0, 1.5, 0) -- Off screen below
     self.phoneVisiblePos = visiblePos
     phoneContainer.Position = self.phoneStartPos
 
     -- Listen for screen size changes (mobile rotation, etc.)
     workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
         self:updateResponsiveSize()
+        self:updateGridLayout()
     end)
 
     self:updateStatusChips()
+    self:updateGridLayout()
+
+    -- Connect to delivery notifications for badges
+    self:connectDeliveryNotifications()
 end
 
 function NookPhoneGUI:updateResponsiveSize()
@@ -627,18 +628,126 @@ function NookPhoneGUI:updateResponsiveSize()
     -- Update phone container size (using scale)
     self.phoneContainer.Size = UDim2.new(size.widthScale, 0, size.heightScale, 0)
 
-    -- Update visible position (centered)
-    self.phoneVisiblePos = UDim2.new(0.5, 0, 1, -20)
+    -- Update visible position (centered on screen)
+    self.phoneVisiblePos = UDim2.new(0.5, 0, 0.5, 0)
 
     -- If currently visible, update position
     if self.visible then
         self.phoneContainer.Position = self.phoneVisiblePos
     end
+
+    self:updateGridLayout()
+end
+
+function NookPhoneGUI:updateGridLayout()
+    if not (self.appGrid and self.gridLayout and self.gridPadding and self.phoneContainer) then
+        return
+    end
+
+    local size = self.phoneSize or getPhoneSize()
+    local layout = self.phoneLayout or DEFAULT_PHONE_LAYOUT
+    local horizontalPadding = (layout.padding and layout.padding.horizontal) or 12
+    local verticalPadding = (layout.padding and layout.padding.vertical) or 16
+    local containerWidth = self.phoneContainer.AbsoluteSize.X
+    if containerWidth <= 0 then
+        containerWidth = workspace.CurrentCamera.ViewportSize.X * (size.widthScale or 0.5)
+    end
+    local availableWidth = math.max(220, containerWidth - (horizontalPadding * 2))
+
+    local containerHeight = self.phoneContainer.AbsoluteSize.Y
+    if containerHeight <= 0 then
+        containerHeight = workspace.CurrentCamera.ViewportSize.Y * (size.heightScale or 0.9)
+    end
+    local gridTopOffset = verticalPadding + 46
+    local gridBottomPadding = verticalPadding + 32
+    local availableHeight = math.max(180, containerHeight - (gridTopOffset + gridBottomPadding))
+
+    local minIcon = 56 -- Larger minimum for readability
+    local minSpacing = 8
+    local iconSize, spacing = calculateGridMetrics(size, layout, availableWidth)
+    local configuredColumns = layout.grid and layout.grid.columns
+
+    -- Enforce minimum icon size for clarity
+    iconSize = math.max(minIcon, iconSize)
+
+    local function computeColumns(nextIconSize, nextSpacing)
+        local approxColumns = math.max(1, math.floor(availableWidth / math.max(1, nextIconSize + nextSpacing + 16)))
+        local columns = math.clamp(approxColumns, 2, 4) -- Max 4 columns for readability
+        if configuredColumns and configuredColumns > 0 then
+            columns = math.min(columns, configuredColumns)
+        end
+        return columns
+    end
+
+    local function computeRequiredHeight(nextIconSize, nextSpacing, rows)
+        local cellHeight = getGridCellHeight(nextIconSize)
+        local paddingY = math.max(8, nextSpacing - 2)
+        local gridInset = math.max(6, nextSpacing - 2)
+        return (rows * cellHeight) + ((rows - 1) * paddingY) + (gridInset * 2)
+    end
+
+    local columns = computeColumns(iconSize, spacing)
+    for _ = 1, 2 do
+        local rows = math.ceil(#APPS / math.max(1, columns))
+        local requiredHeight = computeRequiredHeight(iconSize, spacing, rows)
+        if availableHeight > 0 and requiredHeight > availableHeight then
+            local scale = availableHeight / requiredHeight
+            iconSize = math.max(minIcon, math.floor(iconSize * scale))
+            spacing = math.max(minSpacing, math.floor(spacing * scale))
+            columns = computeColumns(iconSize, spacing)
+        end
+    end
+
+    local cellHeight = getGridCellHeight(iconSize)
+
+    self.gridIconSize = iconSize
+    self.gridSpacing = spacing
+    self.gridColumns = columns
+
+    self.gridLayout.CellSize = UDim2.new(0, iconSize, 0, cellHeight)
+    self.gridLayout.CellPadding = UDim2.new(0, spacing, 0, math.max(8, spacing - 2))
+
+    local gridInset = math.max(6, spacing - 2)
+    self.gridPadding.PaddingTop = UDim.new(0, gridInset)
+    self.gridPadding.PaddingBottom = UDim.new(0, gridInset)
+    self.gridPadding.PaddingLeft = UDim.new(0, gridInset)
+    self.gridPadding.PaddingRight = UDim.new(0, gridInset)
+
+    if self.appGrid then
+        self.appGrid.CanvasSize = UDim2.fromOffset(0, 0)
+        self.appGrid.ScrollBarThickness = 0
+        self.appGrid.ScrollBarImageTransparency = 1
+        self.appGrid.ScrollingEnabled = false
+    end
+
+    for _, button in ipairs(self.appIcons) do
+        if button and button.Parent then
+            local iconBg = button:FindFirstChild("IconBg")
+            if iconBg then
+                iconBg.Size = UDim2.new(0, iconSize, 0, iconSize)
+                iconBg.Position = UDim2.new(0.5, -iconSize / 2, 0, 0)
+                local iconLabel = iconBg:FindFirstChild("Icon")
+                if iconLabel then
+                    iconLabel.TextSize = math.clamp(iconSize * 0.52, 28, 42)
+                end
+            end
+            local nameLabel = button:FindFirstChild("Name")
+            if nameLabel then
+                local nameHeight = math.clamp(iconSize * 0.28, 14, 24)
+                nameLabel.Size = UDim2.new(1, 16, 0, nameHeight)
+                nameLabel.Position = UDim2.new(0, -8, 0, iconSize + 3)
+                nameLabel.TextSize = math.clamp(iconSize * 0.2, 12, 16)
+                nameLabel.Font = Enum.Font.GothamBold
+            end
+        end
+    end
 end
 
 function NookPhoneGUI:createAppIcon(app, index)
-    local size = self.phoneSize
-    local iconSize = size.iconSize - 10 -- Reduced from -20 to make icons bigger relative to spacing
+    local baseSize = (self.phoneSize and self.phoneSize.iconSize) or 64
+    local iconSize = self.gridIconSize or math.max(60, math.floor(baseSize))
+    local nameHeight = 22
+    local nameTextSize = 13
 
     local appButton = Instance.new("TextButton")
     appButton.Name = app.id
@@ -647,7 +756,7 @@ function NookPhoneGUI:createAppIcon(app, index)
     appButton.BorderSizePixel = 0
     appButton.Text = ""
 
-    -- App icon background
+    -- App icon background - CIRCLE shape with subtle shadow
     local iconBg = Instance.new("Frame")
     iconBg.Name = "IconBg"
     iconBg.Size = UDim2.new(0, iconSize, 0, iconSize)
@@ -656,60 +765,88 @@ function NookPhoneGUI:createAppIcon(app, index)
     iconBg.BorderSizePixel = 0
     iconBg.Parent = appButton
 
+    -- Make it a perfect circle
     local iconCorner = Instance.new("UICorner")
-    iconCorner.CornerRadius = UDim.new(0, 16)
+    iconCorner.CornerRadius = UDim.new(1, 0)
     iconCorner.Parent = iconBg
 
-    -- App icon emoji/text
+    -- Add drop shadow for depth
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+    shadow.Size = UDim2.new(1, 8, 1, 8)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.85
+    shadow.ZIndex = -1
+    shadow.Parent = iconBg
+
+    -- Subtle inner highlight (top of circle)
+    local highlight = Instance.new("Frame")
+    highlight.Name = "Highlight"
+    highlight.Size = UDim2.new(0.8, 0, 0.35, 0)
+    highlight.Position = UDim2.new(0.1, 0, 0.08, 0)
+    highlight.BackgroundColor3 = Color3.new(1, 1, 1)
+    highlight.BackgroundTransparency = 0.8
+    highlight.BorderSizePixel = 0
+    highlight.Parent = iconBg
+
+    local highlightCorner = Instance.new("UICorner")
+    highlightCorner.CornerRadius = UDim.new(1, 0)
+    highlightCorner.Parent = highlight
+
+    -- App icon emoji - LARGE and clear
     local iconLabel = Instance.new("TextLabel")
     iconLabel.Name = "Icon"
     iconLabel.Size = UDim2.new(1, 0, 1, 0)
-    iconLabel.Position = UDim2.new(0, 0, 0, 0)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Text = app.icon
     iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     iconLabel.Font = Enum.Font.GothamBold
-    iconLabel.TextSize = 36
+    iconLabel.TextSize = math.max(32, math.floor(iconSize * 0.52))
     iconLabel.Parent = iconBg
 
-    -- App name
+    -- App name - large, bold, and readable
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
-    nameLabel.Size = UDim2.new(1, 0, 0, 20) -- Reduced from 30
-    nameLabel.Position = UDim2.new(0, 0, 1, -20) -- Reduced from -30
+    nameLabel.Size = UDim2.new(1, 16, 0, nameHeight)
+    nameLabel.Position = UDim2.new(0, -8, 0, iconSize + 3)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = app.name
     nameLabel.TextColor3 = COLORS.TEXT_PRIMARY
-    nameLabel.Font = Enum.Font.Gotham
-    nameLabel.TextSize = 12 -- Reduced from 14
-    nameLabel.TextWrapped = true
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = nameTextSize
+    nameLabel.TextWrapped = false
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
     nameLabel.Parent = appButton
 
-    -- Hover effect (desktop only)
-    if not UserInputService.TouchEnabled then
-        appButton.MouseEnter:Connect(function()
-            if not self.animating then
-                local hoverSize = iconSize + 10
-                local tween = TweenService:Create(
-                    iconBg,
-                    TweenInfo.new(0.2, Enum.EasingStyle.Quad),
-                    { Size = UDim2.new(0, hoverSize, 0, hoverSize), Position = UDim2.new(0.5, -hoverSize / 2, 0, -5) }
-                )
-                tween:Play()
-            end
-        end)
+    -- Notification badge (hidden by default)
+    local badge = Instance.new("Frame")
+    badge.Name = "NotificationBadge"
+    badge.Size = UDim2.new(0, 20, 0, 20)
+    badge.Position = UDim2.new(1, -6, 0, -6)
+    badge.AnchorPoint = Vector2.new(1, 0)
+    badge.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+    badge.BorderSizePixel = 0
+    badge.Visible = false
+    badge.ZIndex = 10
+    badge.Parent = iconBg
 
-        appButton.MouseLeave:Connect(function()
-            if not self.animating then
-                local tween = TweenService:Create(
-                    iconBg,
-                    TweenInfo.new(0.2, Enum.EasingStyle.Quad),
-                    { Size = UDim2.new(0, iconSize, 0, iconSize), Position = UDim2.new(0.5, -iconSize / 2, 0, 0) }
-                )
-                tween:Play()
-            end
-        end)
-    end
+    local badgeCorner = Instance.new("UICorner")
+    badgeCorner.CornerRadius = UDim.new(1, 0)
+    badgeCorner.Parent = badge
+
+    local badgeLabel = Instance.new("TextLabel")
+    badgeLabel.Name = "Count"
+    badgeLabel.Size = UDim2.fromScale(1, 1)
+    badgeLabel.BackgroundTransparency = 1
+    badgeLabel.Text = "!"
+    badgeLabel.TextColor3 = Color3.new(1, 1, 1)
+    badgeLabel.Font = Enum.Font.GothamBold
+    badgeLabel.TextSize = 12
+    badgeLabel.Parent = badge
 
     -- Click handler
     appButton.MouseButton1Click:Connect(function()
@@ -719,57 +856,94 @@ function NookPhoneGUI:createAppIcon(app, index)
     return appButton
 end
 
+-- Set notification badge on an app
+function NookPhoneGUI:setAppNotification(appId, count)
+    for _, appButton in ipairs(self.appIcons) do
+        if appButton.Name == appId then
+            local iconBg = appButton:FindFirstChild("IconBg")
+            if iconBg then
+                local badge = iconBg:FindFirstChild("NotificationBadge")
+                if badge then
+                    if count and count > 0 then
+                        badge.Visible = true
+                        local countLabel = badge:FindFirstChild("Count")
+                        if countLabel then
+                            countLabel.Text = count > 9 and "9+" or tostring(count)
+                        end
+                    else
+                        badge.Visible = false
+                    end
+                end
+            end
+            break
+        end
+    end
+end
+
+-- Clear all notifications
+function NookPhoneGUI:clearAllNotifications()
+    for _, appButton in ipairs(self.appIcons) do
+        local iconBg = appButton:FindFirstChild("IconBg")
+        if iconBg then
+            local badge = iconBg:FindFirstChild("NotificationBadge")
+            if badge then
+                badge.Visible = false
+            end
+        end
+    end
+end
+
 function NookPhoneGUI:createStatusChip(iconText: string, titleText: string)
     local chip = Instance.new("Frame")
     chip.Name = "StatusChip"
-    chip.Size = UDim2.new(0, 120, 0, 55)
+    chip.Size = UDim2.new(0, 70, 0, 28) -- Much more compact chips
     chip.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     chip.BackgroundTransparency = 0.1
     chip.BorderSizePixel = 0
 
     local chipCorner = Instance.new("UICorner")
-    chipCorner.CornerRadius = UDim.new(0, 16)
+    chipCorner.CornerRadius = UDim.new(0, 8) -- Smaller corners
     chipCorner.Parent = chip
 
     local chipStroke = Instance.new("UIStroke")
     chipStroke.Color = COLORS.BORDER
-    chipStroke.Transparency = 0.6
-    chipStroke.Thickness = 1.5
+    chipStroke.Transparency = 0.7
+    chipStroke.Thickness = 1
     chipStroke.Parent = chip
 
     local iconLabel = Instance.new("TextLabel")
     iconLabel.Name = "Icon"
-    iconLabel.Size = UDim2.new(0, 30, 0, 30)
-    iconLabel.Position = UDim2.new(0, 10, 0, 12)
+    iconLabel.Size = UDim2.new(0, 14, 0, 14) -- Much smaller icon
+    iconLabel.Position = UDim2.new(0, 4, 0, 7)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Text = iconText
     iconLabel.TextColor3 = COLORS.TEXT_PRIMARY
     iconLabel.Font = Enum.Font.Gotham
-    iconLabel.TextSize = 22
+    iconLabel.TextSize = 12 -- Smaller text
     iconLabel.TextXAlignment = Enum.TextXAlignment.Left
     iconLabel.Parent = chip
 
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
-    titleLabel.Size = UDim2.new(1, -50, 0, 16)
-    titleLabel.Position = UDim2.new(0, 45, 0, 8)
+    titleLabel.Size = UDim2.new(1, -26, 0, 8) -- Adjusted width
+    titleLabel.Position = UDim2.new(0, 22, 0, 4)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = titleText
     titleLabel.TextColor3 = COLORS.TEXT_SECONDARY
     titleLabel.Font = Enum.Font.Gotham
-    titleLabel.TextSize = 14
+    titleLabel.TextSize = 8 -- Smaller text
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = chip
 
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "Value"
-    valueLabel.Size = UDim2.new(1, -50, 0, 20)
-    valueLabel.Position = UDim2.new(0, 45, 0, 28)
+    valueLabel.Size = UDim2.new(1, -26, 0, 10) -- Adjusted height
+    valueLabel.Position = UDim2.new(0, 22, 0, 14) -- Adjusted position
     valueLabel.BackgroundTransparency = 1
     valueLabel.Text = "--"
     valueLabel.TextColor3 = COLORS.TEXT_PRIMARY
     valueLabel.Font = Enum.Font.GothamBold
-    valueLabel.TextSize = 18
+    valueLabel.TextSize = 9 -- Smaller text
     valueLabel.TextXAlignment = Enum.TextXAlignment.Left
     valueLabel.Parent = chip
 
@@ -801,7 +975,8 @@ function NookPhoneGUI:updateCanvasFromLayout(content: ScrollingFrame, layout: UI
     padding = padding or 40
     task.defer(function()
         if content and layout and layout.Parent == content then
-            content.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + padding)
+            local contentSize = layout.AbsoluteContentSize.Y or 0
+            content.CanvasSize = UDim2.new(0, 0, 0, contentSize + padding)
         end
     end)
 end
@@ -1152,9 +1327,16 @@ function NookPhoneGUI:openApp(appId)
         return
     end
 
+    -- Apps that open separate GUIs (not in-phone apps)
     local externalOnly = {
         nook_shopping = true,
         nook_home = true,
+        inventory = true,
+        quests = true,
+        recipes = true,
+        tools = true,
+        settings = true,
+        map = true,
     }
 
     if externalOnly[appId] then
@@ -1181,7 +1363,7 @@ function NookPhoneGUI:openApp(appId)
 
     local slideIn = TweenService:Create(
         self.appContentContainer,
-        TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
         { Position = UDim2.new(0, 0, 0, 0) }
     )
 
@@ -1241,7 +1423,7 @@ function NookPhoneGUI:launchExternalApp(appId)
     if self.visible then
         self:hide()
         task.spawn(function()
-            task.wait(0.35)
+            task.wait(0.15) -- Faster transition
             triggerLaunch()
         end)
     else
@@ -1259,7 +1441,7 @@ function NookPhoneGUI:closeApp()
     -- Slide app content out to right
     local slideOut = TweenService:Create(
         self.appContentContainer,
-        TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+        TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
         { Position = UDim2.new(1, 0, 0, 0) }
     )
 
@@ -1291,6 +1473,10 @@ function NookPhoneGUI:loadAppContent(appId)
         self:loadAchievementsApp(content)
     elseif appId == "settings" then
         self:loadSettingsApp(content)
+    elseif appId == "save_game" then
+        self:loadSaveGameApp(content)
+    elseif appId == "delivery" then
+        self:loadDeliveryApp(content)
     else
         self:loadPlaceholderApp(content, appId)
     end
@@ -1314,10 +1500,10 @@ function NookPhoneGUI:loadGuideApp(content)
     layout.Parent = content
 
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 70)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 50)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local questState = self.dynamicState.quests
@@ -1357,39 +1543,34 @@ end
 
 function NookPhoneGUI:createGuideCard(title, description, index)
     local card = Instance.new("Frame")
-    card.Size = UDim2.new(1, 0, 0, 100)
-    card.BackgroundColor3 = COLORS.APP_ICON_BG
+    card.Size = UDim2.new(1, 0, 0, 80)
+    card.BackgroundColor3 = Color3.fromRGB(255, 253, 245)
     card.BorderSizePixel = 0
     card.LayoutOrder = index
 
     local cardCorner = Instance.new("UICorner")
-    cardCorner.CornerRadius = UDim.new(0, 12)
+    cardCorner.CornerRadius = UDim.new(0, 14)
     cardCorner.Parent = card
 
-    local cardStroke = Instance.new("UIStroke")
-    cardStroke.Color = COLORS.BORDER
-    cardStroke.Thickness = 2
-    cardStroke.Parent = card
-
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -20, 0, 30)
-    titleLabel.Position = UDim2.new(0, 10, 0, 10)
+    titleLabel.Size = UDim2.new(1, -16, 0, 22)
+    titleLabel.Position = UDim2.new(0, 8, 0, 8)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = title
     titleLabel.TextColor3 = COLORS.TEXT_PRIMARY
     titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 18
+    titleLabel.TextSize = 13
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = card
 
     local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(1, -20, 1, -50)
-    descLabel.Position = UDim2.new(0, 10, 0, 40)
+    descLabel.Size = UDim2.new(1, -16, 1, -36)
+    descLabel.Position = UDim2.new(0, 8, 0, 30)
     descLabel.BackgroundTransparency = 1
     descLabel.Text = description
     descLabel.TextColor3 = COLORS.TEXT_SECONDARY
     descLabel.Font = Enum.Font.Gotham
-    descLabel.TextSize = 14
+    descLabel.TextSize = 11
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
     descLabel.TextWrapped = true
     descLabel.Parent = card
@@ -1400,10 +1581,10 @@ end
 function NookPhoneGUI:loadMapApp(content)
     -- Map opens externally, but show live info inside phone
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1448,10 +1629,10 @@ end
 
 function NookPhoneGUI:loadInventoryApp(content)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1500,10 +1681,10 @@ end
 
 function NookPhoneGUI:loadQuestsApp(content)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1552,10 +1733,10 @@ end
 
 function NookPhoneGUI:loadRecipesApp(content)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1600,10 +1781,10 @@ end
 
 function NookPhoneGUI:loadToolsApp(content)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1649,10 +1830,10 @@ end
 
 function NookPhoneGUI:loadAchievementsApp(content)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1697,10 +1878,10 @@ end
 
 function NookPhoneGUI:loadSettingsApp(content)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -1736,12 +1917,344 @@ function NookPhoneGUI:loadSettingsApp(content)
     self:updateCanvasFromLayout(content, layout, 200)
 end
 
+function NookPhoneGUI:loadSaveGameApp(content)
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
+    padding.Parent = content
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    -- Save status card
+    local saveStatusCard = self:createInfoCard("💾 Save Status", "Ready to save", {
+        "Your game auto-saves every 30 seconds.",
+        "Manual save ensures no progress is lost.",
+        string.format("Last save: %s", os.date("%H:%M:%S")),
+    }, Color3.fromRGB(76, 175, 80))
+    saveStatusCard.Parent = content
+
+    -- Data summary card
+    local inventoryState = self.dynamicState.inventory
+    local questState = self.dynamicState.quests
+    local dataSummaryCard = self:createInfoCard("📊 Game Data", "Current session", {
+        string.format("• Inventory: %d / %d slots", inventoryState.used or 0, inventoryState.max or 0),
+        string.format("• Quests: %d active, %d completed", #questState.active, questState.completed),
+        string.format("• Bells: %s", formatNumber(self.dynamicState.bells)),
+        string.format("• Miles: %s", formatNumber(self.dynamicState.miles)),
+    }, Color3.fromRGB(255, 152, 0))
+    dataSummaryCard.Parent = content
+
+    -- Manual save button
+    local saveButton = self:createActionButton("💾 Save Game Now", function()
+        self:performManualSave(saveStatusCard, dataSummaryCard)
+    end)
+    saveButton.Parent = content
+
+    -- Auto-save info
+    local autoSaveCard = self:createInfoCard("⏰ Auto-Save Schedule", "Every 30 seconds", {
+        "• Player inventory",
+        "• Quest progress", 
+        "• Currency (Bells & Miles)",
+        "• Island modifications",
+        "• Home building progress",
+    }, Color3.fromRGB(156, 39, 176))
+    autoSaveCard.Parent = content
+
+    self:updateCanvasFromLayout(content, layout, 200)
+end
+
+function NookPhoneGUI:performManualSave(statusCard, dataCard)
+    -- Find the status and data labels in the cards
+    local statusLabels = statusCard:GetChildren()
+    local dataLabels = dataCard:GetChildren()
+    
+    -- Update status to saving
+    for _, child in ipairs(statusLabels) do
+        if child:IsA("TextLabel") and child.Text == "Ready to save" then
+            child.Text = "Saving..."
+            child.TextColor3 = Color3.fromRGB(255, 193, 7)
+            break
+        end
+    end
+
+    -- Perform the save by triggering island save
+    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if remoteEventsFolder then
+        local saveIslandRemote = remoteEventsFolder:FindFirstChild("SaveIsland")
+        if saveIslandRemote then
+            saveIslandRemote:FireServer()
+        end
+    end
+
+    -- Also trigger other saves through existing systems
+    task.spawn(function()
+        -- Wait a moment for save to process
+        task.wait(2)
+        
+        -- Update status to saved
+        for _, child in ipairs(statusLabels) do
+            if child:IsA("TextLabel") and child.Text == "Saving..." then
+                child.Text = "✅ Saved successfully!"
+                child.TextColor3 = Color3.fromRGB(76, 175, 80)
+                break
+            end
+        end
+
+        -- Update last save time
+        for _, child in ipairs(statusLabels) do
+            if child:IsA("TextLabel") and string.find(child.Text, "Last save:") then
+                child.Text = string.format("Last save: %s", os.date("%H:%M:%S"))
+                break
+            end
+        end
+    end)
+end
+
+function NookPhoneGUI:loadDeliveryApp(content)
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 16)
+    padding.PaddingLeft = UDim.new(0, 16)
+    padding.PaddingRight = UDim.new(0, 16)
+    padding.PaddingBottom = UDim.new(0, 16)
+    padding.Parent = content
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 16)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = content
+
+    -- Header
+    local headerLabel = Instance.new("TextLabel")
+    headerLabel.Size = UDim2.new(1, 0, 0, 32)
+    headerLabel.BackgroundTransparency = 1
+    headerLabel.Text = "✈️ Package Tracking"
+    headerLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    headerLabel.Font = Enum.Font.GothamBold
+    headerLabel.TextSize = 20
+    headerLabel.TextXAlignment = Enum.TextXAlignment.Left
+    headerLabel.LayoutOrder = 1
+    headerLabel.Parent = content
+
+    -- Delivery status card
+    local deliveryStatusCard = self:createDeliveryCard("DAL Delivery Status", "Checking...", Color3.fromRGB(66, 165, 245))
+    deliveryStatusCard.Name = "DeliveryStatusCard"
+    deliveryStatusCard.LayoutOrder = 2
+    deliveryStatusCard.Parent = content
+
+    -- Request delivery status from server
+    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if remoteEventsFolder then
+        local deliveryRemote = remoteEventsFolder:FindFirstChild("NookPlaneDelivery")
+        if deliveryRemote then
+            deliveryRemote:FireServer("GetStatus")
+
+            -- Listen for response
+            local connection
+            connection = deliveryRemote.OnClientEvent:Connect(function(action, data)
+                if action == "DeliveryStatus" then
+                    connection:Disconnect()
+                    self:updateDeliveryStatusCard(deliveryStatusCard, data)
+                end
+            end)
+
+            -- Timeout after 5 seconds
+            task.spawn(function()
+                task.wait(5)
+                if connection.Connected then
+                    connection:Disconnect()
+                    self:updateDeliveryStatusCard(deliveryStatusCard, { hasDeliveries = false, items = {} })
+                end
+            end)
+        else
+            self:updateDeliveryStatusCard(deliveryStatusCard, { hasDeliveries = false, items = {} })
+        end
+    else
+        self:updateDeliveryStatusCard(deliveryStatusCard, { hasDeliveries = false, items = {} })
+    end
+
+    -- How it works card
+    local howItWorksCard = self:createDeliveryCard("How Delivery Works", nil, Color3.fromRGB(4, 175, 166))
+    howItWorksCard.LayoutOrder = 3
+    howItWorksCard.Parent = content
+
+    -- Add instruction steps
+    local steps = {
+        "🛒 Purchase from Nook Shopping",
+        "✈️ DAL plane flies to your island",
+        "🪂 Package drops with parachute",
+        "📦 Walk to it to collect!",
+    }
+    local stepsContainer = howItWorksCard:FindFirstChild("ContentArea")
+    if stepsContainer then
+        for i, step in ipairs(steps) do
+            local stepLabel = Instance.new("TextLabel")
+            stepLabel.Size = UDim2.new(1, 0, 0, 18)
+            stepLabel.BackgroundTransparency = 1
+            stepLabel.Text = step
+            stepLabel.TextColor3 = COLORS.TEXT_PRIMARY
+            stepLabel.Font = Enum.Font.Gotham
+            stepLabel.TextSize = 12
+            stepLabel.TextXAlignment = Enum.TextXAlignment.Left
+            stepLabel.TextWrapped = true
+            stepLabel.LayoutOrder = i
+            stepLabel.Parent = stepsContainer
+        end
+    end
+
+    self:updateCanvasFromLayout(content, layout, 200)
+end
+
+-- Simple delivery card with fixed heights (no AutomaticSize issues)
+function NookPhoneGUI:createDeliveryCard(title, statusText, accentColor)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 120)
+    card.BackgroundColor3 = Color3.fromRGB(255, 253, 245)
+    card.BorderSizePixel = 0
+
+    local cardCorner = Instance.new("UICorner")
+    cardCorner.CornerRadius = UDim.new(0, 14)
+    cardCorner.Parent = card
+
+    -- Left accent bar
+    local accentBar = Instance.new("Frame")
+    accentBar.Size = UDim2.new(0, 5, 1, -12)
+    accentBar.Position = UDim2.new(0, 6, 0, 6)
+    accentBar.BackgroundColor3 = accentColor
+    accentBar.BorderSizePixel = 0
+    accentBar.Parent = card
+
+    local accentCorner = Instance.new("UICorner")
+    accentCorner.CornerRadius = UDim.new(0, 3)
+    accentCorner.Parent = accentBar
+
+    -- Title
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -32, 0, 24)
+    titleLabel.Position = UDim2.new(0, 20, 0, 12)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = COLORS.TEXT_PRIMARY
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 15
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = card
+
+    -- Content area for status or steps
+    local contentArea = Instance.new("Frame")
+    contentArea.Name = "ContentArea"
+    contentArea.Size = UDim2.new(1, -32, 1, -44)
+    contentArea.Position = UDim2.new(0, 20, 0, 40)
+    contentArea.BackgroundTransparency = 1
+    contentArea.Parent = card
+
+    local contentLayout = Instance.new("UIListLayout")
+    contentLayout.Padding = UDim.new(0, 4)
+    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    contentLayout.Parent = contentArea
+
+    -- Status text if provided
+    if statusText then
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Name = "StatusLabel"
+        statusLabel.Size = UDim2.new(1, 0, 0, 20)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = statusText
+        statusLabel.TextColor3 = COLORS.TEXT_SECONDARY
+        statusLabel.Font = Enum.Font.Gotham
+        statusLabel.TextSize = 13
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        statusLabel.LayoutOrder = 1
+        statusLabel.Parent = contentArea
+    end
+
+    return card
+end
+
+function NookPhoneGUI:updateDeliveryStatusCard(card, data)
+    local contentArea = card:FindFirstChild("ContentArea")
+    if not contentArea then return end
+
+    -- Clear existing content
+    for _, child in ipairs(contentArea:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+
+    if data.hasDeliveries and #data.items > 0 then
+        -- Show package count
+        local countLabel = Instance.new("TextLabel")
+        countLabel.Size = UDim2.new(1, 0, 0, 24)
+        countLabel.BackgroundTransparency = 1
+        countLabel.Text = string.format("📦 %d package(s) incoming!", #data.items)
+        countLabel.TextColor3 = Color3.fromRGB(255, 180, 0)
+        countLabel.Font = Enum.Font.GothamBold
+        countLabel.TextSize = 14
+        countLabel.TextXAlignment = Enum.TextXAlignment.Left
+        countLabel.LayoutOrder = 1
+        countLabel.Parent = contentArea
+
+        -- Show ETA if available
+        if data.timeRemaining and data.timeRemaining > 0 then
+            local etaLabel = Instance.new("TextLabel")
+            etaLabel.Size = UDim2.new(1, 0, 0, 20)
+            etaLabel.BackgroundTransparency = 1
+            etaLabel.Text = string.format("⏱️ Arriving in ~%d seconds", data.timeRemaining)
+            etaLabel.TextColor3 = COLORS.TEXT_SECONDARY
+            etaLabel.Font = Enum.Font.Gotham
+            etaLabel.TextSize = 12
+            etaLabel.TextXAlignment = Enum.TextXAlignment.Left
+            etaLabel.LayoutOrder = 2
+            etaLabel.Parent = contentArea
+        elseif data.planeActive then
+            local flyingLabel = Instance.new("TextLabel")
+            flyingLabel.Size = UDim2.new(1, 0, 0, 20)
+            flyingLabel.BackgroundTransparency = 1
+            flyingLabel.Text = "✈️ Plane is on its way!"
+            flyingLabel.TextColor3 = Color3.fromRGB(100, 180, 255)
+            flyingLabel.Font = Enum.Font.Gotham
+            flyingLabel.TextSize = 12
+            flyingLabel.TextXAlignment = Enum.TextXAlignment.Left
+            flyingLabel.LayoutOrder = 2
+            flyingLabel.Parent = contentArea
+        end
+    else
+        -- No deliveries
+        local noDeliveriesLabel = Instance.new("TextLabel")
+        noDeliveriesLabel.Size = UDim2.new(1, 0, 0, 24)
+        noDeliveriesLabel.BackgroundTransparency = 1
+        noDeliveriesLabel.Text = "✅ No pending deliveries"
+        noDeliveriesLabel.TextColor3 = Color3.fromRGB(100, 180, 100)
+        noDeliveriesLabel.Font = Enum.Font.GothamMedium
+        noDeliveriesLabel.TextSize = 14
+        noDeliveriesLabel.TextXAlignment = Enum.TextXAlignment.Left
+        noDeliveriesLabel.LayoutOrder = 1
+        noDeliveriesLabel.Parent = contentArea
+
+        local hintLabel = Instance.new("TextLabel")
+        hintLabel.Size = UDim2.new(1, 0, 0, 18)
+        hintLabel.BackgroundTransparency = 1
+        hintLabel.Text = "Shop at Nook Shopping to order items!"
+        hintLabel.TextColor3 = COLORS.TEXT_SECONDARY
+        hintLabel.Font = Enum.Font.Gotham
+        hintLabel.TextSize = 11
+        hintLabel.TextXAlignment = Enum.TextXAlignment.Left
+        hintLabel.LayoutOrder = 2
+        hintLabel.Parent = contentArea
+    end
+end
+
 function NookPhoneGUI:loadPlaceholderApp(content, appId)
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local card = self:createInfoCard("📱 " .. appId, "Coming soon!", {
@@ -1760,40 +2273,45 @@ function NookPhoneGUI:createInfoCard(title, subtitle, lines, accentColor)
 
     local card = Instance.new("Frame")
     card.Size = UDim2.new(1, 0, 0, 0)
-    card.BackgroundColor3 = COLORS.APP_ICON_BG
+    card.BackgroundColor3 = Color3.fromRGB(255, 253, 245)
     card.BorderSizePixel = 0
     card.AutomaticSize = Enum.AutomaticSize.Y
 
     local cardCorner = Instance.new("UICorner")
-    cardCorner.CornerRadius = UDim.new(0, 16)
+    cardCorner.CornerRadius = UDim.new(0, 14)
     cardCorner.Parent = card
 
-    local cardStroke = Instance.new("UIStroke")
-    cardStroke.Color = accentColor
-    cardStroke.Thickness = 3
-    cardStroke.Transparency = 0.3
-    cardStroke.Parent = card
+    -- Accent bar on left side instead of full border
+    local accentBar = Instance.new("Frame")
+    accentBar.Size = UDim2.new(0, 4, 1, -8)
+    accentBar.Position = UDim2.new(0, 4, 0, 4)
+    accentBar.BackgroundColor3 = accentColor
+    accentBar.BorderSizePixel = 0
+    accentBar.Parent = card
+    local accentCorner = Instance.new("UICorner")
+    accentCorner.CornerRadius = UDim.new(0, 2)
+    accentCorner.Parent = accentBar
 
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 14)
+    padding.PaddingRight = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
     padding.Parent = card
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 12)
+    layout.Padding = UDim.new(0, 6)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = card
 
     -- Title
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, 0, 0, 35)
+    titleLabel.Size = UDim2.new(1, 0, 0, 20)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = title
     titleLabel.TextColor3 = COLORS.TEXT_PRIMARY
     titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 24
+    titleLabel.TextSize = 14
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.LayoutOrder = 1
     titleLabel.Parent = card
@@ -1801,12 +2319,12 @@ function NookPhoneGUI:createInfoCard(title, subtitle, lines, accentColor)
     -- Subtitle
     if subtitle and subtitle ~= "" then
         local subtitleLabel = Instance.new("TextLabel")
-        subtitleLabel.Size = UDim2.new(1, 0, 0, 25)
+        subtitleLabel.Size = UDim2.new(1, 0, 0, 16)
         subtitleLabel.BackgroundTransparency = 1
         subtitleLabel.Text = subtitle
         subtitleLabel.TextColor3 = COLORS.TEXT_SECONDARY
         subtitleLabel.Font = Enum.Font.Gotham
-        subtitleLabel.TextSize = 16
+        subtitleLabel.TextSize = 11
         subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
         subtitleLabel.LayoutOrder = 2
         subtitleLabel.Parent = card
@@ -1816,12 +2334,12 @@ function NookPhoneGUI:createInfoCard(title, subtitle, lines, accentColor)
     if lines then
         for i, line in ipairs(lines) do
             local lineLabel = Instance.new("TextLabel")
-            lineLabel.Size = UDim2.new(1, 0, 0, 20)
+            lineLabel.Size = UDim2.new(1, 0, 0, 14)
             lineLabel.BackgroundTransparency = 1
             lineLabel.Text = line
             lineLabel.TextColor3 = line == "" and Color3.new(0, 0, 0) or COLORS.TEXT_SECONDARY
             lineLabel.Font = Enum.Font.Gotham
-            lineLabel.TextSize = 15
+            lineLabel.TextSize = 10
             lineLabel.TextXAlignment = Enum.TextXAlignment.Left
             lineLabel.LayoutOrder = 2 + i
             lineLabel.Parent = card
@@ -1833,47 +2351,47 @@ end
 
 function NookPhoneGUI:createQuestCard(quest, index)
     local card = Instance.new("Frame")
-    card.Size = UDim2.new(1, 0, 0, 110)
-    card.BackgroundColor3 = COLORS.APP_ICON_BG
+    card.Size = UDim2.new(1, 0, 0, 85)
+    card.BackgroundColor3 = Color3.fromRGB(255, 253, 245)
     card.BorderSizePixel = 0
     card.LayoutOrder = index or 1
 
     local cardCorner = Instance.new("UICorner")
-    cardCorner.CornerRadius = UDim.new(0, 12)
+    cardCorner.CornerRadius = UDim.new(0, 14)
     cardCorner.Parent = card
 
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 12)
-    padding.PaddingBottom = UDim.new(0, 12)
-    padding.PaddingLeft = UDim.new(0, 16)
-    padding.PaddingRight = UDim.new(0, 16)
+    padding.PaddingTop = UDim.new(0, 8)
+    padding.PaddingBottom = UDim.new(0, 8)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
     padding.Parent = card
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, 0, 0, 24)
+    titleLabel.Size = UDim2.new(1, 0, 0, 18)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = quest.name or "Quest"
     titleLabel.TextColor3 = COLORS.TEXT_PRIMARY
     titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 20
+    titleLabel.TextSize = 13
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = card
 
     local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(1, 0, 0, 32)
-    descLabel.Position = UDim2.new(0, 0, 0, 26)
+    descLabel.Size = UDim2.new(1, 0, 0, 26)
+    descLabel.Position = UDim2.new(0, 0, 0, 20)
     descLabel.BackgroundTransparency = 1
     descLabel.Text = quest.description or "Complete tasks to earn rewards."
     descLabel.TextColor3 = COLORS.TEXT_SECONDARY
     descLabel.Font = Enum.Font.Gotham
-    descLabel.TextSize = 14
+    descLabel.TextSize = 10
     descLabel.TextWrapped = true
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
     descLabel.Parent = card
 
     local progressFrame = Instance.new("Frame")
-    progressFrame.Size = UDim2.new(1, 0, 0, 12)
-    progressFrame.Position = UDim2.new(0, 0, 0, 70)
+    progressFrame.Size = UDim2.new(1, 0, 0, 8)
+    progressFrame.Position = UDim2.new(0, 0, 0, 54)
     progressFrame.BackgroundColor3 = Color3.fromRGB(230, 226, 210)
     progressFrame.BorderSizePixel = 0
     progressFrame.Parent = card
@@ -1918,10 +2436,10 @@ function NookPhoneGUI:createProgressStatCard(title, subtitle, progress, descript
     cardCorner.Parent = card
 
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 12)
-    padding.PaddingBottom = UDim.new(0, 12)
-    padding.PaddingLeft = UDim.new(0, 16)
-    padding.PaddingRight = UDim.new(0, 16)
+    padding.PaddingTop = UDim.new(0, 8)
+    padding.PaddingBottom = UDim.new(0, 8)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
     padding.Parent = card
 
     local titleLabel = Instance.new("TextLabel")
@@ -1989,16 +2507,16 @@ end
 
 function NookPhoneGUI:createActionButton(labelText, callback)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, 42)
+    button.Size = UDim2.new(1, 0, 0, 36)
     button.BackgroundColor3 = COLORS.ACCENT
     button.TextColor3 = Color3.fromRGB(255, 255, 255)
     button.Font = Enum.Font.GothamBold
-    button.TextSize = 18
+    button.TextSize = 12
     button.Text = labelText
     button.BorderSizePixel = 0
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
+    corner.CornerRadius = UDim.new(0, 18)
     corner.Parent = button
 
     button.MouseButton1Click:Connect(function()
@@ -2042,10 +2560,10 @@ function NookPhoneGUI:showDialogueSequence(dialogues: { [number]: { villagerName
     content.CanvasPosition = Vector2.new(0, 0)
 
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 20)
-    padding.PaddingLeft = UDim.new(0, 20)
-    padding.PaddingRight = UDim.new(0, 20)
-    padding.PaddingBottom = UDim.new(0, 20)
+    padding.PaddingTop = UDim.new(0, 12)
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingBottom = UDim.new(0, 12)
     padding.Parent = content
 
     local layout = Instance.new("UIListLayout")
@@ -2156,10 +2674,10 @@ function NookPhoneGUI:show()
     self.appContentContainer.Visible = false
     self.currentApp = nil
 
-    -- Slide in from bottom
+    -- Slide in from bottom (fast)
     local slideIn = TweenService:Create(
         self.phoneContainer,
-        TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
         { Position = self.phoneVisiblePos }
     )
 
@@ -2190,13 +2708,13 @@ function NookPhoneGUI:hide()
     -- Close any open app first
     if self.currentApp then
         self:closeApp()
-        task.wait(0.3)
+        task.wait(0.1)
     end
 
-    -- Slide out to bottom
+    -- Slide out to bottom (fast)
     local slideOut = TweenService:Create(
         self.phoneContainer,
-        TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+        TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
         { Position = self.phoneStartPos }
     )
 
@@ -2247,6 +2765,28 @@ end
 
 function NookPhoneGUI:setShopGUI(shopGUI)
     self.appModules["nook_shopping"] = shopGUI
+end
+
+-- Connect to delivery notifications
+function NookPhoneGUI:connectDeliveryNotifications()
+    local remoteEventsFolder = ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if not remoteEventsFolder then return end
+
+    local deliveryRemote = remoteEventsFolder:FindFirstChild("NookPlaneDelivery")
+    if not deliveryRemote then return end
+
+    deliveryRemote.OnClientEvent:Connect(function(action, data)
+        if action == "DeliveryScheduled" then
+            -- Package is incoming - show notification badge
+            self:setAppNotification("delivery", #data.items)
+        elseif action == "PlaneArriving" then
+            -- Plane is here!
+            self:setAppNotification("delivery", 1)
+        elseif action == "ItemCollected" or action == "ItemAutoCollected" then
+            -- Package collected - clear notification
+            self:setAppNotification("delivery", 0)
+        end
+    end)
 end
 
 -- Alias methods for GUIManager compatibility

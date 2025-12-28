@@ -194,7 +194,7 @@ function HomeBuildingGUI:createTitleBar()
     closeButton.Size = UDim2.fromOffset(35, 35)
     closeButton.Position = UDim2.new(1, -42, 0.5, -17)
     closeButton.BackgroundColor3 = COLORS.ACCENT_ORANGE
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextSize = 18
     closeButton.TextColor3 = COLORS.TEXT_LIGHT

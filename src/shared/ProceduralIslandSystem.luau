@@ -392,43 +392,7 @@ function ProceduralIslandSystem:createTree(proposal: any): Instance
     treeContainer:SetAttribute("HarvestType", "tree")
     treeContainer:SetAttribute("ResourceType", "tree")
 
-    -- Add hole model (dug up ground)
-    local holeSuccess, holeModel = pcall(function()
-        return game:GetService("InsertService"):LoadAsset(98139431900134)
-    end)
-
-    if holeSuccess and holeModel then
-        local hole = holeModel:GetChildren()[1]:Clone()
-        hole.Name = "Hole"
-
-        if hole:IsA("Model") then
-            hole:MoveTo(Vector3.new(proposal.position.X, terrainHeight, proposal.position.Z))
-        else
-            hole.Position = Vector3.new(proposal.position.X, terrainHeight, proposal.position.Z)
-        end
-
-        hole.Parent = treeContainer
-        holeModel:Destroy()
-    end
-
-    -- Add X marker
-    local xSuccess, xModel = pcall(function()
-        return game:GetService("InsertService"):LoadAsset(95502544899864)
-    end)
-
-    if xSuccess and xModel then
-        local xMarker = xModel:GetChildren()[1]:Clone()
-        xMarker.Name = "XMarker"
-
-        if xMarker:IsA("Model") then
-            xMarker:MoveTo(Vector3.new(proposal.position.X, terrainHeight + 0.1, proposal.position.Z))
-        else
-            xMarker.Position = Vector3.new(proposal.position.X, terrainHeight + 0.1, proposal.position.Z)
-        end
-
-        xMarker.Parent = treeContainer
-        xModel:Destroy()
-    end
+    -- Skip spawning hole/X markers for trees.
 
     return treeContainer
 end

@@ -243,7 +243,7 @@ function ItemBrowser:createGui()
     -- Add close button with AC styling - smaller
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Size = UDim2.new(0, 24, 0, 24) -- Reduced from 30, 30
     closeButton.Position = UDim2.new(1, -28, 0, 3) -- Adjusted position
     closeButton.BackgroundColor3 = Color3.fromRGB(4, 175, 166) -- TEAL - your defined accent color

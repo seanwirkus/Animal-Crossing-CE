@@ -20,6 +20,7 @@ local FOSSIL_SPAWN_COUNT = 10
 local BELL_SPAWN_COUNT = 15
 local _MARKER_RESPAWN_TIME = 300 -- 5 minutes
 local MARKER_VISIBLE_TIME = 180 -- 3 minutes visible before disappearing
+local DIG_MARKERS_ENABLED = false
 
 -- Data storage
 local activeMarkers = {} -- [markerId] = {model, spotId, spawnTime, despawnTime}
@@ -291,6 +292,11 @@ function DigMarkerSpawner.init()
 
     -- Clear any existing markers
     DigMarkerSpawner.clearAllMarkers()
+
+    if not DIG_MARKERS_ENABLED then
+        print("[DigMarkerSpawner] ⛔ Dig markers disabled - skipping spawn")
+        return
+    end
 
     -- Create some initial dig spots for testing
     DigMarkerSpawner.createInitialDigSpots()

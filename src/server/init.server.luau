@@ -69,6 +69,7 @@ end
 local CurrencyManager = require(script:WaitForChild("CurrencyManager"))
 local FishingSystem = require(script:WaitForChild("FishingSystem"))
 local BalloonSpawner = require(script:WaitForChild("BalloonSpawner"))
+local NookPlaneService = require(script:WaitForChild("NookPlaneService"))
 local DigMarkerSpawner = require(script:WaitForChild("DigMarkerSpawner"))
 local ShovelSystem = require(script:WaitForChild("ShovelSystem"))
 local TreeShakingSystem = require(script:WaitForChild("TreeShakingSystem"))
@@ -710,11 +711,27 @@ local nextItemId = 1
 local ItemData = ItemDataFetcher.getFallbackData()
 local DisplayItems = ItemDataFetcher.getDisplayItemMap()
 
--- Bell Bag system configuration
+-- Bell Bag system configuration (ACNH Nookipedia values)
+-- Small Bell Bag: 1,000 bells
+-- Bell Bag (Medium): 10,000 bells
+-- Large Bell Bag: 99,000 bells
+local BELL_BAG_VALUES = {
+    small = 1000,   -- BellBagSmall contains 1,000 bells
+    medium = 5000,  -- BellBagMedium contains 5,000 bells
+    large = 10000,  -- BellBagLarge contains 10,000 bells
+}
+
 local BELL_BAG_THRESHOLDS = {
-    small = 500, -- Items worth less than 500 bells = BellBagSmall
-    medium = 2000, -- Items worth 500-2000 bells = BellBagMedium
-    -- Items worth more than 2000 bells = BellBagLarge
+    small = 5000,   -- Items worth less than 5,000 bells = BellBagSmall
+    medium = 50000, -- Items worth 5,000-50,000 bells = BellBagMedium
+    -- Items worth more than 50,000 bells = BellBagLarge
+}
+
+local SPECIAL_BELL_BAG_ITEMS = {
+    bell_bag_small = { value = BELL_BAG_VALUES.small, model = "BellBagSmall" },
+    bell_bag_med = { value = BELL_BAG_VALUES.medium, model = "BellBagMedium" },
+    bell_bag_medium = { value = BELL_BAG_VALUES.medium, model = "BellBagMedium" },
+    bell_bag_large = { value = BELL_BAG_VALUES.large, model = "BellBagLarge" },
 }
 
 -- Get the appropriate bell bag model name based on item sell price
@@ -730,27 +747,51 @@ local function getBellBagModelName(itemSellPrice, itemCount)
     end
 end
 
+-- Get the fixed ACNH bell value for a bell bag type
+local function getBellBagValue(bellBagModelName)
+    if bellBagModelName == "BellBagSmall" then
+        return BELL_BAG_VALUES.small -- 1,000 bells
+    elseif bellBagModelName == "BellBagMedium" then
+        return BELL_BAG_VALUES.medium -- 10,000 bells
+    else
+        return BELL_BAG_VALUES.large -- 99,000 bells
+    end
+end
+
 -- Check if item should spawn as a bell bag
--- Returns: shouldSpawn (boolean), totalValue (number or nil)
+-- Returns: shouldSpawn (boolean), totalValue (number or nil), bellBagType (string or nil)
 local function shouldSpawnAsBellBag(itemId, count)
+    local quantity = math.max(1, count or 1)
+    local specialBag = SPECIAL_BELL_BAG_ITEMS[itemId]
+    if specialBag then
+        return true, specialBag.value * quantity, specialBag.model
+    end
+
     local item = ItemData[itemId]
     if not item then
-        return false, nil
+        return false, nil, nil
     end
 
     -- Get sell price (try multiple field names)
     local sellPrice = item.sell or item.sell_price or item.sellPrice
     if not sellPrice or sellPrice <= 0 then
-        return false, nil
+        return false, nil, nil
     end
 
-    -- Calculate total value
-    local totalValue = sellPrice * count
-    return true, totalValue
+    -- Calculate total value to determine bag type
+    local totalValue = sellPrice * quantity
+    local bellBagType = getBellBagModelName(sellPrice, count)
+
+    -- Use fixed ACNH bell values instead of item sell price
+    local fixedBellValue = getBellBagValue(bellBagType)
+
+    return true, fixedBellValue, bellBagType
 end
 
 -- Load 3D model from ReplicatedStorage by itemId (checks various naming patterns)
 local function loadItem3DModel(itemId)
+    local workspaceRoot = game:GetService("Workspace")
+
     -- Convert itemId to various naming formats
     local function toCamelCase(str)
         -- Convert "bell_bag_small" -> "BellBagSmall"
@@ -806,6 +847,22 @@ local function loadItem3DModel(itemId)
                 logInfo("✅ Found 3D model (partial match)", { modelName = child.Name, itemId = itemId })
                 return child:Clone()
             end
+        end
+    end
+
+    local workspaceMatch = workspaceRoot:FindFirstChild(itemId) or workspaceRoot:FindFirstChild(camelCaseName)
+    if workspaceMatch then
+        if workspaceMatch:IsA("Model") then
+            logInfo("✅ Found 3D model in Workspace", { modelName = workspaceMatch.Name, itemId = itemId })
+            return workspaceMatch:Clone()
+        elseif workspaceMatch:IsA("BasePart") then
+            local wrapper = Instance.new("Model")
+            wrapper.Name = workspaceMatch.Name
+            local partClone = workspaceMatch:Clone()
+            partClone.Parent = wrapper
+            wrapper.PrimaryPart = partClone
+            logInfo("✅ Wrapped Workspace part as model", { modelName = workspaceMatch.Name, itemId = itemId })
+            return wrapper
         end
     end
 
@@ -1456,6 +1513,7 @@ _HomeBuildingService:SetInventoryFunctions(hasCraftingMaterials, consumeCrafting
 logInfo("📚 Connecting OnboardingService to Inventory system...")
 onboardingService:setAddItemFunction(addItemToInventory)
 onboardingService:setStarterKitCheckFunction(hasStarterKit)
+TreeShakingSystem.setAddItemFunction(addItemToInventory)
 
 -- FishingSystem is ready to use (no init needed)
 
@@ -1804,7 +1862,7 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 -- Add ProximityPrompt for bell bag pickup
                 local prompt = Instance.new("ProximityPrompt")
                 prompt.Name = "PickupBellBag"
-                prompt.ActionText = "Pick Up"
+                prompt.ActionText = "Collect Bells"
                 -- Format bell bag name (e.g., "BellBagSmall" -> "Small Bell Bag", "BellBagMedium" -> "Medium Bell Bag")
                 local displayName = bellBagModelName or "Bell Bag"
                 if bellBagModelName then
@@ -1818,11 +1876,19 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                         displayName = displayName:sub(1, 1):upper() .. displayName:sub(2):lower() .. " Bell Bag"
                     end
                 end
-                prompt.ObjectText = displayName .. " (" .. totalValue .. " Bells)"
+                -- Format bells with commas
+                local formattedBells = tostring(totalValue):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+                prompt.ObjectText = "💰 " .. formattedBells .. " Bells"
                 prompt.HoldDuration = 0
+                prompt.KeyboardKeyCode = Enum.KeyCode.E
                 prompt.MaxActivationDistance = 8
                 prompt.RequiresLineOfSight = false
+                prompt.Style = Enum.ProximityPromptStyle.Custom -- Use custom style for special coloring
                 prompt.Parent = pivot
+
+                -- Add an attribute to mark this as a bell bag for custom UI styling
+                prompt:SetAttribute("IsBellBag", true)
+                prompt:SetAttribute("BellsValue", totalValue)
 
                 -- Connect pickup
                 prompt.Triggered:Connect(function(pickingPlayer)
@@ -1832,14 +1898,51 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                     end
                     lastPickupAttempt = now
 
-                    -- Add bells to player
-                    if totalValue and totalValue > 0 then
-                        local success = CurrencyManager.addBells(pickingPlayer, totalValue)
+                    -- Check if player wants to collect as item or as bells
+                    -- For now, default to bells, but we'll add UI choice later
+                    local collectAsItem = false -- This will be set based on player choice
+
+                    if collectAsItem then
+                        -- Add bell bag as item to inventory
+                        local bellBagItemId = "bell_bag_" .. string.lower(bellBagModelName:gsub("BellBag", ""))
+                        local success, err = addItemToInventory(pickingPlayer, {
+                            itemId = bellBagItemId,
+                            count = 1,
+                        })
                         if success then
                             logInfo(
-                                "💰 Bell bag picked up",
-                                { player = pickingPlayer.Name, model = bellBagModelName, totalValue = totalValue }
+                                "🎒 Bell bag picked up as item",
+                                { player = pickingPlayer.Name, model = bellBagModelName, itemId = bellBagItemId }
                             )
+                        else
+                            warn("[Server] ❌ Failed to add bell bag item to inventory:", err)
+                            -- Fallback to collecting as bells if inventory is full
+                            if totalValue and totalValue > 0 then
+                                local success = CurrencyManager.addBells(pickingPlayer, totalValue)
+                                if success then
+                                    logInfo(
+                                        "💰 Bell bag picked up as bells (inventory full)",
+                                        { player = pickingPlayer.Name, model = bellBagModelName, totalValue = totalValue }
+                                    )
+                                else
+                                    warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
+                                end
+                            end
+                        end
+                    else
+                        -- Add bells to player (original behavior)
+                        if totalValue and totalValue > 0 then
+                            local success = CurrencyManager.addBells(pickingPlayer, totalValue)
+                            if success then
+                                logInfo(
+                                    "💰 Bell bag picked up",
+                                    { player = pickingPlayer.Name, model = bellBagModelName, totalValue = totalValue }
+                                )
+                            else
+                                warn("[Server] ❌ Failed to add bells to", pickingPlayer.Name)
+                            end
+                        end
+                    end
 
                             -- Play pickup animation
                             local character = pickingPlayer.Character
@@ -1896,26 +1999,44 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         end)
         trackConnection(landingConnection)
 
-        -- Add enhanced glow to bell bag (use PrimaryPart or first part)
+        -- Add enhanced glow and sparkle effects to bell bag (use PrimaryPart or first part)
         local glowPart = bellBagModel and (bellBagModel.PrimaryPart or bellBagModel:FindFirstChildOfClass("BasePart"))
         if glowPart then
-            -- Remove existing light if any
+            -- Remove existing effects if any
             local existingLight = glowPart:FindFirstChild("BellBagGlow")
             if existingLight then
                 existingLight:Destroy()
             end
-
-            -- Enhanced glow based on bell bag size
-            local glowRange = 10
-            local glowBrightness = 1.5
-            if bellBagModelName == "BellBagLarge" then
-                glowRange = 15
-                glowBrightness = 2.0
-            elseif bellBagModelName == "BellBagMedium" then
-                glowRange = 12
-                glowBrightness = 1.8
+            local existingSparkle = glowPart:FindFirstChild("BellBagSparkle")
+            if existingSparkle then
+                existingSparkle:Destroy()
+            end
+            local existingGoldParticles = glowPart:FindFirstChild("BellBagGoldParticles")
+            if existingGoldParticles then
+                existingGoldParticles:Destroy()
             end
 
+            -- Enhanced glow based on bell bag size (ACNH values)
+            local glowRange = 12
+            local glowBrightness = 2.0
+            local sparkleRate = 8
+            local goldParticleRate = 4
+            if bellBagModelName == "BellBagLarge" then
+                -- 99,000 bells - maximum sparkle!
+                glowRange = 18
+                glowBrightness = 3.0
+                sparkleRate = 15
+                goldParticleRate = 8
+            elseif bellBagModelName == "BellBagMedium" then
+                -- 10,000 bells
+                glowRange = 15
+                glowBrightness = 2.5
+                sparkleRate = 12
+                goldParticleRate = 6
+            end
+            -- Small = 1,000 bells (default values above)
+
+            -- Main gold point light
             local pointLight = Instance.new("PointLight")
             pointLight.Name = "BellBagGlow"
             pointLight.Range = glowRange
@@ -1923,6 +2044,64 @@ local function createDroppedItem(player, itemId, count, worldPosition)
             pointLight.Color = Color3.fromRGB(255, 215, 0) -- Gold color
             pointLight.Shadows = false
             pointLight.Parent = glowPart
+
+            -- Sparkle particle emitter (white/gold sparkles floating up)
+            local sparkleEmitter = Instance.new("ParticleEmitter")
+            sparkleEmitter.Name = "BellBagSparkle"
+            sparkleEmitter.Texture = "rbxassetid://6490035152" -- Star/sparkle texture
+            sparkleEmitter.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 223, 100)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 200, 50)),
+            })
+            sparkleEmitter.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.1),
+                NumberSequenceKeypoint.new(0.5, 0.25),
+                NumberSequenceKeypoint.new(1, 0),
+            })
+            sparkleEmitter.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.3),
+                NumberSequenceKeypoint.new(0.7, 0.5),
+                NumberSequenceKeypoint.new(1, 1),
+            })
+            sparkleEmitter.Lifetime = NumberRange.new(0.8, 1.5)
+            sparkleEmitter.Rate = sparkleRate
+            sparkleEmitter.Speed = NumberRange.new(0.5, 1.5)
+            sparkleEmitter.SpreadAngle = Vector2.new(30, 30)
+            sparkleEmitter.Rotation = NumberRange.new(0, 360)
+            sparkleEmitter.RotSpeed = NumberRange.new(-180, 180)
+            sparkleEmitter.LightEmission = 0.8
+            sparkleEmitter.LightInfluence = 0.2
+            sparkleEmitter.Parent = glowPart
+
+            -- Gold coin/bell particles (larger, slower, more magical)
+            local goldParticles = Instance.new("ParticleEmitter")
+            goldParticles.Name = "BellBagGoldParticles"
+            goldParticles.Texture = "rbxassetid://304846479" -- Circular particle
+            goldParticles.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 200, 50)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 160, 40)),
+            })
+            goldParticles.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.15),
+                NumberSequenceKeypoint.new(0.3, 0.3),
+                NumberSequenceKeypoint.new(1, 0.05),
+            })
+            goldParticles.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.2),
+                NumberSequenceKeypoint.new(0.8, 0.6),
+                NumberSequenceKeypoint.new(1, 1),
+            })
+            goldParticles.Lifetime = NumberRange.new(1.2, 2.0)
+            goldParticles.Rate = goldParticleRate
+            goldParticles.Speed = NumberRange.new(0.3, 0.8)
+            goldParticles.SpreadAngle = Vector2.new(45, 45)
+            goldParticles.Drag = 2
+            goldParticles.Acceleration = Vector3.new(0, -0.5, 0) -- Gentle float up then fall
+            goldParticles.LightEmission = 0.6
+            goldParticles.LightInfluence = 0.3
+            goldParticles.Parent = glowPart
 
             -- Add subtle pulsing glow effect (optimized - only update every 10 frames)
             local pulseTime = 0
@@ -1943,12 +2122,16 @@ local function createDroppedItem(player, itemId, count, worldPosition)
                 end
 
                 pulseTime = pulseTime + 0.16
-                local pulse = 0.1 * math.sin(pulseTime * 2) -- Subtle pulse
+                local pulse = 0.3 * math.sin(pulseTime * 3) -- More noticeable pulse
                 pointLight.Brightness = glowBrightness + pulse
             end)
             trackConnection(pulseConnection)
 
-            logInfo("✅ Added enhanced glow to bell bag model", { model = bellBagModelName })
+            logInfo("✅ Added enhanced glow and sparkle effects to bell bag", {
+                model = bellBagModelName,
+                bells = totalValue,
+                sparkleRate = sparkleRate
+            })
         else
             warn("[Server] ⚠️ Could not find part to add glow to bell bag model:", bellBagModelName)
         end
@@ -2273,6 +2456,21 @@ local function createDroppedItem(player, itemId, count, worldPosition)
     clickDetector.Parent = pivot
     clickDetector.MouseClick:Connect(pickupItem)
 
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.Name = "PickupItem"
+    prompt.ActionText = "Pick Up"
+    if count and count > 1 then
+        prompt.ObjectText = string.format("%s x%d", item.name, count)
+    else
+        prompt.ObjectText = item.name
+    end
+    prompt.HoldDuration = 0
+    prompt.KeyboardKeyCode = Enum.KeyCode.E
+    prompt.MaxActivationDistance = 8
+    prompt.RequiresLineOfSight = false
+    prompt.Parent = pivot
+    prompt.Triggered:Connect(pickupItem)
+
     -- Add floating effect after landing
     local floatConnection
     local floatTime = 0
@@ -2302,37 +2500,6 @@ local function createDroppedItem(player, itemId, count, worldPosition)
         end
     end)
     trackConnection(floatConnection)
-
-    local proximityConnection
-    proximityConnection = RunService.Heartbeat:Connect(function()
-        if not model.Parent then
-            if proximityConnection then
-                proximityConnection:Disconnect()
-                proximityConnection = nil
-            end
-            return
-        end
-
-        -- Use current pivot position for proximity detection
-        local currentPos = pivot.Position
-
-        for _, otherPlayer in ipairs(Players:GetPlayers()) do
-            local character = otherPlayer.Character
-            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                local distance = (rootPart.Position - currentPos).Magnitude
-                if distance <= 5 then -- Pickup distance
-                    pickupItem(otherPlayer)
-                    if proximityConnection then
-                        proximityConnection:Disconnect()
-                        proximityConnection = nil
-                    end
-                    return
-                end
-            end
-        end
-    end)
-    trackConnection(proximityConnection)
 
     logInfo("✅ Created dropped banner", { item = item.name, count = count, position = worldPosition })
 end
@@ -3044,5 +3211,297 @@ local toolInteractionSystem = ToolInteractionSystem.new(resourceSpawner)
 toolInteractionSystem:initialize()
 toolInteractionSystem:setAddItemFunction(addItemToInventory)
 logInfo("✅ Tool Interaction System initialized")
+
+-- Initialize NookPlane Delivery Service
+logInfo("✈️ Initializing NookPlane Delivery Service...")
+NookPlaneService.initialize(remoteEventsFolder, addItemToInventory)
+logInfo("✅ NookPlane Delivery Service initialized")
+
+-- Initialize Shop Transaction Handler for Nook Shopping purchases
+logInfo("🛒 Initializing Shop Transaction Handler...")
+local shopTransactionRemote = ensureRemoteEvent(remoteEventsFolder, "ShopTransaction")
+local shopFeedbackRemote = ensureRemoteEvent(remoteEventsFolder, "ShopFeedback")
+
+-- Player pending deliveries (items waiting to be delivered via mail)
+local playerPendingDeliveries = {} -- [playerId] = { {itemId, count, orderedAt}, ... }
+
+shopTransactionRemote.OnServerEvent:Connect(function(player, action, data)
+    print(string.format("[ShopTransaction] 📦 Received: player=%s action=%s", player and player.Name or "nil", tostring(action)))
+
+    if not player or not action or not data then
+        print("[ShopTransaction] ⚠️ Missing player, action, or data")
+        return
+    end
+
+    if action == "BuyItem" then
+        local itemId = data.itemId
+        local price = data.price or 0
+        local count = data.count or 1
+        local deliveryMethod = data.deliveryMethod or "instant"
+
+        print(string.format("[ShopTransaction] 🛒 BuyItem: %s x%d for %d bells (delivery: %s)",
+            tostring(itemId), count, price, deliveryMethod))
+
+        if not itemId then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Invalid item",
+            })
+            return
+        end
+
+        -- Check if player has enough bells
+        local currentBells = CurrencyManager.getBells(player)
+        if currentBells < price then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Not enough bells",
+                required = price,
+                current = currentBells,
+            })
+            return
+        end
+
+        -- Deduct bells
+        local deductSuccess = CurrencyManager.removeBells(player, price)
+        if not deductSuccess then
+            shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                reason = "Failed to process payment",
+            })
+            return
+        end
+
+        if deliveryMethod == "instant" then
+            -- Add item directly to inventory
+            local success, err = addItemToInventory(player, {
+                itemId = itemId,
+                count = count,
+            })
+
+            if success then
+                logInfo("🛒 Player purchased item (instant)", {
+                    player = player.Name,
+                    item = itemId,
+                    price = price,
+                })
+
+                shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
+                    itemId = itemId,
+                    count = count,
+                    price = price,
+                    deliveryMethod = "instant",
+                })
+
+                -- Track for quests/challenges
+                if dailyChallengeService then
+                    dailyChallengeService:recordEvent(player, "shop_purchase", 1)
+                end
+            else
+                -- Refund bells if inventory add failed
+                CurrencyManager.addBells(player, price)
+                shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                    reason = "Inventory full",
+                    error = err,
+                })
+            end
+        elseif deliveryMethod == "nookplane" then
+            -- NookPlane delivery - plane flies over and drops package
+            print(string.format("[ShopTransaction] ✈️ Queueing NookPlane delivery for %s: %s x%d", player.Name, itemId, count))
+            local success = NookPlaneService.queueDelivery(player, itemId, count)
+            print(string.format("[ShopTransaction] ✈️ Queue result: %s", tostring(success)))
+
+            if success then
+                logInfo("✈️ Player purchased item (NookPlane delivery)", {
+                    player = player.Name,
+                    item = itemId,
+                    price = price,
+                })
+
+                shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
+                    itemId = itemId,
+                    count = count,
+                    price = price,
+                    deliveryMethod = "nookplane",
+                    message = "The DAL plane will deliver your package shortly!",
+                })
+
+                -- Track for quests/challenges
+                if dailyChallengeService then
+                    dailyChallengeService:recordEvent(player, "shop_purchase", 1)
+                end
+            else
+                -- Refund if queue failed
+                CurrencyManager.addBells(player, price)
+                shopFeedbackRemote:FireClient(player, "PurchaseFailed", {
+                    reason = "Delivery service unavailable",
+                })
+            end
+        else
+            -- Mail delivery (for Nook Shopping next-day delivery) - fallback
+            local playerId = player.UserId
+            if not playerPendingDeliveries[playerId] then
+                playerPendingDeliveries[playerId] = {}
+            end
+
+            table.insert(playerPendingDeliveries[playerId], {
+                itemId = itemId,
+                count = count,
+                orderedAt = os.time(),
+                deliveryTime = os.time() + 60, -- 1 minute for testing (in real game: 86400 for 24 hours)
+            })
+
+            logInfo("🛒 Player purchased item (mail delivery)", {
+                player = player.Name,
+                item = itemId,
+                price = price,
+            })
+
+            shopFeedbackRemote:FireClient(player, "PurchaseSuccess", {
+                itemId = itemId,
+                count = count,
+                price = price,
+                deliveryMethod = "mail",
+                message = "Your order will be delivered shortly!",
+            })
+        end
+    elseif action == "CheckDeliveries" then
+        -- Check if player has any pending deliveries ready
+        local playerId = player.UserId
+        local deliveries = playerPendingDeliveries[playerId]
+
+        if not deliveries or #deliveries == 0 then
+            shopFeedbackRemote:FireClient(player, "DeliveryStatus", {
+                pending = {},
+                ready = {},
+            })
+            return
+        end
+
+        local now = os.time()
+        local pending = {}
+        local ready = {}
+
+        for i = #deliveries, 1, -1 do
+            local delivery = deliveries[i]
+            if now >= delivery.deliveryTime then
+                -- Ready for delivery
+                table.insert(ready, delivery)
+                table.remove(deliveries, i)
+
+                -- Add to inventory
+                local success = addItemToInventory(player, {
+                    itemId = delivery.itemId,
+                    count = delivery.count,
+                })
+
+                if success then
+                    logInfo("📬 Delivered item to player", {
+                        player = player.Name,
+                        item = delivery.itemId,
+                    })
+                end
+            else
+                table.insert(pending, {
+                    itemId = delivery.itemId,
+                    count = delivery.count,
+                    timeRemaining = delivery.deliveryTime - now,
+                })
+            end
+        end
+
+        shopFeedbackRemote:FireClient(player, "DeliveryStatus", {
+            pending = pending,
+            ready = ready,
+        })
+    elseif action == "SellItem" then
+        -- Sell item from player inventory for bells
+        local itemId = data.itemId
+        local count = data.count or 1
+        local slotIndex = data.slotIndex
+
+        if not itemId then
+            shopFeedbackRemote:FireClient(player, "SellFailed", {
+                reason = "Invalid item",
+            })
+            return
+        end
+
+        -- Get sell price for item
+        local sellPrice = 100 -- Default fallback
+
+        -- Check resource items first (from ACNH data)
+        local resourcePrices = {
+            ["softwood"] = 60, ["wood"] = 60, ["hardwood"] = 60,
+            ["bamboo-piece"] = 80, ["young-spring-bamboo"] = 200,
+            ["iron-nugget"] = 375, ["gold-nugget"] = 10000,
+            ["clay"] = 100, ["stone"] = 75,
+            ["tree-branch"] = 5, ["weeds"] = 10, ["coconut"] = 250,
+            ["conch"] = 700, ["coral"] = 500, ["giant-clam"] = 900,
+            ["sand-dollar"] = 120, ["sea-snail"] = 180, ["venus-comb"] = 300,
+            ["cowrie"] = 60, ["summer-shell"] = 600,
+            ["star-fragment"] = 250, ["large-star-fragment"] = 500,
+            ["snowflake"] = 200, ["large-snowflake"] = 2500,
+            ["maple-leaf"] = 200, ["cherry-blossom-petal"] = 200,
+            ["acorn"] = 200, ["pine-cone"] = 200, ["mushroom"] = 200,
+            ["wasp-nest"] = 300,
+            ["flimsy-axe"] = 200, ["flimsy-fishing-rod"] = 100,
+            ["flimsy-net"] = 100, ["flimsy-shovel"] = 200,
+            ["flimsy-watering-can"] = 100, ["ladder"] = 500, ["vaulting-pole"] = 500,
+        }
+
+        if resourcePrices[itemId] then
+            sellPrice = resourcePrices[itemId]
+        end
+
+        -- Try to remove item from inventory
+        local removed = false
+        local playerId = player.UserId
+        local playerInventory = inventories[playerId]
+
+        if playerInventory then
+            for i, slot in ipairs(playerInventory) do
+                if slot and slot.itemId == itemId then
+                    local amountToRemove = math.min(count, slot.count or 1)
+                    slot.count = (slot.count or 1) - amountToRemove
+
+                    if slot.count <= 0 then
+                        playerInventory[i] = nil
+                    end
+
+                    -- Calculate total bells earned
+                    local bellsEarned = sellPrice * amountToRemove
+
+                    -- Add bells to player
+                    CurrencyManager.addBells(player, bellsEarned)
+
+                    logInfo("💰 Player sold item", {
+                        player = player.Name,
+                        item = itemId,
+                        count = amountToRemove,
+                        bells = bellsEarned,
+                    })
+
+                    -- Sync inventory
+                    syncInventory(player)
+
+                    shopFeedbackRemote:FireClient(player, "SellSuccess", {
+                        itemId = itemId,
+                        count = amountToRemove,
+                        bells = bellsEarned,
+                    })
+
+                    removed = true
+                    break
+                end
+            end
+        end
+
+        if not removed then
+            shopFeedbackRemote:FireClient(player, "SellFailed", {
+                reason = "Item not found in inventory",
+            })
+        end
+    end
+end)
+
+logInfo("✅ Shop Transaction Handler initialized")
 
 logInfo("✅ All systems initialized!")

@@ -187,7 +187,7 @@ local function createGUI()
     closeButton.Size = UDim2.new(0, 40, 0, 40)
     closeButton.Position = UDim2.new(1, -50, 0.5, -20)
     closeButton.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextSize = 20
     closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)

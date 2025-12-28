@@ -20,6 +20,9 @@ local itemsById = {}
 local displayItemMap = {}
 local recipesByOutput = {}
 local craftableList = {}
+local DIY_ICON_OVERRIDES = {
+    ["acoustic-guitar"] = 63,
+}
 
 local function cloneShallow(value)
     if typeof(value) ~= "table" then
@@ -216,7 +219,7 @@ for recipeIdx, recipe in ipairs(rawRecipes) do
             sell = recipe.sell,
             source = cloneArray(recipe.source),
             materials = resolvedMaterials,
-            diyIconIndex = recipeIdx, -- Assign DIY icon index based on recipe position (1-80)
+            diyIconIndex = DIY_ICON_OVERRIDES[resultItem.id] or recipeIdx, -- Assign DIY icon index based on recipe position (1-80)
             result = {
                 itemId = resultItem.id,
                 name = resultItem.displayName or resultItem.name,

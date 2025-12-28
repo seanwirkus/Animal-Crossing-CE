@@ -188,7 +188,7 @@ local function ensureGui()
     closeButton.TextColor3 = Color3.fromRGB(120, 100, 80)
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextSize = 20
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.BorderSizePixel = 0
     closeButton.Parent = titleBar
 

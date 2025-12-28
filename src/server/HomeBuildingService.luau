@@ -174,8 +174,8 @@ function HomeBuildingService:_setupRemoteEvents()
 
     self._startPlacementRemote = startPlacementRemote
 
-    startPlacementRemote.OnServerEvent:Connect(function(player)
-        self:RequestPlacement(player)
+    startPlacementRemote.OnServerEvent:Connect(function(player, homeSize)
+        self:RequestPlacement(player, homeSize or "Tent")
     end)
 
     -- UpgradeHome RemoteEvent
@@ -522,42 +522,11 @@ function HomeBuildingService:_getHomeTemplate(size)
 end
 
 function HomeBuildingService:_createFallbackTent(player, position)
-    -- Create a simple tent model as fallback
-    local tent = Instance.new("Model")
+    local tent = HomeTemplates.createTentTemplate({
+        anchored = true,
+    })
     tent.Name = "Tent_" .. player.Name
-
-    -- Base
-    local base = Instance.new("Part")
-    base.Name = "Base"
-    base.Size = Vector3.new(4, 0.2, 4)
-    base.Material = Enum.Material.Fabric
-    base.BrickColor = BrickColor.new("Brown")
-    base.Anchored = true
-    base.CFrame = CFrame.new(position)
-    base.Parent = tent
-
-    -- Tent body (triangular)
-    local body = Instance.new("Part")
-    body.Name = "Body"
-    body.Size = Vector3.new(3.5, 2, 3.5)
-    body.Material = Enum.Material.Fabric
-    body.BrickColor = BrickColor.new("Brown")
-    body.Anchored = true
-    body.Shape = Enum.PartType.Ball
-    body.CFrame = base.CFrame + Vector3.new(0, 1.2, 0)
-    body.Parent = tent
-
-    -- Tent pole
-    local pole = Instance.new("Part")
-    pole.Name = "Pole"
-    pole.Size = Vector3.new(0.2, 3, 0.2)
-    pole.Material = Enum.Material.Wood
-    pole.BrickColor = BrickColor.new("Brown")
-    pole.Anchored = true
-    pole.CFrame = base.CFrame + Vector3.new(0, 1.5, 0)
-    pole.Parent = tent
-
-    tent.PrimaryPart = base
+    tent:PivotTo(CFrame.new(position))
 
     -- Set attributes
     tent:SetAttribute("HomeOwner", player.UserId)

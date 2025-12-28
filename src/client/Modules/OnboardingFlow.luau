@@ -606,20 +606,20 @@ function OnboardingFlow.start()
         end)
 
         task.spawn(function()
-            -- Show loading progress
-            task.wait(0.4)
-            LoadingScreen.setProgress(0.2)
+            -- Show loading progress (faster, snappier)
+            task.wait(0.2)
+            LoadingScreen.setProgress(0.25)
             LoadingScreen.setStatus("Charting the island layout...")
 
-            task.wait(0.6)
-            LoadingScreen.setProgress(0.45)
+            task.wait(0.3)
+            LoadingScreen.setProgress(0.5)
             LoadingScreen.setStatus("Planting trees and flowers...")
 
-            task.wait(0.6)
-            LoadingScreen.setProgress(0.7)
+            task.wait(0.3)
+            LoadingScreen.setProgress(0.75)
             LoadingScreen.setStatus("Building the airport...")
 
-            task.wait(0.6)
+            task.wait(0.3)
             LoadingScreen.setProgress(0.9)
             LoadingScreen.setStatus("Preparing your starter supplies...")
 
@@ -629,9 +629,9 @@ function OnboardingFlow.start()
             end
 
             LoadingScreen.setProgress(1)
-            LoadingScreen.setStatus("Ready to land!")
+            LoadingScreen.setStatus("Welcome to your island!")
 
-            task.wait(1)
+            task.wait(0.5)
             LoadingScreen.hide()
 
             -- After loading screen, play cutscene then start day screen

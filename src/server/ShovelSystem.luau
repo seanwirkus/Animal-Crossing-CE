@@ -389,13 +389,20 @@ local function performTreeDig(player, treeModel)
         end
     end
 
-    -- Scale tree down animation
-    local scaleTween = TweenService:Create(
-        treeModel,
-        TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In),
-        { Size = treeModel.Size * 0.01 }
-    )
-    scaleTween:Play()
+    -- Scale tree down animation using PivotTo (Models don't have Size property)
+    local originalCFrame = treeModel:GetPivot()
+    local shrinkDuration = 0.5
+    local shrinkStartTime = tick()
+
+    task.spawn(function()
+        while tick() - shrinkStartTime < shrinkDuration do
+            local alpha = (tick() - shrinkStartTime) / shrinkDuration
+            local scale = 1 - (alpha * 0.99) -- Scale from 1 to 0.01
+            treeModel:ScaleTo(scale)
+            task.wait()
+        end
+        treeModel:ScaleTo(0.01)
+    end)
 
     -- Add tree to inventory - determine tree type from model name
     local treeItemId = "tree" -- Default tree item

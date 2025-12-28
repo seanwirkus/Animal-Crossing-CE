@@ -21,6 +21,25 @@ local DEFAULT_SETTINGS = {
     cameraSensitivity = 1,
     invertVertical = false,
     blurIntensity = 0.25,
+    -- Graphics settings
+    shaderQuality = 0.6,
+    waterQuality = 0.6,
+    grassQuality = 0.6,
+    particleDensity = 0.6,
+    atmosphereQuality = 0.6,
+    bloomIntensity = 0.3,
+    colorCorrectionIntensity = 0.75,
+    -- Additional settings
+    fovSetting = 70,
+    musicVolume = 0.8,
+    sfxVolume = 0.8,
+    -- Additional graphics settings that were missing
+    shadowQuality = 0.7,
+    textureQuality = 0.8,
+    lightingQuality = 0.7,
+    -- NookPhone specific settings
+    phoneFontSize = 1.0,
+    phoneTheme = 1,
 }
 
 local SettingsController = {}
@@ -198,7 +217,7 @@ local function createBaseGui()
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextScaled = true
     closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Parent = container
 
     local closeCorner = Instance.new("UICorner")
@@ -410,7 +429,8 @@ local function createSliderRow(parent, labelText, settingKey, minValue, maxValue
     valueLabel.Font = Enum.Font.GothamBold
     valueLabel.TextSize = 18
     valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    valueLabel.Text = string.format("%.2f", SettingsController.getSetting(settingKey))
+    local currentValue = SettingsController.getSetting(settingKey) or minValue or 0
+    valueLabel.Text = string.format("%.2f", currentValue)
     valueLabel.Parent = row
 
     local minusButton = Instance.new("TextButton")

@@ -21,6 +21,43 @@ local ISLAND_SPACING = 1000 -- Studs between islands
 local ISLAND_SIZE = Vector3.new(200, 50, 200) -- Size of each island
 local SEA_LEVEL = 50
 local TREE_GROUND_OFFSET = -1
+local TREE_SCALE = 1.2
+
+local function scaleTreeModel(tree, scaleFactor, ratio)
+    if not tree or scaleFactor == 1 then
+        return
+    end
+
+    local ok = pcall(function()
+        tree:ScaleTo(scaleFactor)
+    end)
+    if ok then
+        return
+    end
+
+    local scaleRatio = ratio or scaleFactor
+
+    for _, part in ipairs(tree:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Size = part.Size * scaleRatio
+        end
+    end
+end
+
+local function applyTreeScaleIfNeeded(tree)
+    if not tree then
+        return
+    end
+
+    local appliedScale = tree:GetAttribute("TreeScaleApplied")
+    if appliedScale == TREE_SCALE then
+        return
+    end
+
+    local ratio = appliedScale and appliedScale > 0 and (TREE_SCALE / appliedScale) or TREE_SCALE
+    scaleTreeModel(tree, TREE_SCALE, ratio)
+    tree:SetAttribute("TreeScaleApplied", TREE_SCALE)
+end
 
 -- DataStore
 local IslandDataStore = DataStoreService:GetDataStore("PlayerIslands_v1")
@@ -155,6 +192,13 @@ function PlayerIslandService:ensureTreesForIsland(userId, islandData)
     end
 
     if existingTreeCount > 0 then
+        if treesFolder then
+            for _, child in ipairs(treesFolder:GetChildren()) do
+                if child:IsA("Model") then
+                    applyTreeScaleIfNeeded(child)
+                end
+            end
+        end
         return
     end
 
@@ -744,6 +788,8 @@ function PlayerIslandService:placeTree(folder, position, treeType)
             tree:MoveTo(position)
         end
 
+        applyTreeScaleIfNeeded(tree)
+
         -- Anchor all parts
         for _, part in ipairs(tree:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -776,8 +822,8 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
         local trunk = Instance.new("Part")
         trunk.Name = "Trunk"
-        trunk.Size = Vector3.new(2, 8, 2)
-        trunk.Position = position + Vector3.new(0, 4 + TREE_GROUND_OFFSET, 0)
+        trunk.Size = Vector3.new(2, 8, 2) * TREE_SCALE
+        trunk.Position = position + Vector3.new(0, (4 * TREE_SCALE) + TREE_GROUND_OFFSET, 0)
         trunk.Anchored = true
         trunk.Material = Enum.Material.Wood
         trunk.BrickColor = BrickColor.new("Brown")
@@ -785,8 +831,8 @@ function PlayerIslandService:placeTree(folder, position, treeType)
 
         local leaves = Instance.new("Part")
         leaves.Name = "Leaves"
-        leaves.Size = Vector3.new(6, 6, 6)
-        leaves.Position = position + Vector3.new(0, 9 + TREE_GROUND_OFFSET, 0)
+        leaves.Size = Vector3.new(6, 6, 6) * TREE_SCALE
+        leaves.Position = position + Vector3.new(0, (9 * TREE_SCALE) + TREE_GROUND_OFFSET, 0)
         leaves.Anchored = true
         leaves.Material = Enum.Material.Grass
         leaves.BrickColor = BrickColor.new("Dark green")
@@ -794,6 +840,7 @@ function PlayerIslandService:placeTree(folder, position, treeType)
         leaves.Parent = tree
 
         tree.PrimaryPart = trunk
+        tree:SetAttribute("TreeScaleApplied", TREE_SCALE)
         tree.Parent = treesFolder
     end
 

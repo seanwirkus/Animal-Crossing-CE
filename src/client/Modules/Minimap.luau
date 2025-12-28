@@ -171,7 +171,7 @@ function Minimap:createGUI()
     closeBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
     closeBtn.BackgroundTransparency = 0.2
     closeBtn.BorderSizePixel = 0
-    closeBtn.Text = "×"
+    closeBtn.Text = "X"
     closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.TextSize = 24

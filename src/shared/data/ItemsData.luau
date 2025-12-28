@@ -202,6 +202,7 @@ return {
             ["series"] = nil,
             ["set"] = nil,
             ["tag"] = "Musical Instrument",
+            ["assetId"] = 1112501132,
             ["sell"] = 3210,
             ["buy"] = nil,
             ["source"] = {

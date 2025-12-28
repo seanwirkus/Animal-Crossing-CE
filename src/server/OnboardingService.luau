@@ -7,6 +7,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HomeTemplates = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("HomeTemplates"))
 
 local OnboardingService = {}
 OnboardingService.__index = OnboardingService
@@ -25,6 +26,11 @@ function OnboardingService.new()
     self.hasStarterKit = nil -- Optional inventory check callback
 
     return self
+end
+
+local function logDebug(...)
+    -- Centralize onboarding debug prints so they are easy to grep
+    print("[OnboardingService][DEBUG]", ...)
 end
 
 function OnboardingService:initialize(playerIslandService, homeBuildingService, addItemFunc, currencyManager)
@@ -129,18 +135,32 @@ end
 function OnboardingService:onPlayerJoined(player)
     -- Wait a moment for island to be created
     task.wait(2)
+    logDebug("Player joined:", player.Name, "checking onboarding state")
 
     -- Check if player needs tutorial
     if self.playerIslandService then
         local islandData = self.playerIslandService:getPlayerIsland(player.UserId)
+        logDebug("Island data exists:", islandData ~= nil)
 
-        if islandData and not islandData.hasCompletedTutorial then
-            self:startTutorial(player)
-        elseif not islandData then
+        local needsStarterKit = not self:_hasReceivedStarterKit(player)
+        logDebug("Needs starter kit:", needsStarterKit)
+
+        if not islandData then
             -- New player without island data - still start tutorial
+            logDebug("No island data; starting tutorial")
             self:startTutorial(player)
-        elseif islandData and not islandData.hasReceivedStarterKit then
+            return
+        end
+
+        if not islandData.hasCompletedTutorial then
+            logDebug("Tutorial incomplete; starting tutorial")
+            self:startTutorial(player)
+            return
+        end
+
+        if needsStarterKit then
             -- Tutorial already complete but kit missing; grant without restarting onboarding UI.
+            logDebug("Tutorial complete but missing kit; granting starter kit")
             task.spawn(function()
                 self:giveStarterKit(player, self.currencyManager)
             end)
@@ -163,11 +183,13 @@ end
 function OnboardingService:_waitForInventory(player)
     local maxWait = 20
     local waited = 0
+    logDebug("Waiting for inventory attributes for", player.Name)
 
     while player and player.Parent and waited < maxWait do
         local hasInventoryAttributes = player:GetAttribute("InventoryMaxSlots") ~= nil
             or player:GetAttribute("InventoryLevel") ~= nil
         if hasInventoryAttributes then
+            logDebug("Inventory attributes detected for", player.Name)
             return true
         end
 
@@ -175,6 +197,7 @@ function OnboardingService:_waitForInventory(player)
         waited += 0.5
     end
 
+    logDebug("Timeout waiting for inventory attributes for", player.Name)
     return false
 end
 
@@ -182,6 +205,7 @@ function OnboardingService:_waitForAddItemFunction()
     -- Wait up to 30 seconds for the addItemToInventory function to be set
     local maxWait = 300
     local waited = 0
+    logDebug("Waiting for addItemToInventory function to be injected")
 
     while not self.addItemToInventory and waited < maxWait do
         task.wait(0.1)
@@ -282,6 +306,7 @@ function OnboardingService:giveStarterKit(player, currencyManager)
 
     -- Give starter tools so player can gather resources
     local gaveItems = self:_grantStarterItems(player)
+    logDebug("Starter items grant result:", gaveItems)
 
     if not gaveItems then
         self:_scheduleStarterKitRetry(player, currencyManager)
@@ -296,7 +321,7 @@ function OnboardingService:giveStarterKit(player, currencyManager)
         if bellsSuccess and milesSuccess then
             print(string.format("[OnboardingService] Gave currency to %s", player.Name))
         else
-            warn("[OnboardingService] Currency grant partially failed")
+            warn("[OnboardingService] Currency grant partially failed", bellsSuccess, milesSuccess)
         end
     else
         warn("[OnboardingService] CurrencyManager is nil - cannot grant currency")
@@ -370,41 +395,11 @@ function OnboardingService:buildPlayerHome(player)
 end
 
 function OnboardingService:createSimpleTent(position)
-    local tent = Instance.new("Model")
+    local tent = HomeTemplates.createTentTemplate({
+        anchored = true,
+    })
     tent.Name = "TentHouse"
-
-    -- Tent body (triangular prism shape)
-    local body = Instance.new("WedgePart")
-    body.Name = "TentBody"
-    body.Size = Vector3.new(8, 6, 6)
-    body.Position = position + Vector3.new(0, 3, 0)
-    body.Orientation = Vector3.new(0, 0, 0)
-    body.Anchored = true
-    body.Material = Enum.Material.Fabric
-    body.BrickColor = BrickColor.new("Bright red")
-    body.Parent = tent
-
-    -- Floor
-    local floor = Instance.new("Part")
-    floor.Name = "Floor"
-    floor.Size = Vector3.new(8, 0.5, 6)
-    floor.Position = position
-    floor.Anchored = true
-    floor.Material = Enum.Material.Wood
-    floor.BrickColor = BrickColor.new("Brown")
-    floor.Parent = tent
-
-    -- Door (entrance)
-    local door = Instance.new("Part")
-    door.Name = "Door"
-    door.Size = Vector3.new(2, 4, 0.2)
-    door.Position = position + Vector3.new(0, 2, -3)
-    door.Anchored = true
-    door.Material = Enum.Material.Fabric
-    door.BrickColor = BrickColor.new("Dark orange")
-    door.Parent = tent
-
-    tent.PrimaryPart = floor
+    tent:PivotTo(CFrame.new(position))
 
     return tent
 end

@@ -1,14 +1,16 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 
 local BalloonSpawner = {}
 BalloonSpawner.activeBalloons = {}
 BalloonSpawner.nextBalloonId = 1
+BalloonSpawner.addItemToInventory = nil -- Set by server init
 
 -- Configuration
 local SPAWN_INTERVAL = 120 -- Spawn a balloon every 2 minutes
 local BALLOON_SPEED = 10 -- Studs per second
-local BALLOON_HEIGHT = 60 -- Height above ground
+local BALLOON_HEIGHT = 90 -- Height above ground (1.5x higher)
 local BALLOON_LIFETIME = 120 -- Despawn after 2 minutes if not popped
 local SPAWN_DISTANCE = 200 -- Distance from map edge to spawn
 
@@ -360,10 +362,29 @@ function BalloonSpawner.onBalloonHit(balloonId, hitPart)
     if presentPart then
         present.PrimaryPart = presentPart
 
-        -- Add ground detection
+        -- Add ground detection via Touched
         presentPart.Touched:Connect(function(hit)
-            if hit:IsA("Terrain") or (hit:IsA("BasePart") and hit.Name == "Baseplate") then
+            -- Check if hit ground (terrain, baseplate, or any anchored part)
+            if hit:IsA("Terrain") or (hit:IsA("BasePart") and (hit.Name == "Baseplate" or hit.Anchored)) then
                 BalloonSpawner.onPresentLanded(balloonId, present, presentPart.Position)
+            end
+        end)
+
+        -- Backup: raycast check every 0.5s to detect ground
+        task.spawn(function()
+            while present and present.Parent and not (BalloonSpawner.activeBalloons[balloonId] and BalloonSpawner.activeBalloons[balloonId].hasLanded) do
+                task.wait(0.5)
+                if presentPart and presentPart.Parent then
+                    local raycastParams = RaycastParams.new()
+                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                    raycastParams.FilterDescendantsInstances = { present }
+
+                    local result = Workspace:Raycast(presentPart.Position, Vector3.new(0, -2, 0), raycastParams)
+                    if result then
+                        BalloonSpawner.onPresentLanded(balloonId, present, presentPart.Position)
+                        break
+                    end
+                end
             end
         end)
 
@@ -386,9 +407,12 @@ end
 -- Handle present landing on ground
 function BalloonSpawner.onPresentLanded(balloonId, present, position)
     local balloonData = BalloonSpawner.activeBalloons[balloonId]
-    if not balloonData then
+    if not balloonData or balloonData.hasLanded then
         return
     end
+
+    -- Mark as landed to prevent duplicate calls
+    balloonData.hasLanded = true
 
     print("[BalloonSpawner] 🎁 Present landed at", position)
 
@@ -399,14 +423,8 @@ function BalloonSpawner.onPresentLanded(balloonId, present, position)
     local itemId = balloonData.lootItemId
     local count = balloonData.lootCount
 
-    -- Create visual dropped item
+    -- Create visual dropped item with pickup functionality
     BalloonSpawner.createDroppedItem(itemId, count, position)
-
-    -- Get the createDroppedItem function from server (for backwards compatibility)
-    local event = ReplicatedStorage:FindFirstChild("BalloonPresentDropped")
-    if event then
-        event:Fire(itemId, count, position)
-    end
 
     -- Clean up present with particle effect
     local presentPart = present.PrimaryPart or present:FindFirstChildWhichIsA("BasePart")
@@ -437,55 +455,109 @@ end
 
 -- Create a dropped item visual at position
 function BalloonSpawner.createDroppedItem(itemId, count, position)
+    -- Raycast down to find the ground position
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {}
+
+    local groundResult = Workspace:Raycast(position + Vector3.new(0, 5, 0), Vector3.new(0, -50, 0), raycastParams)
+    local groundPosition = groundResult and groundResult.Position or position
+
     -- Create a glowing orb to represent the item
     local itemDrop = Instance.new("Part")
-    itemDrop.Name = "DroppedItem"
+    itemDrop.Name = "DroppedItem_" .. itemId
     itemDrop.Shape = Enum.PartType.Ball
     itemDrop.Size = Vector3.new(2, 2, 2)
-    itemDrop.Position = position + Vector3.new(0, 2, 0)
+    itemDrop.Position = groundPosition + Vector3.new(0, 1.5, 0)
     itemDrop.Anchored = true
     itemDrop.CanCollide = false
     itemDrop.Material = Enum.Material.Neon
     itemDrop.BrickColor = BrickColor.new("Bright yellow")
     itemDrop.Parent = Workspace
 
+    -- Add a gentle bobbing animation
+    task.spawn(function()
+        local startY = itemDrop.Position.Y
+        local bobSpeed = 2
+        local bobHeight = 0.3
+        while itemDrop and itemDrop.Parent do
+            local offset = math.sin(tick() * bobSpeed) * bobHeight
+            itemDrop.Position = Vector3.new(itemDrop.Position.X, startY + offset, itemDrop.Position.Z)
+            task.wait(0.05)
+        end
+    end)
+
     -- Add billboard label
     local billboard = Instance.new("BillboardGui")
     billboard.Size = UDim2.new(0, 150, 0, 60)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
     billboard.AlwaysOnTop = true
     billboard.Parent = itemDrop
 
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = string.format("%s x%d", itemId, count)
+    label.Text = string.format("%s x%d", itemId:gsub("_", " "), count)
     label.TextColor3 = Color3.new(1, 1, 1)
     label.TextStrokeTransparency = 0.5
     label.Font = Enum.Font.GothamBold
     label.TextScaled = true
     label.Parent = billboard
 
+    -- Add point light for visibility
+    local light = Instance.new("PointLight")
+    light.Brightness = 1
+    light.Range = 12
+    light.Color = Color3.fromRGB(255, 220, 100)
+    light.Parent = itemDrop
+
     -- Add proximity prompt for pickup
     local proximityPrompt = Instance.new("ProximityPrompt")
     proximityPrompt.ActionText = "Pick up"
-    proximityPrompt.ObjectText = string.format("%s x%d", itemId, count)
+    proximityPrompt.ObjectText = string.format("%s x%d", itemId:gsub("_", " "), count)
     proximityPrompt.MaxActivationDistance = 10
+    proximityPrompt.HoldDuration = 0
     proximityPrompt.Parent = itemDrop
 
     proximityPrompt.Triggered:Connect(function(player)
-        -- Add item to player inventory
-        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        if remotes then
-            local inventoryRemote = remotes:FindFirstChild("InventoryEvent")
-            if inventoryRemote then
-                inventoryRemote:FireClient(player, "AddItem", { itemId = itemId, count = count })
-                print(string.format("[BalloonSpawner] ✅ Gave %s x%d to %s", itemId, count, player.Name))
+        -- Add item to player inventory using server function
+        if BalloonSpawner.addItemToInventory then
+            local success, err = BalloonSpawner.addItemToInventory(player, {
+                itemId = itemId,
+                count = count,
+            })
+            if success then
+                print(string.format("[BalloonSpawner] 🎁 Gave %s x%d to %s", itemId, count, player.Name))
+            else
+                warn(string.format("[BalloonSpawner] ⚠️ Failed to give item: %s", err or "unknown error"))
+            end
+        else
+            -- Fallback: try remote event
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            if remotes then
+                local inventoryRemote = remotes:FindFirstChild("InventoryEvent")
+                if inventoryRemote then
+                    inventoryRemote:FireClient(player, "AddItem", { itemId = itemId, count = count })
+                    print(string.format("[BalloonSpawner] ✅ Gave %s x%d to %s (via remote)", itemId, count, player.Name))
+                end
             end
         end
 
-        -- Destroy the dropped item
-        itemDrop:Destroy()
+        -- Pickup effect
+        local pickupEffect = Instance.new("ParticleEmitter")
+        pickupEffect.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        pickupEffect.Rate = 0
+        pickupEffect.Lifetime = NumberRange.new(0.5, 1)
+        pickupEffect.Speed = NumberRange.new(5, 10)
+        pickupEffect.SpreadAngle = Vector2.new(180, 180)
+        pickupEffect.Parent = itemDrop
+        pickupEffect:Emit(20)
+
+        task.delay(0.3, function()
+            if itemDrop and itemDrop.Parent then
+                itemDrop:Destroy()
+            end
+        end)
     end)
 
     -- Auto-despawn after 5 minutes
@@ -495,7 +567,7 @@ function BalloonSpawner.createDroppedItem(itemId, count, position)
         end
     end)
 
-    print(string.format("[BalloonSpawner] 📦 Created dropped item: %s x%d at %s", itemId, count, tostring(position)))
+    print(string.format("[BalloonSpawner] 📦 Created dropped item: %s x%d at %s", itemId, count, tostring(groundPosition)))
 end
 
 -- Remove balloon from tracking
@@ -513,10 +585,15 @@ function BalloonSpawner.removeBalloon(balloonId)
     BalloonSpawner.activeBalloons[balloonId] = nil
 end
 
+-- Set the function to add items to player inventory
+function BalloonSpawner.setAddItemFunction(addItemFunc)
+    BalloonSpawner.addItemToInventory = addItemFunc
+end
+
 -- Start spawning balloons
 function BalloonSpawner.start()
     print("[BalloonSpawner] 🎈 Starting balloon spawner...")
-    print("[BalloonSpawner] ℹ️ Debug mode: Spawning balloons every", SPAWN_INTERVAL, "seconds")
+    print("[BalloonSpawner] ℹ️ Spawning balloons every", SPAWN_INTERVAL, "seconds at height", BALLOON_HEIGHT)
 
     -- Spawn balloons on normal interval
     while true do

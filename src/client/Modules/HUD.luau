@@ -3,7 +3,6 @@
 -- Finds or creates HudGUI with TimeFrame, TimeLabel, DateLabel, and DayLabel
 
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 
 local HUD = {}
@@ -162,14 +161,14 @@ function HUD:_findOrCreateGUI()
     self.hudGui.Enabled = true
 end
 
-function HUD:_formatTime(clockTime)
-    local hours = math.floor(clockTime)
-    local minutes = math.floor((clockTime - hours) * 60)
-    local ampm = "AM"
+function HUD:_getNow()
+    return os.date("*t", os.time())
+end
 
-    if hours >= 12 then
-        ampm = "PM"
-    end
+function HUD:_formatTime(now)
+    local hours = now.hour or 12
+    local minutes = now.min or 0
+    local ampm = hours >= 12 and "PM" or "AM"
 
     if hours > 12 then
         hours = hours - 12
@@ -180,8 +179,7 @@ function HUD:_formatTime(clockTime)
     return string.format("%d:%02d %s", hours, minutes, ampm)
 end
 
-function HUD:_formatDate(dayOfYear)
-    -- Simple date calculation (approximate)
+function HUD:_formatDate(now)
     local monthNames = {
         "January",
         "February",
@@ -197,27 +195,11 @@ function HUD:_formatDate(dayOfYear)
         "December",
     }
 
-    -- Days per month (approximate, ignoring leap years)
-    local daysPerMonth = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 }
-
-    local day = dayOfYear
-    local month = 1
-
-    for i = 1, 12 do
-        if day <= daysPerMonth[i] then
-            month = i
-            break
-        end
-        day = day - daysPerMonth[i]
-    end
-
-    return monthNames[month] .. " " .. tostring(day)
+    return string.format("%s %d", monthNames[now.month or 1], now.day or 1)
 end
 
-function HUD:_getDayOfWeek(dayOfYear)
-    -- Simple calculation: cycle through days of week
-    local dayIndex = (dayOfYear - 1) % 7
-    return DAY_NAMES[dayIndex + 1]
+function HUD:_getDayOfWeek(now)
+    return DAY_NAMES[now.wday or 1]
 end
 
 function HUD:_update()
@@ -246,20 +228,12 @@ function HUD:_update()
         return
     end
 
-    -- Get time from Lighting service
-    local clockTime = Lighting.ClockTime or 12.0
-
-    -- Calculate day of year (cycle through year)
-    -- Use a simple counter that increments each day
-    -- For now, use a day counter based on game time
-    local gameTime = tick()
-    local daysPassed = math.floor(gameTime / 86400) -- 86400 seconds = 1 day
-    local dayOfYear = (daysPassed % 365) + 1 -- Cycle through year
+    local now = self:_getNow()
 
     -- Update labels
-    self.timeLabel.Text = self:_formatTime(clockTime)
-    self.dateLabel.Text = self:_formatDate(dayOfYear)
-    self.dayLabel.Text = self:_getDayOfWeek(dayOfYear)
+    self.timeLabel.Text = self:_formatTime(now)
+    self.dateLabel.Text = self:_formatDate(now)
+    self.dayLabel.Text = self:_getDayOfWeek(now)
 end
 
 function HUD:_startUpdating()

@@ -171,7 +171,7 @@ function BuildingGUI:_buildGui()
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextSize = 20
     closeButton.TextColor3 = Color3.new(1, 1, 1)
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Size = UDim2.fromOffset(44, 44)
     closeButton.Position = UDim2.new(1, -44, 0, 3)
     closeButton.Parent = header

@@ -41,6 +41,92 @@ local COLORS = {
     QUANTITY_BADGE = Color3.fromRGB(255, 193, 77), -- Bell gold
 }
 
+local function applySpriteSafe(imageLabel: Instance, spriteIndex: number?)
+    if not imageLabel or (not imageLabel:IsA("ImageLabel") and not imageLabel:IsA("ImageButton")) then
+        return
+    end
+
+    if not SpriteConfig.applySprite(imageLabel, spriteIndex) then
+        imageLabel.Image = ""
+        imageLabel.ImageRectOffset = Vector2.new(0, 0)
+        imageLabel.ImageRectSize = Vector2.new(0, 0)
+    end
+end
+
+local function create3DThumbnail(parent: Frame, assetId: number, size: UDim2?)
+    size = size or UDim2.new(0, 120, 0, 120)
+
+    -- Create ViewportFrame for 3D preview
+    local viewport = Instance.new("ViewportFrame")
+    viewport.Name = "ItemPreview3D"
+    viewport.Size = size
+    viewport.Position = UDim2.new(0, 10, 0, 10)
+    viewport.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
+    viewport.BorderSizePixel = 0
+    viewport.Parent = parent
+
+    local viewportCorner = Instance.new("UICorner")
+    viewportCorner.CornerRadius = UDim.new(0, 10)
+    viewportCorner.Parent = viewport
+
+    local viewportStroke = Instance.new("UIStroke")
+    viewportStroke.Color = COLORS.BORDER
+    viewportStroke.Thickness = 2
+    viewportStroke.Parent = viewport
+
+    -- Create camera
+    local camera = Instance.new("Camera")
+    camera.Parent = viewport
+    viewport.CurrentCamera = camera
+
+    -- Load the 3D model
+    local success, model = pcall(function()
+        return game:GetObjects("rbxassetid://" .. assetId)[1]
+    end)
+
+    if success and model then
+        model.Parent = viewport
+
+        -- Calculate bounding box and position camera
+        local function getCenterAndSize(obj)
+            if obj:IsA("Model") then
+                local cf, size = obj:GetBoundingBox()
+                return cf.Position, size
+            elseif obj:IsA("BasePart") then
+                return obj.Position, obj.Size
+            end
+            return Vector3.new(0, 0, 0), Vector3.new(1, 1, 1)
+        end
+
+        local center, modelSize = getCenterAndSize(model)
+        local maxDim = math.max(modelSize.X, modelSize.Y, modelSize.Z)
+        local distance = maxDim * 2.5
+
+        -- Position camera at an angle
+        camera.CFrame = CFrame.new(center + Vector3.new(distance * 0.7, distance * 0.5, distance * 0.7))
+        camera.CFrame = CFrame.lookAt(camera.CFrame.Position, center)
+
+        -- Rotate the model slowly
+        task.spawn(function()
+            while viewport.Parent do
+                if model and model.Parent then
+                    if model:IsA("Model") then
+                        model:PivotTo(model:GetPivot() * CFrame.Angles(0, math.rad(0.5), 0))
+                    elseif model:IsA("BasePart") then
+                        model.CFrame = model.CFrame * CFrame.Angles(0, math.rad(0.5), 0)
+                    end
+                end
+                task.wait(0.03)
+            end
+        end)
+
+        return viewport
+    else
+        viewport:Destroy()
+        return nil
+    end
+end
+
 function CraftingGUI.new()
     -- Return existing instance if available
     if _instance then
@@ -80,20 +166,21 @@ end
 function CraftingGUI:loadRecipes()
     self._allRecipes = {}
 
-    -- Get all craftable items from ItemDataFetcher
-    local allItems = ItemDataFetcher.getAllItems()
+    -- Pull the full recipe list (includes outputs that are not in item list yet)
+    local craftable = ItemDataFetcher.getCraftableItems()
 
-    for itemId, itemData in pairs(allItems) do
-        local recipe = ItemDataFetcher.getCraftingRecipe(itemId)
+    for _, recipe in ipairs(craftable) do
+        local result = recipe.result or {}
+        local itemId = recipe.itemId or result.itemId
+        local itemData = ItemDataFetcher.getItem(itemId)
 
-        if recipe and recipe.materials and #recipe.materials > 0 then
-            table.insert(self._allRecipes, {
-                itemId = itemId,
-                name = itemData.name or itemId,
-                recipe = recipe,
-                spriteIndex = itemData.spriteIndex or 0,
-            })
-        end
+        table.insert(self._allRecipes, {
+            itemId = itemId,
+            name = recipe.name or result.name or recipe.itemId,
+            recipe = recipe,
+            spriteIndex = result.spriteIndex or recipe.spriteIndex or 0,
+            itemData = itemData,
+        })
     end
 
     -- Sort recipes alphabetically
@@ -109,7 +196,7 @@ function CraftingGUI:setupInventoryListener()
     local inventoryRemote = ReplicatedStorage:FindFirstChild("InventoryEvent")
     if inventoryRemote then
         inventoryRemote.OnClientEvent:Connect(function(action, payload)
-            if action == "Sync" then
+            if action == "Sync" or action == "SyncInventory" then
                 self:updateInventory(payload)
             end
         end)
@@ -122,7 +209,8 @@ function CraftingGUI:updateInventory(inventoryData)
     if inventoryData and inventoryData.slots then
         for _, slot in pairs(inventoryData.slots) do
             if slot.itemId then
-                self._playerInventory[slot.itemId] = (self._playerInventory[slot.itemId] or 0) + (slot.quantity or 1)
+                local count = slot.count or slot.quantity or 1
+                self._playerInventory[slot.itemId] = (self._playerInventory[slot.itemId] or 0) + count
             end
         end
     end
@@ -257,7 +345,7 @@ function CraftingGUI:createTitleBar()
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 24
     titleLabel.TextColor3 = COLORS.TEXT_LIGHT
-    titleLabel.Text = "🔨 DIY Crafting"
+    titleLabel.Text = "DIY Crafting (Workbench)"
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
 
@@ -284,7 +372,7 @@ function CraftingGUI:createTitleBar()
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextSize = 24
     closeButton.TextColor3 = COLORS.TEXT_LIGHT
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.Parent = titleBar
 
     local closeCorner = Instance.new("UICorner")
@@ -449,10 +537,7 @@ function CraftingGUI:createRecipeItem(recipeData, index)
     iconLabel.Position = UDim2.fromOffset(8, 7)
     iconLabel.BackgroundColor3 = COLORS.BG_SECONDARY
     iconLabel.BorderSizePixel = 0
-    iconLabel.Image = SpriteConfig.SHEET_ASSET
-    local offset, size = SpriteConfig.getSpriteRect(recipeData.spriteIndex)
-    iconLabel.ImageRectOffset = offset
-    iconLabel.ImageRectSize = size
+    applySpriteSafe(iconLabel, recipeData.spriteIndex)
     iconLabel.Parent = itemFrame
 
     local iconCorner = Instance.new("UICorner")
@@ -620,28 +705,55 @@ function CraftingGUI:selectRecipe(recipeData)
     headerCorner.CornerRadius = UDim.new(0, 10)
     headerCorner.Parent = headerFrame
 
-    -- Large recipe icon
-    local iconLabel = Instance.new("ImageLabel")
-    iconLabel.Name = "LargeIcon"
-    iconLabel.Size = UDim2.new(0, 120, 0, 120)
-    iconLabel.Position = UDim2.new(0, 10, 0, 10)
-    iconLabel.BackgroundColor3 = COLORS.BG_SECONDARY
-    iconLabel.BorderSizePixel = 0
-    iconLabel.Image = SpriteConfig.SHEET_ASSET
-    local offset, size = SpriteConfig.getSpriteRect(recipeData.spriteIndex)
-    iconLabel.ImageRectOffset = offset
-    iconLabel.ImageRectSize = size
-    iconLabel.ScaleType = Enum.ScaleType.Fit
-    iconLabel.Parent = headerFrame
+    -- Large recipe icon (use 3D if available, otherwise sprite)
+    local itemData = recipeData.itemData
+    local assetId = itemData and itemData.assetId
 
-    local iconCorner = Instance.new("UICorner")
-    iconCorner.CornerRadius = UDim.new(0, 10)
-    iconCorner.Parent = iconLabel
+    if assetId then
+        -- Create 3D preview
+        local viewport = create3DThumbnail(headerFrame, assetId, UDim2.new(0, 120, 0, 120))
+        if not viewport then
+            -- Fallback to sprite if 3D fails
+            local iconLabel = Instance.new("ImageLabel")
+            iconLabel.Name = "LargeIcon"
+            iconLabel.Size = UDim2.new(0, 120, 0, 120)
+            iconLabel.Position = UDim2.new(0, 10, 0, 10)
+            iconLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+            iconLabel.BorderSizePixel = 0
+            applySpriteSafe(iconLabel, recipeData.spriteIndex)
+            iconLabel.ScaleType = Enum.ScaleType.Fit
+            iconLabel.Parent = headerFrame
 
-    local iconStroke = Instance.new("UIStroke")
-    iconStroke.Color = COLORS.BORDER
-    iconStroke.Thickness = 2
-    iconStroke.Parent = iconLabel
+            local iconCorner = Instance.new("UICorner")
+            iconCorner.CornerRadius = UDim.new(0, 10)
+            iconCorner.Parent = iconLabel
+
+            local iconStroke = Instance.new("UIStroke")
+            iconStroke.Color = COLORS.BORDER
+            iconStroke.Thickness = 2
+            iconStroke.Parent = iconLabel
+        end
+    else
+        -- Use sprite icon
+        local iconLabel = Instance.new("ImageLabel")
+        iconLabel.Name = "LargeIcon"
+        iconLabel.Size = UDim2.new(0, 120, 0, 120)
+        iconLabel.Position = UDim2.new(0, 10, 0, 10)
+        iconLabel.BackgroundColor3 = COLORS.BG_SECONDARY
+        iconLabel.BorderSizePixel = 0
+        applySpriteSafe(iconLabel, recipeData.spriteIndex)
+        iconLabel.ScaleType = Enum.ScaleType.Fit
+        iconLabel.Parent = headerFrame
+
+        local iconCorner = Instance.new("UICorner")
+        iconCorner.CornerRadius = UDim.new(0, 10)
+        iconCorner.Parent = iconLabel
+
+        local iconStroke = Instance.new("UIStroke")
+        iconStroke.Color = COLORS.BORDER
+        iconStroke.Thickness = 2
+        iconStroke.Parent = iconLabel
+    end
 
     -- Recipe title
     local titleLabel = Instance.new("TextLabel")
@@ -708,7 +820,7 @@ function CraftingGUI:selectRecipe(recipeData)
 
     for i, material in ipairs(recipe.materials or {}) do
         local materialId = material.itemId or material[1]
-        local required = material.quantity or material[2] or 1
+        local required = material.count or material.quantity or material[2] or 1
         local owned = self._playerInventory[materialId] or 0
         local hasEnough = owned >= required
 
@@ -751,10 +863,7 @@ function CraftingGUI:selectRecipe(recipeData)
         matIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
         matIcon.Position = UDim2.new(0.1, 0, 0.1, 0)
         matIcon.BackgroundTransparency = 1
-        matIcon.Image = SpriteConfig.SHEET_ASSET
-        local matOffset, matSize = SpriteConfig.getSpriteRect(materialSprite)
-        matIcon.ImageRectOffset = matOffset
-        matIcon.ImageRectSize = matSize
+        applySpriteSafe(matIcon, materialSprite)
         matIcon.Parent = iconFrame
 
         -- Quantity label on icon (top-right, black text)
@@ -882,7 +991,7 @@ end
 function CraftingGUI:canCraftRecipe(recipe)
     for _, material in ipairs(recipe.materials or {}) do
         local materialId = material.itemId or material[1]
-        local required = material.quantity or material[2] or 1
+        local required = material.count or material.quantity or material[2] or 1
         local owned = self._playerInventory[materialId] or 0
 
         if owned < required then

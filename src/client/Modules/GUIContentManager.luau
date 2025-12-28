@@ -201,19 +201,19 @@ GUIContentManager.Layouts = {
     NookPhone = {
         anchorPoint = Vector2.new(0.5, 1),
         position = UDim2.new(0.5, 0, 1, -24),
-        size = UDim2.new(0, 380, 0, 640),
+        size = UDim2.new(0, 400, 0, 680),
         aspectRatio = 9 / 16,
         padding = {
-            horizontal = 18,
-            vertical = 20,
+            horizontal = 14,
+            vertical = 16,
         },
-        notchHeight = 48,
-        statusRowHeight = 64,
-        closeButtonOffset = Vector2.new(0, -50),
+        notchHeight = 42,
+        statusRowHeight = 52,
+        closeButtonOffset = Vector2.new(0, -46),
         grid = {
-            columns = 3,
-            iconSize = 90,
-            spacing = 12,
+            columns = 4,
+            iconSize = 78,
+            spacing = 8,
         },
     },
 }
@@ -247,7 +247,7 @@ GUIContentManager.Crafting = {
     buttons = {
         craft = "Craft",
         cancel = "Cancel",
-        close = "×",
+        close = "X",
         search = "Search recipes...",
     },
 
@@ -286,7 +286,7 @@ GUIContentManager.Shop = {
     buttons = {
         buy = "Buy",
         sell = "Sell",
-        close = "×",
+        close = "X",
     },
 
     -- Messages
@@ -325,7 +325,7 @@ GUIContentManager.Dialogue = {
     -- Button labels
     buttons = {
         next = "Next",
-        close = "×",
+        close = "X",
         accept = "Accept",
         decline = "Decline",
     },
@@ -371,7 +371,7 @@ GUIContentManager.Settings = {
     buttons = {
         apply = "Apply",
         reset = "Reset to Default",
-        close = "×",
+        close = "X",
     },
 }
 

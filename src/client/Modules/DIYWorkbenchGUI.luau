@@ -277,7 +277,7 @@ function DIYWorkbenchGUI:_createCloseButton(parent)
     closeButton.Size = UDim2.new(0, 50, 0, 50)
     closeButton.Position = UDim2.new(1, -60, 0, 10)
     closeButton.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
-    closeButton.Text = "✕"
+    closeButton.Text = "X"
     closeButton.TextSize = 30
     closeButton.Font = Enum.Font.GothamBold
     closeButton.TextColor3 = COLORS.TEXT_LIGHT

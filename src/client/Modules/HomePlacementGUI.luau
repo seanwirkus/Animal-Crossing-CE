@@ -21,9 +21,18 @@ function HomePlacementGUI.new()
 	self.rotationAngle = 0
 	self.smoothedPosition = nil
 	self.lastValidPosition = nil
+	self.onPlacementEnded = nil
 
 	-- Create UI
-	self:_createUI()
+	print("[HomePlacementGUI] Creating UI...")
+	local ok, err = pcall(function()
+		self:_createUI()
+	end)
+	if not ok then
+		warn("[HomePlacementGUI] ❌ Failed to create UI:", err)
+	else
+		print("[HomePlacementGUI] ✅ UI created successfully")
+	end
 
 	print("[HomePlacementGUI] ✅ Initialized")
 	return self
@@ -98,7 +107,7 @@ function HomePlacementGUI:_createUI()
 	instructions.Size = UDim2.new(1, -20, 0, 60)
 	instructions.Position = UDim2.new(0, 10, 0, 85)
 	instructions.BackgroundTransparency = 1
-	instructions.Text = "• Move mouse to position\n• R to rotate\n• Click to place\n• ESC to cancel"
+	instructions.Text = "• Move mouse to position\n• R to rotate\n• Click to place\n• ESC/X to cancel"
 	instructions.TextColor3 = Color3.fromRGB(89, 70, 44)
 	instructions.TextSize = 14
 	instructions.Font = Enum.Font.Gotham
@@ -155,9 +164,10 @@ function HomePlacementGUI:startPlacement(homeTemplate)
 	self.smoothedPosition = nil
 	self.lastValidPosition = nil
 
-	-- Lock player movement (optional)
+	-- Allow player movement during placement
 	if player.Character and player.Character:FindFirstChild("Humanoid") then
-		player.Character.Humanoid.WalkSpeed = 0
+	    -- Restore or maintain normal walk speed
+	    player.Character.Humanoid.WalkSpeed = 16
 	end
 
 	-- Connect update loop
@@ -167,13 +177,13 @@ function HomePlacementGUI:startPlacement(homeTemplate)
 
 	-- Connect rotation input
 	self.rotateConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed then return end
+	    if gameProcessed then return end
 
-		if input.KeyCode == Enum.KeyCode.R then
-			self:_rotateGhost()
-		elseif input.KeyCode == Enum.KeyCode.Escape then
-			self:cancelPlacement()
-		end
+	    if input.KeyCode == Enum.KeyCode.R then
+	        self:_rotateGhost()
+	    elseif input.KeyCode == Enum.KeyCode.Escape or input.KeyCode == Enum.KeyCode.X then
+	        self:cancelPlacement()
+	    end
 	end)
 
 	-- Connect click to place
@@ -368,6 +378,13 @@ function HomePlacementGUI:endPlacement()
 	-- Restore player movement
 	if player.Character and player.Character:FindFirstChild("Humanoid") then
 		player.Character.Humanoid.WalkSpeed = 16
+	end
+
+	if self.onPlacementEnded then
+		local ok, err = pcall(self.onPlacementEnded)
+		if not ok then
+			warn("[HomePlacementGUI] Failed to run onPlacementEnded:", err)
+		end
 	end
 
 	print("[HomePlacementGUI] Placement mode ended")
