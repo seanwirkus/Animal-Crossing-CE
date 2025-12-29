@@ -22,6 +22,8 @@ local ISLAND_SIZE = Vector3.new(200, 50, 200) -- Size of each island
 local SEA_LEVEL = 50
 local TREE_GROUND_OFFSET = -1.5
 local TREE_TARGET_HEIGHT = 32
+local TREE_MIN_SPACING = 10
+local TREE_DATA_VERSION = 3 -- bump to clear saved tree positions for all players
 
 local function getModelScale(model)
     local ok, scale = pcall(function()
@@ -140,6 +142,7 @@ function PlayerIslandService.new()
     self.nextIslandSlot = 0 -- Counter for island positions
     self.isabelleManager = nil
     self.random = Random.new() -- Add seeded random number generator
+    self.joinGuards = {}
 
     return self
 end
@@ -179,6 +182,11 @@ end
 function PlayerIslandService:onPlayerJoined(player)
     print(string.format("[PlayerIslandService] Player %s joined, loading island...", player.Name))
 
+    if self.joinGuards[player.UserId] or self.playerIslands[player.UserId] then
+        return
+    end
+    self.joinGuards[player.UserId] = true
+
     -- Load or create island DATA (but don't generate terrain - use existing world)
     local islandData = self:loadIsland(player.UserId)
 
@@ -196,6 +204,7 @@ function PlayerIslandService:onPlayerJoined(player)
             buildings = {},
             hasCompletedTutorial = false,
             hasBuiltHome = false,
+            treeDataVersion = TREE_DATA_VERSION,
         }
         self:saveIsland(player.UserId, islandData)
         print("[PlayerIslandService] ✅ Created island data for player (using existing world terrain)")
@@ -208,6 +217,10 @@ function PlayerIslandService:onPlayerJoined(player)
 
     self.playerIslands[player.UserId] = islandData
 
+    if islandData.treeDataVersion ~= TREE_DATA_VERSION then
+        self:clearTreeCacheForIsland(player.UserId, islandData)
+    end
+
     task.spawn(function()
         self:ensureIslandFolder(player.UserId)
         self:ensureTreesForIsland(player.UserId, islandData)
@@ -216,6 +229,7 @@ function PlayerIslandService:onPlayerJoined(player)
     -- DON'T generate new terrain - use existing island
     -- Just spawn player on the existing island
     self:spawnPlayerOnIsland(player, islandData)
+    self.joinGuards[player.UserId] = nil
 end
 
 function PlayerIslandService:ensureIslandFolder(userId)
@@ -245,6 +259,266 @@ function PlayerIslandService:ensureIslandFolder(userId)
     return islandFolder
 end
 
+function PlayerIslandService:clearTreeCacheForIsland(userId, islandData)
+    islandData = islandData or self.playerIslands[userId]
+    if not islandData then
+        return
+    end
+
+    local islandFolder = self:ensureIslandFolder(userId)
+    if islandFolder then
+        local treesFolder = islandFolder:FindFirstChild("Trees")
+        if treesFolder then
+            treesFolder:ClearAllChildren()
+        end
+    end
+
+    islandData.trees = {}
+    islandData.treeDataVersion = TREE_DATA_VERSION
+    self:saveIsland(userId, islandData)
+
+    print(string.format("[PlayerIslandService] 🌳 Cleared tree cache for user %d (version %d)", userId, TREE_DATA_VERSION))
+end
+
+function PlayerIslandService:clearTreesNearPosition(userId, position, radius)
+    if not position then
+        return 0
+    end
+
+    local islandFolder = self.islandFolders[userId]
+    if not islandFolder then
+        return 0
+    end
+
+    local treesFolder = islandFolder:FindFirstChild("Trees")
+    if not treesFolder then
+        return 0
+    end
+
+    local islandData = self.playerIslands[userId]
+    local removed = 0
+    local keepTrees = {}
+    local radiusValue = radius or 20
+    local radiusSquared = radiusValue * radiusValue
+
+    for _, tree in ipairs(treesFolder:GetChildren()) do
+        if tree:IsA("Model") or tree:IsA("BasePart") then
+            local treePos = nil
+            if tree:IsA("Model") then
+                treePos = tree.PrimaryPart and tree.PrimaryPart.Position or tree:GetPivot().Position
+            else
+                treePos = tree.Position
+            end
+
+            if treePos and (treePos - position).Magnitude <= radiusValue then
+                tree:Destroy()
+                removed += 1
+            end
+        end
+    end
+
+    if islandData and islandData.trees then
+        for _, treeData in ipairs(islandData.trees) do
+            local treePos = Vector3.new(treeData.X, treeData.Y, treeData.Z)
+            if (treePos - position).Magnitude * (treePos - position).Magnitude > radiusSquared then
+                table.insert(keepTrees, treeData)
+            end
+        end
+        islandData.trees = keepTrees
+    end
+
+    return removed
+end
+
+function PlayerIslandService:clearTreesNearHome(userId, islandData, radius)
+    islandData = islandData or self.playerIslands[userId]
+    if not islandData then
+        return 0
+    end
+
+    local cleared = 0
+    local clearance = radius or 20
+
+    if islandData.home and islandData.home.position then
+        local posData = islandData.home.position
+        local pos = Vector3.new(posData.X, posData.Y, posData.Z)
+        cleared += self:clearTreesNearPosition(userId, pos, clearance)
+    end
+
+    local islandFolder = self.islandFolders[userId]
+    if islandFolder then
+        local buildingsFolder = islandFolder:FindFirstChild("Buildings")
+        if buildingsFolder then
+            for _, building in ipairs(buildingsFolder:GetChildren()) do
+                if building:IsA("Model") then
+                    cleared += self:clearTreesNearPosition(userId, building:GetPivot().Position, clearance)
+                end
+            end
+        end
+    end
+
+    local playerHomesFolder = workspace:FindFirstChild("PlayerHomes")
+    if playerHomesFolder then
+        for _, home in ipairs(playerHomesFolder:GetChildren()) do
+            if home:IsA("Model") and home:GetAttribute("HomeOwner") == userId then
+                cleared += self:clearTreesNearPosition(userId, home:GetPivot().Position, clearance)
+            end
+        end
+    end
+
+    -- Fallback: clear near any home models not under PlayerHomes
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Model") and descendant:GetAttribute("HomeOwner") == userId then
+            cleared += self:clearTreesNearPosition(userId, descendant:GetPivot().Position, clearance)
+        end
+    end
+
+    return cleared
+end
+
+function PlayerIslandService:dedupeTreeData(islandData, minSpacing)
+    if not islandData or not islandData.trees then
+        return 0
+    end
+
+    local spacing = minSpacing or 2
+    local spacingSquared = spacing * spacing
+    local kept = {}
+    local removed = 0
+
+    for _, treeData in ipairs(islandData.trees) do
+        local pos = Vector3.new(treeData.X, treeData.Y, treeData.Z)
+        local duplicate = false
+        for _, keptData in ipairs(kept) do
+            local keptPos = Vector3.new(keptData.X, keptData.Y, keptData.Z)
+            if (pos - keptPos).Magnitude * (pos - keptPos).Magnitude <= spacingSquared then
+                duplicate = true
+                break
+            end
+        end
+        if duplicate then
+            removed += 1
+        else
+            table.insert(kept, treeData)
+        end
+    end
+
+    if removed > 0 then
+        islandData.trees = kept
+    end
+
+    return removed
+end
+
+function PlayerIslandService:removeOverlappingTreeModels(userId, minSpacing)
+    local islandFolder = self.islandFolders[userId]
+    if not islandFolder then
+        return 0
+    end
+
+    local treesFolder = islandFolder:FindFirstChild("Trees")
+    if not treesFolder then
+        return 0
+    end
+
+    local spacing = minSpacing or 2
+    local spacingSquared = spacing * spacing
+    local keptPositions = {}
+    local removed = 0
+
+    for _, tree in ipairs(treesFolder:GetChildren()) do
+        if tree:IsA("Model") or tree:IsA("BasePart") then
+            local treePos = nil
+            if tree:IsA("Model") then
+                treePos = tree.PrimaryPart and tree.PrimaryPart.Position or tree:GetPivot().Position
+            else
+                treePos = tree.Position
+            end
+
+            if treePos then
+                local duplicate = false
+                for _, keptPos in ipairs(keptPositions) do
+                    if (treePos - keptPos).Magnitude * (treePos - keptPos).Magnitude <= spacingSquared then
+                        duplicate = true
+                        break
+                    end
+                end
+                if duplicate then
+                    tree:Destroy()
+                    removed += 1
+                else
+                    table.insert(keptPositions, treePos)
+                end
+            end
+        end
+    end
+
+    return removed
+end
+
+function PlayerIslandService:rebuildTreeDataFromWorld(userId, minSpacing)
+    local islandData = self.playerIslands[userId]
+    local islandFolder = self.islandFolders[userId]
+    if not islandData or not islandFolder then
+        return 0
+    end
+
+    local treesFolder = islandFolder:FindFirstChild("Trees")
+    if not treesFolder then
+        return 0
+    end
+
+    local spacing = minSpacing or TREE_MIN_SPACING
+    local spacingSquared = spacing * spacing
+    local keptPositions = {}
+    local rebuilt = {}
+    local removed = 0
+
+    for _, tree in ipairs(treesFolder:GetChildren()) do
+        if tree:IsA("Model") or tree:IsA("BasePart") then
+            local treePos = nil
+            if tree:IsA("Model") then
+                if not tree.PrimaryPart then
+                    local firstPart = tree:FindFirstChildWhichIsA("BasePart", true)
+                    if firstPart then
+                        tree.PrimaryPart = firstPart
+                    end
+                end
+                treePos = tree.PrimaryPart and tree.PrimaryPart.Position or tree:GetPivot().Position
+            else
+                treePos = tree.Position
+            end
+
+            if treePos then
+                local duplicate = false
+                for _, keptPos in ipairs(keptPositions) do
+                    local delta = treePos - keptPos
+                    if (delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z) <= spacingSquared then
+                        duplicate = true
+                        break
+                    end
+                end
+
+                if duplicate then
+                    tree:Destroy()
+                    removed += 1
+                else
+                    table.insert(keptPositions, treePos)
+                    table.insert(rebuilt, {
+                        X = treePos.X,
+                        Y = treePos.Y,
+                        Z = treePos.Z,
+                        type = tree:GetAttribute("TreeType") or tree:GetAttribute("TreeVariant") or "Oak",
+                    })
+                end
+            end
+        end
+    end
+
+    islandData.trees = rebuilt
+    return removed
+end
+
 function PlayerIslandService:ensureTreesForIsland(userId, islandData)
     local folder = self:ensureIslandFolder(userId)
     if not folder then
@@ -269,13 +543,35 @@ function PlayerIslandService:ensureTreesForIsland(userId, islandData)
                 end
             end
         end
+        local removedNearHome = self:clearTreesNearHome(userId, islandData, 20)
+        local removedOverlaps = self:rebuildTreeDataFromWorld(userId, TREE_MIN_SPACING)
+        if removedNearHome > 0 then
+            print(string.format("[PlayerIslandService] 🌳 Cleared %d trees near home for user %d", removedNearHome, userId))
+        end
+        if removedOverlaps > 0 then
+            print(string.format("[PlayerIslandService] 🌳 Rebuilt tree data (removed %d overlaps) for user %d", removedOverlaps, userId))
+        end
+        if removedNearHome > 0 or removedOverlaps > 0 then
+            self:saveIsland(userId, islandData)
+        end
         return
     end
 
     if islandData.trees and #islandData.trees > 0 then
+        local deduped = self:dedupeTreeData(islandData, TREE_MIN_SPACING)
+        if deduped > 0 then
+            print(string.format("[PlayerIslandService] 🌳 Deduped %d tree entries for user %d", deduped, userId))
+        end
         for _, treeData in ipairs(islandData.trees) do
             local pos = Vector3.new(treeData.X, treeData.Y, treeData.Z)
             self:placeTree(folder, pos, treeData.type)
+        end
+        local removedNearHome = self:clearTreesNearHome(userId, islandData, 20)
+        if removedNearHome > 0 then
+            print(string.format("[PlayerIslandService] 🌳 Cleared %d trees near home for user %d", removedNearHome, userId))
+        end
+        if deduped > 0 or removedNearHome > 0 then
+            self:saveIsland(userId, islandData)
         end
         return
     end
@@ -283,6 +579,10 @@ function PlayerIslandService:ensureTreesForIsland(userId, islandData)
     local center = Vector3.new(islandData.center.X, islandData.center.Y, islandData.center.Z)
     local size = Vector3.new(islandData.size.X, islandData.size.Y, islandData.size.Z)
     self:generateInitialTrees(userId, center, size)
+    local removed = self:clearTreesNearHome(userId, islandData, 20)
+    if removed > 0 then
+        print(string.format("[PlayerIslandService] 🌳 Cleared %d trees near home for user %d", removed, userId))
+    end
     self:saveIsland(userId, islandData)
 end
 
@@ -505,8 +805,8 @@ function PlayerIslandService:generateInitialTrees(userId, center, size)
     local maxAttempts = treeCount * 50 -- Increased attempts for better distribution across entire island
 
     -- Minimum spacing between trees (INCREASED for better distribution)
-    local MIN_TREE_SPACING = 10 -- Increased from 2 to 10 studs
-    local MIN_MODEL_CLEARANCE = 10
+    local MIN_TREE_SPACING = TREE_MIN_SPACING
+    local MIN_MODEL_CLEARANCE = 20
 
     -- Grid-based distribution to ensure even spread across island
     local gridCellSize = 25 -- Grid cell size in studs

@@ -24,7 +24,7 @@ local CONFIG = {
 	MIN_ROCKS_PER_ISLAND = 6,
 	MAX_ROCKS_PER_ISLAND = 12,
 	RESOURCE_MAINTENANCE_INTERVAL = 120, -- Periodic check to repopulate resources
-	TREE_CLEARANCE = 10,
+	TREE_CLEARANCE = 20,
 }
 
 local OAK_TREE_TEMPLATE_NAME = "OakTree"
@@ -225,6 +225,9 @@ function ResourceSpawner:ensureMinimumResources(islandName, islandFolder)
 		return
 	end
 	if islandName == "Resources" then
+		return
+	end
+	if islandFolder and islandFolder.Parent and islandFolder.Parent.Name == "PlayerIslands" then
 		return
 	end
 

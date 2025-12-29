@@ -346,6 +346,11 @@ function HomeBuildingService:PlaceHome(player, position, homeSize)
 
     -- Save to island data if PlayerIslandService is available
     if self._playerIslandService then
+        local clearedTrees = self._playerIslandService:clearTreesNearPosition(userId, position, 20)
+        if clearedTrees > 0 then
+            print(string.format("[HomeBuildingService] 🌳 Cleared %d trees near new home for %s", clearedTrees, player.Name))
+        end
+
         local islandData = self._playerIslandService:getPlayerIsland(userId)
         if islandData then
             islandData.hasBuiltHome = true
