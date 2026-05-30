@@ -3249,6 +3249,42 @@ questService = QuestService.new()
 questService:initialize()
 QuestHandlers.initialize(questService)
 
+-- Pay out quest rewards on claim. Without this, claiming a quest did nothing.
+-- Grants bells/miles/items and keeps the daily loop alive by rolling a fresh
+-- daily quest whenever the player finishes one.
+questService:setRewardGranter(function(player, rewards, quest)
+    if not player or not rewards then
+        return
+    end
+
+    if rewards.bells and rewards.bells > 0 then
+        CurrencyManager.addBells(player, rewards.bells)
+    end
+    if rewards.miles and rewards.miles > 0 then
+        CurrencyManager.addMiles(player, rewards.miles)
+    end
+    for _, item in ipairs(rewards.items or {}) do
+        if item.itemId then
+            addItemToInventory(player, { itemId = item.itemId, count = item.count or 1 })
+        end
+    end
+
+    logInfo("🎁 Granted quest rewards", {
+        player = player.Name,
+        quest = quest and quest.id or "?",
+        bells = rewards.bells or 0,
+        miles = rewards.miles or 0,
+    })
+
+    -- Keep the loop going: when a daily quest is completed, offer a new one.
+    if quest and quest.category == "daily" then
+        local nextDaily = QuestData.getRandomDailyQuest()
+        if nextDaily and not questService:GetQuest(player.UserId, nextDaily.id) then
+            questService:CreateQuest(player.UserId, nextDaily)
+        end
+    end
+end)
+
 -- Hook quest handlers into game systems
 -- Note: Fishing system already has a handler above, we'll update it to include quest tracking
 
