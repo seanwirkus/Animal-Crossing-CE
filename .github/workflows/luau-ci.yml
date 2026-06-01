@@ -21,14 +21,15 @@ jobs:
 
       - name: Install Aftman
         run: |
-          curl -fsSL https://github.com/LPGhatguy/aftman/releases/latest/download/aftman-x86_64-unknown-linux-gnu.zip -o aftman.zip
+          curl -fsSL https://github.com/LPGhatguy/aftman/releases/download/v0.3.0/aftman-0.3.0-linux-x86_64.zip -o aftman.zip
           unzip aftman.zip -d aftman-bin
+          mkdir -p "$HOME/.local/bin"
           install aftman-bin/aftman $HOME/.local/bin/aftman
           echo "$HOME/.aftman/bin" >> "$GITHUB_PATH"
 
       - name: Install toolchain
         run: |
-          $HOME/.local/bin/aftman install
+          $HOME/.local/bin/aftman install --no-trust-check
 
       - name: Run static checks
         run: bash tools/run_static_checks.sh

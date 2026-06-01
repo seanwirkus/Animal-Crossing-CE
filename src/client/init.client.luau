@@ -666,6 +666,11 @@ end)
 keybindManager:registerBind("QUESTS", function(inputState)
     if inputState == "began" then
         guiManager:toggleGUI("QuestGUI")
+        -- Keep the objective tracker visible whenever the player checks quests
+        local tracker = _G.ObjectiveTracker
+        if tracker and not tracker.visible then
+            tracker:show()
+        end
     end
 end)
 
@@ -773,5 +778,22 @@ end)
 
 -- Initialize StatusHUD (always visible at top of screen)
 local statusHUD = StatusHUDModule.new()
+
+-- Initialize Objective Tracker (always-visible "what to do next" card driven by
+-- the quest system). Kept hidden during onboarding; the first-day cutscene
+-- reveals it. Returning players who already onboarded see it once quests load.
+local ObjectiveTrackerModule = require(script.Modules.ObjectiveTracker)
+local objectiveTracker = ObjectiveTrackerModule.new()
+_G.ObjectiveTracker = objectiveTracker
+
+-- For players who are past onboarding, surface the tracker automatically once
+-- their quests sync. New players get it via the first-day cutscene instead.
+task.spawn(function()
+    task.wait(3)
+    -- Show only if the player already has quests loaded (i.e. not mid-onboarding)
+    if not objectiveTracker.visible and #objectiveTracker.quests > 0 then
+        objectiveTracker:show()
+    end
+end)
 
 print("[Client] All systems ready")

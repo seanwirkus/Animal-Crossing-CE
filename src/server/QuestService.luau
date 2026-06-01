@@ -17,8 +17,16 @@ function QuestService.new()
     self._playerQuests = {} -- playerUserId -> { questId -> questData }
     self._questListeners = {} -- playerUserId -> callbacks
     self._remoteEvent = nil
+    self._rewardGranter = nil -- function(player, rewards, quest) called when a quest is claimed
     print("[QuestService] ✅ Initializing")
     return self
+end
+
+-- Register a callback responsible for actually paying out quest rewards
+-- (bells, miles, items). The server wires this up so claiming a quest grants
+-- real currency/items instead of silently doing nothing.
+function QuestService:setRewardGranter(granter)
+    self._rewardGranter = granter
 end
 
 function QuestService:initialize()
@@ -295,12 +303,24 @@ function QuestService:_handleClientRequest(player, action, data)
     if action == "RequestQuests" then
         self:_syncToClient(player)
     elseif action == "ClaimRewards" and data and data.questId then
+        -- Capture the quest before claiming so the granter can react to its category.
+        local quest = self:GetQuest(player.UserId, data.questId)
         local success, rewards = self:ClaimRewards(player.UserId, data.questId)
         if success and rewards then
-            -- Grant rewards (handled by caller)
+            -- Actually pay out the rewards (bells/miles/items).
+            if self._rewardGranter then
+                local ok, err = pcall(self._rewardGranter, player, rewards, quest)
+                if not ok then
+                    warn("[QuestService] ❌ Reward granter failed:", err)
+                end
+            else
+                warn("[QuestService] ⚠️ No reward granter configured - rewards not paid out")
+            end
+
             self._remoteEvent:FireClient(player, "RewardsClaimed", {
                 questId = data.questId,
                 rewards = rewards,
+                questName = quest and quest.name or nil,
             })
         end
     end

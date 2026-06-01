@@ -18,6 +18,7 @@ local CutsceneManager = require(script.Parent.CutsceneManager)
 local LoadingScreen = require(script.Parent.LoadingScreen)
 local GUIContentManager = require(script.Parent.GUIContentManager)
 local OnboardingController = require(script.Parent.OnboardingController)
+local FirstDayCutscene = require(script.Parent.FirstDayCutscene)
 
 local OnboardingFlow = {
     _controller = nil,
@@ -670,6 +671,23 @@ function OnboardingFlow.completeOnboarding()
     end
 
     fireTutorialCompleteRemote()
+
+    -- Hand off into the core game loop: play the first-day cinematic that
+    -- introduces the gather -> craft -> quest -> reward loop, then reveals the
+    -- objective tracker and opens the quest log.
+    task.spawn(function()
+        local ok, err = pcall(function()
+            FirstDayCutscene.play()
+        end)
+        if not ok then
+            warn("[OnboardingFlow] ⚠️ First-day cutscene failed:", err)
+            -- Still reveal next steps so the player isn't left without guidance.
+            local tracker = rawget(_G, "ObjectiveTracker")
+            if tracker and tracker.show then
+                tracker:show()
+            end
+        end
+    end)
 end
 
 --[[
