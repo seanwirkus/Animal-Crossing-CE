@@ -29,7 +29,7 @@ jobs:
 
       - name: Install toolchain
         run: |
-          $HOME/.local/bin/aftman install
+          $HOME/.local/bin/aftman install --no-trust-check
 
       - name: Run static checks
         run: bash tools/run_static_checks.sh
