@@ -3277,10 +3277,26 @@ questService:setRewardGranter(function(player, rewards, quest)
     })
 
     -- Keep the loop going: when a daily quest is completed, offer a new one.
+    -- Prefer a daily the player does not already have; if they have cycled
+    -- through every daily, recycle the one they just claimed.
     if quest and quest.category == "daily" then
-        local nextDaily = QuestData.getRandomDailyQuest()
-        if nextDaily and not questService:GetQuest(player.UserId, nextDaily.id) then
-            questService:CreateQuest(player.UserId, nextDaily)
+        local candidates = {}
+        for _, dailyQuest in pairs(QuestData.DAILY_QUESTS or {}) do
+            if not questService:GetQuest(player.UserId, dailyQuest.id) then
+                table.insert(candidates, dailyQuest)
+            end
+        end
+
+        if #candidates == 0 then
+            questService:CancelQuest(player.UserId, quest.id)
+            local recycledDaily = QuestData.DAILY_QUESTS and QuestData.DAILY_QUESTS[quest.id]
+            if recycledDaily then
+                table.insert(candidates, recycledDaily)
+            end
+        end
+
+        if #candidates > 0 then
+            questService:CreateQuest(player.UserId, candidates[math.random(1, #candidates)])
         end
     end
 end)

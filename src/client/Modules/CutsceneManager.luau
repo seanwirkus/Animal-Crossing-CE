@@ -306,8 +306,8 @@ function CutsceneManager:_createFadeGui()
 
     self.fadeFrame = Instance.new("Frame")
     self.fadeFrame.Name = "FadeFrame"
-    self.fadeFrame.Size = UDim2.new(1, 0, 1, 0)
-    self.fadeFrame.Position = UDim2.new(0, 0, 0, 0)
+    self.fadeFrame.Size = UDim2.fromScale(1, 1)
+    self.fadeFrame.Position = UDim2.fromScale(0, 0)
     self.fadeFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     self.fadeFrame.BackgroundTransparency = 1 -- Start invisible
     self.fadeFrame.BorderSizePixel = 0
